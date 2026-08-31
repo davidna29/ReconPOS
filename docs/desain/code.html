@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard - AutoTransact Pro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#2563eb",
+                        "surface-muted": "#F8FAFC",
+                        "primary": "#004ac6",
+                        "surface-variant": "#e1e2ed",
+                        "on-primary-container": "#eeefff",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#0d1c2e",
+                        "surface-container-low": "#f3f3fe",
+                        "surface-dim": "#d9d9e5",
+                        "on-surface": "#191b23",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "on-tertiary-container": "#ffede6",
+                        "outline-variant": "#c3c6d7",
+                        "secondary": "#515f74",
+                        "hutang-amber": "#D97706",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container-high": "#e7e7f3",
+                        "danger-red": "#DC2626",
+                        "special-teal": "#0D9488",
+                        "tertiary-container": "#bc4800",
+                        "secondary-fixed": "#d5e3fc",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "secondary-container": "#d5e3fc",
+                        "inverse-primary": "#b4c5ff",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#943700",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#ededf9",
+                        "inverse-surface": "#2e3039",
+                        "on-secondary-fixed-variant": "#3a485b",
+                        "surface-tint": "#0053db",
+                        "on-secondary-container": "#57657a",
+                        "cash-blue": "#2563EB",
+                        "on-background": "#191b23",
+                        "outline": "#737686",
+                        "surface": "#faf8ff",
+                        "on-surface-variant": "#434655",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#7d2d00",
+                        "tertiary-fixed": "#ffdbcd",
+                        "on-tertiary-fixed": "#360f00",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#e1e2ed",
+                        "secondary-fixed-dim": "#b9c7df",
+                        "surface-bright": "#faf8ff",
+                        "background": "#faf8ff",
+                        "lunas-green": "#16A34A",
+                        "inverse-on-surface": "#f0f0fb",
+                        "tertiary-fixed-dim": "#ffb596",
+                        "primary-fixed": "#dbe1ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-page": "24px",
+                        "gutter": "16px",
+                        "table-cell-y": "8px",
+                        "unit": "4px",
+                        "table-cell-x": "12px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "table-data": ["Inter", "sans-serif"],
+                        "label-caps": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "headline-md": ["Inter", "sans-serif"],
+                        "headline-sm": ["Inter", "sans-serif"],
+                        "mono-data": ["JetBrains Mono", "monospace"],
+                        "body-sm": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "table-data": ["13px", { "lineHeight": "16px", "fontWeight": "400" }],
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-sm": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "mono-data": ["13px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body class="bg-surface-muted text-on-surface font-body-md min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="hidden md:flex flex-col h-full py-4 bg-surface-container dark:bg-inverse-surface fixed left-0 top-0 h-screen w-[240px] z-20 bg-surface-container-low dark:bg-on-secondary-fixed transition-all duration-200 ease-in-out border-r border-outline-variant">
+<div class="px-4 mb-8 flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-primary text-on-primary flex items-center justify-center font-bold text-lg">
+<span class="material-symbols-outlined" data-icon="build">build</span>
+</div>
+<div>
+<h1 class="font-headline-sm text-headline-sm font-black text-primary">Mechanic Hub</h1>
+<p class="font-body-sm text-body-sm text-secondary">Super Kasir Mode</p>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full bg-primary text-on-primary rounded font-headline-sm text-headline-sm py-2 flex items-center justify-center gap-2 hover:bg-surface-tint transition-colors shadow-sm">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                New Transaction
+            </button>
+</div>
+<ul class="flex flex-col gap-1 flex-1 overflow-y-auto">
+<li>
+<a class="flex items-center gap-3 bg-primary-container text-on-primary-container font-semibold rounded-lg mx-2 my-1 px-4 py-2 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" data-weight="fill" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-secondary dark:text-secondary-fixed-dim hover:text-primary px-4 py-2 mx-2 my-1 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-body-md text-body-md">Master Data</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-secondary dark:text-secondary-fixed-dim hover:text-primary px-4 py-2 mx-2 my-1 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-body-md text-body-md">Purchase</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-secondary dark:text-secondary-fixed-dim hover:text-primary px-4 py-2 mx-2 my-1 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-body-md text-body-md">Transactions</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 text-secondary dark:text-secondary-fixed-dim hover:text-primary px-4 py-2 mx-2 my-1 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto px-2">
+<a class="flex items-center gap-3 text-secondary dark:text-secondary-fixed-dim hover:text-primary px-4 py-2 mx-2 my-1 hover:bg-surface-container-high dark:hover:bg-on-secondary-fixed-variant transition-all duration-200 ease-in-out rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-body-md text-body-md">Sign Out</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-[240px] flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="bg-surface-container-lowest dark:bg-inverse-surface w-full h-16 flex justify-between items-center px-margin-page ml-auto border-b border-outline-variant dark:border-outline z-10 sticky top-0">
+<div class="flex items-center gap-4 lg:hidden">
+<button class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container p-2 rounded cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+</div>
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hidden md:block">
+                AutoTransact Pro
+            </div>
+<div class="flex-1 flex justify-center max-w-md mx-4">
+<!-- Search can go here based on "search_bar": "on_left" if needed, but keeping simple for dashboard -->
+<div class="w-full relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 rounded-full border-none bg-surface-muted focus:ring-1 focus:ring-primary text-sm" placeholder="Search transactions, parts..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-on-secondary-fixed-variant transition-colors rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-on-secondary-fixed-variant transition-colors rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="p-2 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container dark:hover:bg-on-secondary-fixed-variant transition-colors rounded-full cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<div class="ml-2 w-8 h-8 rounded-full overflow-hidden border border-outline-variant cursor-pointer">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="A professional headshot of a mechanic shop manager in a clean, brightly lit garage setting, exuding competence and approachability. High quality corporate portrait style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDksJyas3kNfOeaYelCsx55lJbPejaW8-vxG4RnEkyrF0JSf2NR3qHvEEj451CV6V4Gtwx8NGLY9f_7TjKiw2paK7mi8NrO4TGnmZ17w6Mf121eB4vmZXA9xWDdpSULtVAMWNEDFECMCImGa2_qWDQhCFjfrpdu1k5nVGffgk23sIrLXj3yUzmd2vPkwRsh19OSfap_SlysBXlRZEPyofLkR_OMtagfKecKUhAzYx5PIhLDTb5mVvqeOg"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-margin-page flex-1 flex flex-col gap-6">
+<div class="flex justify-between items-end">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Overview</h2>
+<p class="font-body-md text-body-md text-secondary mt-1">June 2023 Performance</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 bg-white border border-outline-variant rounded font-body-sm text-body-sm font-medium hover:bg-surface-muted transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" data-icon="calendar_month">calendar_month</span>
+                        This Month
+                    </button>
+</div>
+</div>
+<!-- Bento Grid - Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Omset Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex flex-col justify-between h-32 relative overflow-hidden group">
+<div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+<span class="material-symbols-outlined text-8xl" data-icon="payments">payments</span>
+</div>
+<div>
+<h3 class="font-label-caps text-label-caps text-secondary uppercase tracking-wider">Total Omset Bulan Berjalan</h3>
+<div class="font-headline-lg text-headline-lg text-primary mt-2">Rp 142.500.000</div>
+</div>
+<div class="flex items-center gap-1 text-lunas-green font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px]" data-icon="trending_up">trending_up</span>
+<span>+12.5% dari bulan lalu</span>
+</div>
+</div>
+<!-- Hutang Card (Warning) -->
+<div class="bg-surface-container-lowest border-l-4 border-l-danger-red border-t border-r border-b border-outline-variant rounded-xl p-4 flex flex-col justify-between h-32">
+<div class="flex justify-between items-start">
+<h3 class="font-label-caps text-label-caps text-danger-red uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="warning">warning</span>
+                            Hutang Belum Lunas
+                        </h3>
+</div>
+<div>
+<div class="font-headline-lg text-headline-lg text-on-surface">Rp 28.400.000</div>
+</div>
+<div class="text-danger-red font-body-sm text-body-sm font-medium flex items-center gap-1 bg-error-container w-fit px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px]" data-icon="event_busy">event_busy</span>
+                        3 tagihan jatuh tempo dlm 7 hari
+                    </div>
+</div>
+<!-- Stok Card -->
+<div class="bg-surface-container-lowest border-l-4 border-l-hutang-amber border-t border-r border-b border-outline-variant rounded-xl p-4 flex flex-col justify-between h-32">
+<h3 class="font-label-caps text-label-caps text-hutang-amber uppercase tracking-wider">SKU Stok Menipis/Habis</h3>
+<div>
+<div class="font-headline-lg text-headline-lg text-on-surface flex items-baseline gap-2">
+                            12 <span class="font-body-md text-body-md text-secondary">Items</span>
+</div>
+</div>
+<div class="text-hutang-amber font-body-sm text-body-sm font-medium flex items-center gap-1 bg-amber-50 w-fit px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px]" data-icon="inventory_2">inventory_2</span>
+                        Oli Mesin, Filter Udara kritis
+                    </div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mt-2">
+<!-- Main Data Area (2/3 width) -->
+<div class="lg:col-span-2 flex flex-col gap-6">
+<!-- Quick Actions -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Aksi Cepat</h3>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+<button class="flex flex-col items-center justify-center p-4 bg-surface-muted hover:bg-surface-container border border-outline-variant rounded-lg transition-all active:shadow-inner group">
+<div class="w-10 h-10 rounded-full bg-primary-fixed text-primary flex items-center justify-center mb-2 group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined" data-icon="add_shopping_cart">add_shopping_cart</span>
+</div>
+<span class="font-body-sm text-body-sm font-medium text-on-surface text-center">Transaksi Pembelian</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-surface-muted hover:bg-surface-container border border-outline-variant rounded-lg transition-all active:shadow-inner group">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed text-secondary-fixed-on flex items-center justify-center mb-2 group-hover:bg-secondary group-hover:text-white transition-colors text-primary">
+<span class="material-symbols-outlined" data-icon="inventory">inventory</span>
+</div>
+<span class="font-body-sm text-body-sm font-medium text-on-surface text-center">Data Barang Baru</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 bg-surface-muted hover:bg-surface-container border border-outline-variant rounded-lg transition-all active:shadow-inner group">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed text-tertiary-fixed-on flex items-center justify-center mb-2 group-hover:bg-tertiary group-hover:text-white transition-colors text-tertiary">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<span class="font-body-sm text-body-sm font-medium text-on-surface text-center">Generate Transaksi</span>
+</button>
+</div>
+</div>
+<!-- Recent Transactions Table -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col h-full">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-slate-50">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Transaksi Terakhir</h3>
+<button class="text-primary font-body-sm text-body-sm hover:underline">Lihat Semua</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-slate-50 border-b border-outline-variant font-label-caps text-label-caps text-secondary">
+<tr>
+<th class="px-table-cell-x py-table-cell-y font-semibold">ID</th>
+<th class="px-table-cell-x py-table-cell-y font-semibold">Tanggal</th>
+<th class="px-table-cell-x py-table-cell-y font-semibold">Supplier/Pelanggan</th>
+<th class="px-table-cell-x py-table-cell-y font-semibold text-right">Total</th>
+<th class="px-table-cell-x py-table-cell-y font-semibold text-center">Status</th>
+<th class="px-table-cell-x py-table-cell-y"></th>
+</tr>
+</thead>
+<tbody class="font-table-data text-table-data text-on-surface divide-y divide-slate-100">
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-table-cell-x py-3 font-mono-data text-secondary">TRX-0012</td>
+<td class="px-table-cell-x py-3">15 Jun 2023</td>
+<td class="px-table-cell-x py-3 font-medium">PT. Bintang Sparepart</td>
+<td class="px-table-cell-x py-3 text-right font-mono-data">Rp 4.500.000</td>
+<td class="px-table-cell-x py-3 text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-800">Lunas</span>
+</td>
+<td class="px-table-cell-x py-3 text-right">
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span></button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors bg-red-50/30">
+<td class="px-table-cell-x py-3 font-mono-data text-secondary">TRX-0011</td>
+<td class="px-table-cell-x py-3">14 Jun 2023</td>
+<td class="px-table-cell-x py-3 font-medium">Toko Oli Makmur</td>
+<td class="px-table-cell-x py-3 text-right font-mono-data">Rp 12.800.000</td>
+<td class="px-table-cell-x py-3 text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-100 text-amber-800">Hutang</span>
+</td>
+<td class="px-table-cell-x py-3 text-right">
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span></button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-table-cell-x py-3 font-mono-data text-secondary">TRX-0010</td>
+<td class="px-table-cell-x py-3">12 Jun 2023</td>
+<td class="px-table-cell-x py-3 font-medium">CV. Maju Jaya Ban</td>
+<td class="px-table-cell-x py-3 text-right font-mono-data">Rp 8.250.000</td>
+<td class="px-table-cell-x py-3 text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-green-100 text-green-800">Lunas</span>
+</td>
+<td class="px-table-cell-x py-3 text-right">
+<button class="text-secondary hover:text-primary"><span class="material-symbols-outlined text-[18px]" data-icon="visibility">visibility</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Side Info Area (1/3 width) -->
+<div class="flex flex-col gap-6">
+<!-- Alert Panel -->
+<div class="bg-white border border-outline-variant rounded-xl p-5 shadow-sm">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-danger-red" data-icon="notification_important">notification_important</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Perhatian Segera</h3>
+</div>
+<div class="flex flex-col gap-3">
+<div class="p-3 bg-red-50 rounded-lg border border-red-100 flex gap-3">
+<span class="material-symbols-outlined text-danger-red mt-0.5 text-[20px]" data-icon="warning">warning</span>
+<div>
+<h4 class="font-body-sm text-body-sm font-semibold text-danger-red">Tagihan Jatuh Tempo Besok</h4>
+<p class="font-table-data text-table-data text-slate-700 mt-1">PT. Bintang Sparepart - Rp 15.000.000 (TRX-0005)</p>
+</div>
+</div>
+<div class="p-3 bg-amber-50 rounded-lg border border-amber-100 flex gap-3">
+<span class="material-symbols-outlined text-hutang-amber mt-0.5 text-[20px]" data-icon="inventory_2">inventory_2</span>
+<div>
+<h4 class="font-body-sm text-body-sm font-semibold text-hutang-amber">Stok Oli Yamalube Habis</h4>
+<p class="font-table-data text-table-data text-slate-700 mt-1">Segera lakukan re-order. Sisa stok: 0 botol.</p>
+<button class="mt-2 text-xs font-semibold text-primary hover:underline">Order Sekarang</button>
+</div>
+</div>
+</div>
+</div>
+<!-- System Status / Info -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 flex-1 relative overflow-hidden">
+<div class="absolute inset-0 opacity-10 pointer-events-none" data-alt="Subtle, modern abstract blueprint graphic pattern reminiscent of technical diagrams or circuit boards, very light gray on white background, professional tech aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBIw1SrdT13w_gQ3j5GW3OvzSXqmama9aXUlVPatqRsH9XcGCnmCR4RHyTqUQtzbDInnc05itviSvoaxwEADJGlnViC4fk7XRe2v2ijH-EGicOKB09WSWRhmIaTsxyQ8B-p6Avzf8gep56JJIzKaDsdAl4OvW38n1ivdwkseXJOlBPcm03a2qimMKXQadEDKB9_xShWXKobheu-bwwbhGf2zWw96NPrslVi8hMaEzV3_rFEzrU2SWIEkQ')"></div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-4 relative z-10">System Status</h3>
+<div class="space-y-4 relative z-10">
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-body-sm text-secondary">Data Sync</span>
+<span class="flex items-center gap-1 text-xs font-medium text-lunas-green bg-green-50 px-2 py-1 rounded">
+<span class="w-1.5 h-1.5 rounded-full bg-lunas-green"></span> Up to date
+                                </span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-sm text-body-sm text-secondary">Last Backup</span>
+<span class="font-mono-data text-mono-data text-on-surface">Today, 02:00 AM</span>
+</div>
+<div class="w-full h-px bg-outline-variant my-2"></div>
+<div>
+<span class="font-label-caps text-label-caps text-secondary block mb-1">Super Kasir Mode</span>
+<div class="w-full bg-slate-200 rounded-full h-1.5">
+<div class="bg-primary h-1.5 rounded-full" style="width: 100%"></div>
+</div>
+<p class="text-[10px] text-secondary mt-1 text-right">Active</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

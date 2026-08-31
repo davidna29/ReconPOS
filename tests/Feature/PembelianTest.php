@@ -1,0 +1,185 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Barang;
+use App\Models\InvoicePembelian;
+use App\Models\Supplier;
+use App\Models\User;
+use App\Services\PembelianService;
+use App\Services\PenjualanService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Tests\TestCase;
+
+class PembelianTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function authUser(): User
+    {
+        $u = User::create(['name' => 'Admin', 'email' => 'p@a.id', 'password' => 'pass1234']);
+        $this->actingAs($u);
+
+        return $u;
+    }
+
+    private function barang(string $kode = 'B-1', string $sn = 'NON_SN'): Barang
+    {
+        return Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => $kode, 'nama' => 'Barang ' . $kode,
+            'sn_atau_non_sn' => $sn,
+        ]);
+    }
+
+    private function supplier(): Supplier
+    {
+        return Supplier::create(['nama' => 'PT. Test', 'kontak' => '0811']);
+    }
+
+    public function test_simpan_cash_tambah_stok_dan_histori(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-CASH');
+        $s = $this->supplier();
+        $response = $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash',
+            'diskon_total' => 0,
+            'bayar_atau_dp' => 100000,
+            'items' => [
+                ['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0],
+            ],
+        ]);
+        $response->assertSessionHas('success');
+        $this->assertSame(2, $b->fresh()->stock);
+        $this->assertSame(50000, $b->fresh()->harga_beli_terakhir);
+        $this->assertSame(1, InvoicePembelian::count());
+        $this->assertDatabaseHas('kartu_stok', ['barang_id' => $b->id, 'jenis' => 'masuk_pembelian', 'qty' => 2]);
+    }
+
+    public function test_cash_bayar_kurang_ditolak(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-KURANG');
+        $s = $this->supplier();
+        $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash',
+            'bayar_atau_dp' => 1,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ])->assertSessionHas('error');
+        $this->assertSame(0, $b->fresh()->stock);
+    }
+
+    public function test_hutang_dp_sisa_dan_jatuh_tempo_otomatis(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-HUT');
+        $s = $this->supplier();
+        $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang',
+            'bayar_atau_dp' => 20000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ])->assertSessionHas('success');
+        $inv = InvoicePembelian::first();
+        $this->assertSame(80000, $inv->sisa_hutang);
+        $this->assertSame('belum_lunas', $inv->status);
+        $this->assertNotNull($inv->jatuh_tempo);
+        $this->assertEquals(
+            now()->addMonths(3)->endOfMonth()->format('Y-m-d'),
+            Carbon::parse($inv->jatuh_tempo)->format('Y-m-d')
+        );
+    }
+
+    public function test_pelunasan_cicilan_pindah_ke_lunas(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-LUNASI');
+        $s = $this->supplier();
+        $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang',
+            'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $inv = InvoicePembelian::first();
+        $this->post(route('pembelian.bayar', $inv), ['nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d')]);
+        $this->assertSame(50000, $inv->fresh()->sisa_hutang);
+        $this->post(route('pembelian.bayar', $inv), ['nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d')]);
+        $this->assertSame(0, $inv->fresh()->sisa_hutang);
+        $this->assertSame('lunas', $inv->fresh()->status);
+    }
+
+    public function test_hapus_invoice_dengan_pembayaran_diblokir(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-BLOK');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang',
+            'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $inv = InvoicePembelian::first();
+        app(PembelianService::class)->pelunasan($inv, 50000, now());
+        $this->delete(route('pembelian.destroy', $inv))->assertSessionHas('error');
+        $this->assertDatabaseHas('invoice_pembelian', ['id' => $inv->id]);
+    }
+
+    public function test_edit_qty_kurang_dari_terjual_ditolak(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-EDIT');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash',
+            'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        // jual 2 unit agar "terjual sejak invoice" = 2 → edit qty 1 ditolak
+        app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 2, 'harga_jual' => 60000]]);
+        $this->assertSame(0, $b->fresh()->stock);
+        $this->put(route('pembelian.update', $inv), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => $inv->tanggal_transaksi->format('Y-m-d H:i'),
+            'jenis' => 'cash',
+            'bayar_atau_dp' => 50000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 1, 'diskon_item' => 0]],
+        ])->assertSessionHas('error');
+        // edit ditolak: stok tetap 0 & qty invoice masih 2 (tidak diubah)
+        $this->assertSame(0, $b->fresh()->stock);
+        $this->assertSame(2, $inv->fresh()->items()->first()->qty);
+    }
+
+    public function test_hapus_invoice_yang_membuat_stok_minus_warning(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-MINUS');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash',
+            'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 2, 'harga_jual' => 60000]]);
+        // stok sekarang 0 — hapus invoice (qty 2) akan minus:
+        $this->delete(route('pembelian.destroy', $inv))->assertSessionHas('stok_warning');
+        // dengan force:
+        $this->delete(route('pembelian.destroy', $inv) . '?force=1')->assertSessionHas('success');
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
+    }
+}

@@ -1,0 +1,234 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+/*
+ * Design System "Precision Ledger" — translasi penuh dari docs/desain/DESIGN.md
+ * (warna, tipografi Inter/JetBrains Mono, radius, spacing, semantik Cash/Hutang/Lunas/Danger).
+ */
+@theme {
+    --color-primary: #004ac6;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #2563eb;
+    --color-on-primary-container: #eeefff;
+    --color-on-tertiary: #ffffff;
+    --color-on-tertiary-container: #ffede6;
+    --color-on-error: #ffffff;
+    --color-cash-blue: #2563eb;
+    --color-hutang-amber: #d97706;
+    --color-lunas-green: #16a34a;
+    --color-danger-red: #dc2626;
+    --color-special-teal: #0d9488;
+    --color-surface-muted: #f8fafc;
+    --color-surface: #faf8ff;
+    --color-surface-dim: #d9d9e5;
+    --color-surface-bright: #faf8ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f3f3fe;
+    --color-surface-container: #ededf9;
+    --color-surface-container-high: #e7e7f3;
+    --color-surface-container-highest: #e1e2ed;
+    --color-on-surface: #191b23;
+    --color-on-surface-variant: #434655;
+    --color-inverse-surface: #2e3039;
+    --color-inverse-on-surface: #f0f0fb;
+    --color-outline: #737686;
+    --color-outline-variant: #c3c6d7;
+    --color-secondary: #515f74;
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #d5e3fc;
+    --color-on-secondary-container: #57657a;
+    --color-tertiary: #943700;
+    --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #bc4800;
+    --color-on-tertiary-container: #ffede6;
+    --color-error: #ba1a1a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono-data: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --text-headline-lg: 24px;
+    --text-headline-lg--line-height: 32px;
+    --text-headline-lg--letter-spacing: -0.02em;
+    --text-headline-md: 20px;
+    --text-headline-md--line-height: 28px;
+    --text-headline-sm: 16px;
+    --text-headline-sm--line-height: 24px;
+    --text-body-md: 14px;
+    --text-body-md--line-height: 20px;
+    --text-body-sm: 13px;
+    --text-body-sm--line-height: 18px;
+    --text-table-data: 13px;
+    --text-table-data--line-height: 16px;
+    --text-label-caps: 11px;
+    --text-label-caps--line-height: 16px;
+    --text-label-caps--letter-spacing: 0.05em;
+    --text-mono-data: 13px;
+    --text-mono-data--line-height: 16px;
+
+    --radius-sm: 0.125rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+}
+
+@layer components {
+    .btn {
+        @apply inline-flex cursor-pointer select-none items-center justify-center gap-1.5 rounded px-3.5 py-2 text-body-sm font-medium transition-colors;
+    }
+    .btn:disabled {
+        @apply cursor-not-allowed opacity-50;
+    }
+    .btn-primary {
+        @apply bg-primary text-on-primary hover:bg-primary-container;
+    }
+    .btn-secondary {
+        @apply border border-outline-variant bg-white text-on-surface hover:bg-surface-muted;
+    }
+    .btn-danger {
+        @apply border border-danger-red/40 bg-white text-danger-red hover:bg-red-50;
+    }
+    .btn-success {
+        @apply bg-lunas-green text-white hover:bg-lunas-green/90;
+    }
+    .btn-amber {
+        @apply bg-hutang-amber text-white hover:bg-hutang-amber/90;
+    }
+    .btn-sm {
+        @apply px-2.5 py-1.5 text-[12px];
+    }
+    .btn-icon {
+        @apply inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-secondary transition-colors hover:bg-surface-container-high;
+    }
+
+    .badge {
+        @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-caps font-bold normal-case tracking-wide;
+    }
+    .badge-green {
+        @apply bg-green-100 text-green-800;
+    }
+    .badge-amber {
+        @apply bg-amber-100 text-amber-800;
+    }
+    .badge-red {
+        @apply bg-red-100 text-red-700;
+    }
+    .badge-blue {
+        @apply bg-blue-100 text-blue-700;
+    }
+    .badge-teal {
+        @apply bg-teal-100 text-teal-800;
+    }
+    .badge-slate {
+        @apply bg-slate-100 text-slate-700;
+    }
+
+    .card {
+        @apply rounded-xl border border-outline-variant bg-surface-container-lowest;
+    }
+    .card-pad {
+        @apply rounded-xl border border-outline-variant bg-surface-container-lowest p-5;
+    }
+
+    .input {
+        @apply w-full rounded border border-outline-variant bg-white px-3 py-2 text-body-md text-on-surface placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary;
+    }
+    .input-readonly {
+        @apply w-full cursor-not-allowed rounded border border-outline-variant bg-slate-100 px-3 py-2 text-body-md text-slate-500;
+    }
+    .label {
+        @apply mb-1 block text-body-sm font-medium text-on-surface;
+    }
+    .hint {
+        @apply mt-1 block text-[11px] text-secondary;
+    }
+    .input-error {
+        @apply border-danger-red focus:border-danger-red focus:ring-danger-red;
+    }
+
+    .tbl {
+        @apply w-full text-left;
+    }
+    .tbl thead th {
+        @apply border-b border-outline-variant bg-slate-50 px-3 py-2 text-label-caps font-bold text-secondary;
+    }
+    .tbl tbody td {
+        @apply border-b border-slate-100 px-3 py-2.5 align-middle text-table-data text-on-surface;
+    }
+    .tbl tbody tr {
+        @apply transition-colors hover:bg-slate-50;
+    }
+    .tbl tbody tr.row-overdue {
+        @apply border-l-4 border-l-danger-red bg-red-50/70;
+    }
+    .tbl tbody tr.row-warning {
+        @apply border-l-4 border-l-hutang-amber bg-amber-50/60;
+    }
+
+    .mono {
+        font-family: var(--font-mono-data);
+        font-size: var(--text-mono-data);
+    }
+
+    .segmented {
+        @apply inline-flex rounded-lg border border-outline-variant bg-surface-container-low p-1;
+    }
+    .segmented button,
+    .segmented a {
+        @apply rounded-md px-4 py-1.5 text-body-sm font-semibold text-secondary transition-colors;
+    }
+    .segmented .active-cash {
+        @apply bg-cash-blue text-white;
+    }
+    .segmented .active-hutang {
+        @apply bg-hutang-amber text-white;
+    }
+
+    .nav-link {
+        @apply mx-2 my-1 flex items-center gap-3 rounded-lg px-4 py-2 text-body-md font-medium text-secondary transition-all duration-200 hover:bg-surface-container-high hover:text-primary;
+    }
+    .nav-link-active {
+        @apply bg-primary-container font-semibold text-on-primary-container;
+    }
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+}
+
+/** Cetak invoice & barcode label (PRD 5.2 print, 4.3 cetak barcode) */
+@media print {
+    body {
+        background: #fff !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+    .print-area {
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0;
+    }
+    .print-barcode {
+        page-break-after: always;
+    }
+    @page {
+        margin: 12mm;
+    }
+}
