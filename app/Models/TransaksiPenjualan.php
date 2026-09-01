@@ -10,13 +10,14 @@ class TransaksiPenjualan extends Model
 
     protected $fillable = [
         'ref_transaksi', 'tanggal_waktu', 'customer_id', 'jenis_transaksi',
-        'tipe_pembayaran', 'sumber', 'status', 'batch_generate_id', 'total',
+        'tipe_pembayaran', 'sumber', 'status', 'batch_generate_id', 'total', 'diedit_at',
     ];
 
     protected function casts(): array
     {
         return [
             'tanggal_waktu' => 'datetime',
+            'diedit_at' => 'datetime',
         ];
     }
 

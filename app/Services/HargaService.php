@@ -34,11 +34,18 @@ class HargaService
         $margin = $this->marginEfektif($barang);
         $hargaJual = $this->hitungHargaJual($hargaBeli, $margin);
 
+        // Harga jual efektif yang berlakus utk tanggal ini:
+        // - mode otomatis      : hitung dari margin (transaksi lama mengikuti batch saat itu)
+        // - mode manual_terkunci: pakai harga jual terkunci user; bila 0, fallback hitung margin
+        $hargaJualEfektif = $barang->isModeOtomatis()
+            ? $hargaJual
+            : (((int) $barang->harga_jual > 0) ? (int) $barang->harga_jual : $hargaJual);
+
         $hist = HistoriHarga::create([
             'barang_id' => $barang->id,
             'harga_beli' => $hargaBeli,
             'margin_dipakai' => $margin,
-            'harga_jual_efektif' => $hargaJual,
+            'harga_jual_efektif' => $hargaJualEfektif,
             'tanggal_berlaku' => $tanggal,
             'invoice_pembelian_id' => $invoiceId,
         ]);

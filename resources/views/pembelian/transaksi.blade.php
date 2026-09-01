@@ -33,10 +33,11 @@
 @endphp
 
 @section('content')
+    @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">{{ $invoice ? 'Edit Invoice ' . $invoice->no_invoice : 'Transaksi Pembelian' }}</h2>
-            <p class="mt-1 text-body-md text-secondary">Stok otomatis bertambah & harga jual dihitung ulang mengikuti margin saat disimpan (PRD 5.1, 5.4)</p>
+            <p class="mt-1 text-body-md text-secondary">Input pembelian baru — stok otomatis bertambah & harga jual dihitung ulang mengikuti margin saat disimpan (PRD 5.1, 5.4)</p>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('pembelian.template.download') }}" class="btn btn-success btn-sm">
@@ -228,6 +229,13 @@
         const EDIT_ITEMS = {!! json_encode($itemsData) !!};
         let baris = [];
 
+        // Normalizer nominal: tahan "50.000", "50 000", "50,000" -> 50000
+        function num(v) {
+            if (v === null || v === undefined || v === '') return 0;
+            const n = Number(String(v).replace(/[.\s,]/g, ''));
+            return Number.isFinite(n) ? n : 0;
+        }
+
         function fmtRp(n) { return 'Rp ' + Number(n).toLocaleString('id-ID'); }
 
         function renderBaris() {
@@ -262,9 +270,10 @@
             });
 
             document.querySelectorAll('input[data-field]').forEach(inp => {
+                // re-render hanya saat blur (change) — hindari kehilangan fokus tiap ketikan
                 inp.addEventListener('change', () => {
                     const it = baris[inp.dataset.idx];
-                    it[inp.dataset.field] = parseInt(inp.value || 0);
+                    it[inp.dataset.field] = num(inp.value);
                     renderBaris();
                 });
             });
@@ -279,15 +288,15 @@
         }
 
         function hitungRingkasan(subtotal, reRenderTabel = true) {
-            const diskon = parseInt(document.getElementById('diskon-total').value || 0);
+            const diskon = num(document.getElementById('diskon-total').value);
             const total = Math.max(0, subtotal - diskon);
             document.getElementById('sum-subtotal').textContent = fmtRp(subtotal);
             document.getElementById('sum-total').textContent = fmtRp(total);
             document.getElementById('summary-kosong').style.display = baris.length ? 'none' : 'block';
 
-            const bayar = parseInt(document.getElementById('bayar-cash').value || 0);
+            const bayar = num(document.getElementById('bayar-cash').value);
             document.getElementById('kembali-cash').textContent = fmtRp(Math.max(0, bayar - total));
-            const dp = parseInt(document.getElementById('dp-hutang').value || 0);
+            const dp = num(document.getElementById('dp-hutang').value);
             document.getElementById('sisa-hutang').textContent = fmtRp(Math.max(0, total - dp));
 
             const btnCash = document.getElementById('btn-simpan-cash');
@@ -303,11 +312,20 @@
 
         ['diskon-total', 'bayar-cash', 'dp-hutang'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.addEventListener('input', () => hitungRingkasan(sumBaris(), false));
+            if (el) ['input', 'change'].forEach(evt => el.addEventListener(evt, () => hitungRingkasan(sumBaris(), false)));
         });
 
+        // Aktifkan hanya input pembayaran pada tab yg aktif (hindari 2 nama sama ikut terkirim)
+        function sinkronPanelPembayaran(aktif) {
+            const bayar = document.getElementById('bayar-cash');
+            const dp = document.getElementById('dp-hutang');
+            bayar.disabled = aktif !== 'cash';
+            dp.disabled = aktif !== 'hutang';
+            hitungRingkasan(sumBaris(), false);
+        }
+
         function sumBaris() {
-            return baris.reduce((acc, it) => acc + ((it.harga_beli * it.qty) - it.diskon_item), 0);
+            return baris.reduce((acc, it) => acc + ((num(it.harga_beli) * num(it.qty)) - num(it.diskon_item)), 0);
         }
 
         // Toggle Cash/Hutang
@@ -318,6 +336,7 @@
                 btn.classList.add(btn.dataset.target === 'cash' ? 'active-cash' : 'active-hutang');
                 document.getElementById('panel-cash').classList.toggle('hidden', btn.dataset.target !== 'cash');
                 document.getElementById('panel-hutang').classList.toggle('hidden', btn.dataset.target !== 'hutang');
+                sinkronPanelPembayaran(btn.dataset.target);
             });
         });
 
@@ -352,7 +371,8 @@
         });
         inputCari.addEventListener('blur', () => setTimeout(() => hasil.classList.add('hidden'), 150));
 
-        // Inisialisasi
+        // Inisialisasi & sinkronisasi awal (jenis dari server: cash / hutang)
+        sinkronPanelPembayaran(document.getElementById('jenis').value);
         EDIT_ITEMS.forEach(it => {
             baris.push({ id: it.barang_id, kode: it.kode, nama: it.nama, harga_beli: it.harga_beli, qty: it.qty, diskon_item: it.diskon_item, no_sn: it.no_sn || '', sn: it.sn });
         });

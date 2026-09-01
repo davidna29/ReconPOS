@@ -27,8 +27,5 @@
         @endfor
     </div>
 
-    <div class="no-print" style="margin-top:16px;">
-        <button onclick="window.print()" style="padding:8px 16px;">Cetak Label</button>
-        <a href="{{ route('barang.index') }}" style="margin-left:8px;">Kembali</a>
-    </div>
+    <p class="muted" style="margin-top:12px;">Cetak lewat menu print browser (Ctrl+P / Cmd+P).</p>
 @endsection

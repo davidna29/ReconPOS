@@ -8,8 +8,10 @@ use App\Models\KategoriBarang;
 use App\Models\Supplier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 
 /**
@@ -23,13 +25,108 @@ class ExcelImportService
         private StockService $stock,
     ) {}
 
-    /** Download template master barang (PRD 4.3c). */
+    /**
+     * Download template master barang (PRD 4.3c) — ALREADY prefilled dengan seluruh
+     * data barang existing (agar minim duplikat: kode yang ada = update), plus
+     * dropdown validasi (SN/STATUS/KATEGORI) di Excel.
+     */
     public function templateBarang(): string
     {
-        $headers = ['KODE_BARANG', 'NAMA_BARANG', 'DESKRIPSI', 'KATEGORI', 'SATUAN', 'SN_ATAU_NON_SN', 'HARGA_JUAL', 'STOCK_AWAL', 'LOKASI_RAK', 'STATUS'];
-        $contoh = ['BLT-001', 'Oli Mesin 0.8L', '', 'Oli & Pelumas', 'pcs', 'NON_SN', '', '10', 'Rak A1', 'Dijual & Untuk Servis'];
+        $barangs = Barang::with('kategori')
+            ->where('tipe_item', 'barang')
+            ->orderBy('kode_barang')
+            ->get();
 
-        return $this->tulisTemplate('template-barang', $headers, [$contoh]);
+        return $this->tulisTemplateBarang($barangs);
+    }
+
+    private function tulisTemplateBarang($barangs): string
+    {
+        $headers = ['KODE_BARANG', 'NAMA_BARANG', 'DESKRIPSI', 'KATEGORI', 'SATUAN', 'SN_ATAU_NON_SN', 'HARGA_JUAL', 'STOCK_AWAL', 'LOKASI_RAK', 'STATUS'];
+        $col = fn (string $h) => chr(ord('A') + array_search($h, $headers, true));
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->getStyle('A1:' . chr(ord('A') + count($headers) - 1) . '1')->getFont()->setBold(true);
+
+        $row = 2;
+        foreach ($barangs as $b) {
+            $sheet->setCellValue($col('KODE_BARANG') . $row, $b->kode_barang);
+            $sheet->setCellValue($col('NAMA_BARANG') . $row, $b->nama);
+            $sheet->setCellValue($col('DESKRIPSI') . $row, $b->deskripsi ?? '');
+            $sheet->setCellValue($col('KATEGORI') . $row, $b->kategori?->nama ?? '');
+            $sheet->setCellValue($col('SATUAN') . $row, $b->satuan);
+            $sheet->setCellValue($col('SN_ATAU_NON_SN') . $row, $b->sn_atau_non_sn);
+            $sheet->setCellValue($col('HARGA_JUAL') . $row, $b->harga_jual > 0 ? $b->harga_jual : '');
+            $sheet->setCellValue($col('STOCK_AWAL') . $row, ''); // hanya utk barang baru
+            $sheet->setCellValue($col('LOKASI_RAK') . $row, $b->lokasi_rak ?? '');
+            $sheet->setCellValue($col('STATUS') . $row, $b->status);
+            $row++;
+        }
+
+        $this->terapkanValidasiDropdown($spreadsheet, $sheet, $headers, $col);
+
+        // Sheet PETUNJUK
+        $petunjuk = $spreadsheet->createSheet();
+        $petunjuk->setTitle('PETUNJUK');
+        $petunjuk->setCellValue('A1', 'Template ini sudah berisi SEMUA data barang yang ada — hindari KODE_BARANG ganda.');
+        $petunjuk->setCellValue('A2', 'KODE_BARANG yang sudah ada akan DIUPDATE (bukan duplikat) saat file di-upload.');
+        $petunjuk->setCellValue('A3', 'Tambah baris di bawah utk SKU baru; kolom STOCK_AWAL hanya berlaku utk barang baru.');
+        $petunjuk->setCellValue('A4', 'HARGA_JUAL hanya dipakai utk SKU mode "Kunci Manual"; mode otomatis dihitung dari margin.');
+        $petunjuk->setCellValue('A5', 'KATEGORI: pilih dari dropdown (kategori baru bisa dibuat lewat aplikasi).');
+        $petunjuk->getColumnDimension('A')->setWidth(120);
+
+        return $this->simpanSpreadsheet($spreadsheet, 'template-barang');
+    }
+
+    /** Dropdown Excel (data validation) utk kolom SN, STATUS, dan KATEGORI (API PhpSpreadsheet v5). */
+    private function terapkanValidasiDropdown(Spreadsheet $spreadsheet, Worksheet $sheet, array $headers, \Closure $col): void
+    {
+        $akhir = 1000; // baris kosong di bawah data tetap punya dropdown (allowBlank)
+
+        $tambah = function (string $cell, string $formula) use ($akhir, $sheet): void {
+            $v = new DataValidation();
+            $v->setSqref($cell . '2:' . $cell . $akhir);
+            $v->setType(DataValidation::TYPE_LIST);
+            $v->setFormula1($formula);
+            $v->setAllowBlank(true);
+            $v->setShowDropDown(false); // false = panah dropdown TAMPIL (konvensi OOXML terbalik)
+            $sheet->setDataValidation($cell . '2', $v);
+        };
+
+        $tambah($col('SN_ATAU_NON_SN'), '"SN,NON_SN"');
+        $tambah($col('STATUS'), '"Dijual,Untuk Servis,Dijual & Untuk Servis"');
+
+        // KATEGORI: daftar kategori existing lewat sheet hidden "Daftar" (hindari limit 255 char)
+        $kategori = KategoriBarang::orderBy('nama')->pluck('nama');
+        if ($kategori->count() > 0) {
+            $daftar = $spreadsheet->getSheetByName('Daftar');
+            if (! $daftar) {
+                $daftar = $spreadsheet->createSheet();
+                $daftar->setTitle('Daftar');
+            }
+            foreach ($kategori as $i => $nama) {
+                $daftar->setCellValue('A' . ($i + 1), $nama);
+            }
+            $daftar->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+
+            $tambah($col('KATEGORI'), "'Daftar'!\$A\$1:\$A\$" . $kategori->count());
+        }
+    }
+
+    private function simpanSpreadsheet(Spreadsheet $spreadsheet, string $nama): string
+    {
+        $dir = storage_path('app/private/export');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+        $path = $dir . '/' . $nama . '.xlsx';
+        (new XlsxWriter($spreadsheet))->save($path);
+
+        return $path;
     }
 
     /** Download template pembelian (PRD 5.3). */
@@ -137,14 +234,21 @@ class ExcelImportService
 
         $errors = [];
         $barisOk = [];
+        $seenKode = []; // deteksi duplikat dalam file (huruf besar/kecil dianggap sama)
         foreach ($rows as $i => $r) {
             $no = $i + 2;
-            $kode = strtoupper(trim((string) $r['KODE_BARANG']));
+            $kode = trim((string) $r['KODE_BARANG']);      // asli (dipertahankan saat create)
+            $kodeUnik = strtoupper($kode);                 // kunci matching & dedup
             $nama = trim((string) ($r['NAMA_BARANG'] ?? ''));
             if ($kode === '') {
                 $errors[] = 'Baris ' . $no . ': KODE_BARANG wajib diisi.';
                 continue;
             }
+            if (isset($seenKode[$kodeUnik])) {
+                $errors[] = 'Baris ' . $no . ': KODE_BARANG "' . $kode . '" duplikat di dalam file (huruf besar/kecil dianggap sama dengan "' . $seenKode[$kodeUnik] . '").';
+                continue;
+            }
+            $seenKode[$kodeUnik] = $kode;
             if ($nama === '') {
                 $errors[] = 'Baris ' . $no . ': NAMA_BARANG wajib diisi.';
                 continue;
@@ -169,6 +273,7 @@ class ExcelImportService
             $barisOk[] = [
                 'no' => $no,
                 'kode' => $kode,
+                'kode_unik' => $kodeUnik,
                 'nama' => $nama,
                 'deskripsi' => trim((string) ($r['DESKRIPSI'] ?? '')),
                 'kategori' => $kategori,
@@ -194,7 +299,8 @@ class ExcelImportService
                     $kategoriId = KategoriBarang::firstOrCreate(['nama' => $r['kategori']])->id;
                 }
 
-                $barang = Barang::where('kode_barang', $r['kode'])->first();
+                // lookup case-insensitive: kode "stok1" harus sama dengan "STOK1" — hindari SKU ganda
+                $barang = Barang::whereRaw('UPPER(kode_barang) = ?', [$r['kode_unik']])->first();
                 if ($barang) {
                     // update non-destruktif: Harga Beli tidak berubah lewat jalur ini (PRD 4.3c)
                     $barang->update([
@@ -236,7 +342,8 @@ class ExcelImportService
                 }
 
                 // STOCK_AWAL hanya utk barang baru (PRD 4.3c)
-                if ($r['stok_awal'] !== null && $r['stok_awal'] > 0 && $barang->stock === 0) {
+                // catatan: atribut stock instance baru bernilai null (default DB), bandingkan longgar
+                if ($r['stok_awal'] !== null && $r['stok_awal'] > 0 && (int) $barang->stock === 0) {
                     $this->stock->stokAwal($barang, $r['stok_awal'], 'Stok awal (import template barang)');
                 }
             }
@@ -289,7 +396,7 @@ class ExcelImportService
                 $errors[] = 'Baris ' . $no . ': JENIS_TRANSAKSI harus CASH atau HUTANG.';
                 continue;
             }
-            $barang = Barang::where('kode_barang', $kode)->first();
+            $barang = Barang::whereRaw('UPPER(kode_barang) = ?', [$kode])->first();
             if (! $barang) {
                 $errors[] = 'Baris ' . $no . ': KODE_BARANG "' . $kode . '" tidak ada di master data barang.';
                 continue;
@@ -350,7 +457,7 @@ class ExcelImportService
                 $items = [];
                 foreach ($g['items'] as $it) {
                     $items[] = [
-                        'barang_id' => Barang::where('kode_barang', $it['kode'])->value('id'),
+                        'barang_id' => Barang::whereRaw('UPPER(kode_barang) = ?', [$it['kode']])->value('id'),
                         'harga_beli' => $it['harga_beli'],
                         'qty' => $it['qty'],
                         'diskon_item' => $it['diskon_item'],
@@ -409,7 +516,7 @@ class ExcelImportService
         $diabaikan = 0;
         $tidakDitemukan = [];
         foreach ($dataOk as $r) {
-            $barang = Barang::where('kode_barang', $r['kode'])->first();
+            $barang = Barang::whereRaw('UPPER(kode_barang) = ?', [$r['kode']])->first();
             if (! $barang) {
                 $tidakDitemukan[] = $r['kode'];
                 continue;

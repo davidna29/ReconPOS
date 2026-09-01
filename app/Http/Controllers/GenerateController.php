@@ -44,6 +44,7 @@ class GenerateController extends Controller
             'toleransi_persen' => ['nullable', 'integer', 'min:0', 'max:20'],
             'variasi_min' => ['nullable', 'integer', 'min:-50', 'max:0'],
             'variasi_max' => ['nullable', 'integer', 'min:-50', 'max:50'],
+            'maks_qty_item_per_nota' => ['nullable', 'integer', 'min:1', 'max:20'],
             'excluded_item_ids' => ['nullable', 'array'],
         ]);
 
@@ -56,6 +57,7 @@ class GenerateController extends Controller
             'toleransi_persen' => (int) ($validated['toleransi_persen'] ?? 2),
             'variasi_min' => (int) ($validated['variasi_min'] ?? -10),
             'variasi_max' => (int) ($validated['variasi_max'] ?? 0),
+            'maks_qty_item_per_nota' => (int) ($validated['maks_qty_item_per_nota'] ?? 3),
             'excluded_item_ids' => $validated['excluded_item_ids'] ?? [],
         ];
 
@@ -90,7 +92,7 @@ class GenerateController extends Controller
     public function review(BatchGenerate $batch)
     {
         if ($batch->status !== 'draft') {
-            return redirect()->route('generate.riwayat')->with('error', 'Batch ini sudah tersimpan.');
+            return redirect()->route('generate.riwayat')->with('error', 'Batch tidak berstatus draft (tersimpan/dibatalkan) — tidak bisa direview.');
         }
 
         $batch->load(['transaksiPenjualan.items.barang']);
@@ -110,6 +112,19 @@ class GenerateController extends Controller
 
             return redirect()->route('generate.riwayat')
                 ->with('success', 'Draft disimpan sebagai transaksi rekonstruksi resmi. Stok terpotong & sumber transaksi ditandai "rekonstruksi".');
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /** Undo batch tersimpan: kembalikan stok & NO_SN, status 'dibatalkan' (audit dipertahankan). */
+    public function batalkan(BatchGenerate $batch)
+    {
+        try {
+            $this->service->batalBatchTersimpan($batch->id);
+
+            return redirect()->route('generate.riwayat')
+                ->with('success', 'Batch #' . $batch->id . ' dibatalkan — stok dikembalikan, NO_SN dilepas, baris dipertahankan sebagai "dibatalkan" (audit).');
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -159,7 +174,10 @@ class GenerateController extends Controller
     /** Riwayat batch generate (audit trail, PRD 9). */
     public function riwayat()
     {
-        $batches = BatchGenerate::withCount('transaksiPenjualan')->latest()->paginate(15);
+        $batches = BatchGenerate::withCount('transaksiPenjualan')
+            ->with(['transaksiPenjualan.items.barang'])
+            ->latest()
+            ->paginate(15);
 
         return view('generate.riwayat', compact('batches'));
     }

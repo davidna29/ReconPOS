@@ -6,4 +6,5 @@ enum StatusPenjualan: string
 {
     case DRAFT = 'draft';
     case TERSIMPAN = 'tersimpan';
+    case DIBATALKAN = 'dibatalkan';
 }

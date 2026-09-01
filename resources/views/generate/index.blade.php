@@ -68,22 +68,33 @@
             </div>
 
             <div>
-                <label class="label">Variasi Harga MIN (%)</label>
+                <label class="label">Diskon Maksimum yg Diizinkan (Variasi Min, %)</label>
                 <input type="number" name="variasi_min" min="-50" max="0" value="{{ old('variasi_min', $params['variasi_min']) }}" class="input">
+                <span class="hint">Batas bawah rentang harga per baris. Nilai negatif = diskon terbesar yang boleh terjadi (mis. −10 → harga termurah 90% dari harga master). Default −10.</span>
             </div>
             <div>
-                <label class="label">Variasi Harga MAX (%)</label>
+                <label class="label">Diskon Minim / Harga Pas (Variasi Max, %)</label>
                 <input type="number" name="variasi_max" min="-50" max="50" value="{{ old('variasi_max', $params['variasi_max']) }}" class="input">
-                <span class="hint">Simulasi diskon/nego (−10% s.d. 0%). Tidak pernah di bawah harga beli.</span>
+                <span class="hint">Batas atas rentang. 0% = harga master persis; nilai positif = boleh lebih mahal dari master. Default 0.</span>
             </div>
             <div>
-                <label class="label">Item yang Dikecualikan</label>
-                <select name="excluded_item_ids[]" multiple class="input h-24">
-                    @foreach ($barangs as $b)
-                        <option value="{{ $b->id }}" @selected(in_array($b->id, old('excluded_item_ids', [])))>{{ $b->kode_barang }} — {{ $b->nama }}</option>
-                    @endforeach
-                </select>
-                <span class="hint">Ctrl/Cmd + klik untuk pilih lebih dari satu.</span>
+                <label class="label">Maks Qty / Item / Nota</label>
+                <input type="number" name="maks_qty_item_per_nota" min="1" max="20" value="{{ old('maks_qty_item_per_nota', $params['maks_qty_item_per_nota'] ?? 3) }}" class="input">
+                <span class="hint">Batas unit tiap barang dalam 1 nota (default 3) — hasil lebih realistis utk item besar seperti ban.</span>
+            </div>
+            <div class="md:col-span-3">
+                <p class="mb-1 rounded-lg border border-outline-variant bg-surface-muted px-3 py-2 text-body-sm text-secondary">
+                    <span class="material-symbols-outlined text-[16px] align-middle text-primary">info</span>
+                    Contoh: variasi −10% s.d. 0% → tiap baris transaksi mendapat harga acak antara 90%–100% dari harga master,
+                    dan <strong>tidak pernah di bawah harga beli</strong> (tidak ada transaksi rugi). Harga master di Data Barang tidak berubah.
+                </p>
+            </div>
+            <div class="md:col-span-3">
+                <label class="label">Item yang Dikecualikan <span class="text-secondary">(opsional — kosongkan = semua barang ikut)</span></label>
+                <x-barang-checklist :barangs="$barangs"
+                    :selected="old('excluded_item_ids', $params['excluded_item_ids'] ?? [])"
+                    idPrefix="gen" />
+                <span class="hint">Barang yang dicentang tidak akan muncul di draft, tidak ikut kapasitas, dan tidak ikut perhitungan target. Bila semua barang dikecualikan, generate ditolak.</span>
             </div>
 
             <div class="flex items-end md:col-span-3">
@@ -128,6 +139,8 @@
                             <td>
                                 @if ($b->status === 'draft')
                                     <x-badge color="amber">Draft</x-badge>
+                                @elseif ($b->status === 'dibatalkan')
+                                    <x-badge color="slate">Dibatalkan</x-badge>
                                 @else
                                     <x-badge color="green">Tersimpan</x-badge>
                                 @endif
@@ -136,8 +149,14 @@
                             <td class="text-right">
                                 @if ($b->status === 'draft')
                                     <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review <span class="material-symbols-outlined text-[14px]">arrow_forward</span></a>
+                                @elseif ($b->status === 'tersimpan')
+                                    <form method="POST" action="{{ route('generate.batalkan', $b) }}"
+                                        data-confirm="Undo batch #{{ $b->id }}? Stok dikembalikan & NO_SN dilepas; baris menjadi 'dibatalkan' (audit).">
+                                        @csrf
+                                        <button class="btn btn-danger btn-sm"><span class="material-symbols-outlined text-[16px]">undo</span> Undo</button>
+                                    </form>
                                 @else
-                                    <span class="badge badge-blue">rekonstruksi</span>
+                                    <span class="badge badge-slate">dibatalkan</span>
                                 @endif
                             </td>
                         </tr>

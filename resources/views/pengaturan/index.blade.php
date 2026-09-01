@@ -33,6 +33,11 @@
                         <label class="label">No. Telepon</label>
                         <input type="text" name="telepon" value="{{ $settings->telepon }}" class="input">
                     </div>
+                    <div>
+                        <label class="label">NPWP</label>
+                        <input type="text" name="npwp" value="{{ $settings->npwp }}" class="input" placeholder="00.000.000.0-000.000">
+                        <span class="hint">Tampil di header struk penjualan & invoice pembelian (bawah alamat).</span>
+                    </div>
                 </div>
             </div>
 
@@ -95,17 +100,33 @@
                         <input type="number" name="toleransi_persen" min="0" max="20" value="{{ $pg['toleransi_persen'] }}" class="input">
                     </div>
                     <div>
-                        <label class="label">Variasi Harga (min %) </label>
+                        <label class="label">Diskon Maksimum yg Diizinkan (Variasi Min, %)</label>
                         <input type="number" name="variasi_min" min="-50" max="0" value="{{ $pg['variasi_min'] }}" class="input">
+                        <span class="hint">Negatif = diskon terbesar yang boleh terjadi (mis. −10 → termurah 90% harga master).</span>
                     </div>
                     <div>
-                        <label class="label">Variasi Harga (max %)</label>
+                        <label class="label">Diskon Minim / Harga Pas (Variasi Max, %)</label>
                         <input type="number" name="variasi_max" min="-50" max="50" value="{{ $pg['variasi_max'] }}" class="input">
+                        <span class="hint">0% = harga master persis; positif = boleh lebih mahal dari master. Tidak pernah di bawah harga beli.</span>
+                    </div>
+                    <div>
+                        <label class="label">Maks Qty / Item / Nota</label>
+                        <input type="number" name="maks_qty_item_per_nota" min="1" max="20" value="{{ $pg['maks_qty_item_per_nota'] }}" class="input">
+                        <span class="hint">Batas unit tiap barang dalam 1 nota hasil generate (default 3).</span>
                     </div>
                     <div>
                         <label class="label">Ambang Stok Menipis</label>
                         <input type="number" name="ambang_stok_menipis" min="0" value="{{ $settings->ambang_stok_menipis }}" class="input">
                     </div>
+                </div>
+
+                <div class="mt-4">
+                    <label class="label">Item Dikecualikan Default <span class="text-secondary">(opsional — kosongkan = semua barang ikut)</span></label>
+                    <x-barang-checklist :barangs="$barangs"
+                        :selected="$pg['excluded_item_ids'] ?? []"
+                        idPrefix="set"
+                        placeholder="Cari barang dikecualikan…" />
+                    <span class="hint">Default ini tercantum di halaman Generate sebagai kondisi awal (tetap bisa diubah per generate).</span>
                 </div>
             </div>
         </div>
@@ -116,6 +137,39 @@
             </button>
         </div>
     </form>
+
+    <!-- Keamanan: Ubah Password Admin -->
+    <div class="card-pad">
+        <div class="mb-4">
+            <h3 class="text-headline-sm">Keamanan — Ubah Password Admin</h3>
+            <p class="text-body-sm text-secondary">Ganti password akun login ({{ auth()->user()->email }}). Minimal 8 karakter.</p>
+        </div>
+        <form method="POST" action="{{ route('pengaturan.password') }}" class="max-w-md">
+            @csrf
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label class="label">Password Lama</label>
+                    <input type="password" name="password_lama" required autocomplete="current-password" class="input @error('password_lama') input-error @enderror">
+                    @error('password_lama')<span class="hint text-danger-red">{{ $message }}</span>@enderror
+                </div>
+                <div>
+                    <label class="label">Password Baru</label>
+                    <input type="password" name="password" required minlength="8" autocomplete="new-password" class="input @error('password') input-error @enderror">
+                    @error('password')<span class="hint text-danger-red">{{ $message }}</span>@enderror
+                    <span class="hint">Minimal 8 karakter.</span>
+                </div>
+                <div>
+                    <label class="label">Ulangi Password Baru</label>
+                    <input type="password" name="password_confirmation" required autocomplete="new-password" class="input">
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn btn-amber">
+                    <span class="material-symbols-outlined text-[18px]">lock_reset</span> Ubah Password
+                </button>
+            </div>
+        </form>
+    </div>
 
     <!-- Template Export POS (PRD 4.2) -->
     <div class="card-pad">

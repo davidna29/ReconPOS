@@ -3,6 +3,7 @@
 @section('title', 'Invoice ' . $invoice->no_invoice)
 
 @section('content')
+    @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Invoice {{ $invoice->no_invoice }}</h2>

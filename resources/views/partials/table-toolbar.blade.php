@@ -1,6 +1,6 @@
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div class="flex flex-wrap items-center gap-2">
-        {{ $actions ?? '' }}
+        {!! $actions ?? '' !!}
     </div>
     <form method="GET" class="flex flex-wrap items-center gap-2">
         @if ($filters ?? null)

@@ -26,6 +26,7 @@ class GenerateService
     public function __construct(
         private PenjualanService $penjualan,
         private HargaService $harga,
+        private StockService $stock,
     ) {}
 
     /**
@@ -101,6 +102,7 @@ class GenerateService
             (int) ($params['nota_min'] ?? 1),
             (int) ($params['nota_max'] ?? 8),
             (int) ($params['toleransi_persen'] ?? 2),
+            (int) ($params['maks_qty_item_per_nota'] ?? 3),
             (int) ($params['variasi_min'] ?? -10),
             (int) ($params['variasi_max'] ?? 0),
             (string) $params['jam_buka'],
@@ -272,6 +274,7 @@ class GenerateService
         int $notaMin,
         int $notaMax,
         int $toleransi,
+        int $maksQtyPerNota,
         int $variasiMin,
         int $variasiMax,
         string $jamBuka,
@@ -456,7 +459,8 @@ class GenerateService
             if ($sisa >= $price) {
                 $qty = (int) floor($sisa / $price);
             }
-            $qty = min($qty, $unitSisa[$bid], max(0, $hariBatas));
+            // cap qty per entri penjualan per item — dipecah lintas nota saat packaging (PRD realisme)
+            $qty = min($qty, $unitSisa[$bid], max(0, $hariBatas), $maksQtyPerNota);
             if ($qty <= 0) {
                 // hari itu sudah habis kuota simulasi — lewati barang ini utk hari tsb
                 $soldToday[$bid][$dayKey] = PHP_INT_MAX;
@@ -488,34 +492,60 @@ class GenerateService
             $sisa -= $qty * $price;
         }
 
-        // paketkan penjualan per hari menjadi nota (1..notaMax nota, tiap nota 1-5 item)
+        // Paketkan penjualan per hari menjadi nota:
+        // - tiap nota 1-5 item, BEDA barang (tidak ada 2 baris barang sama dalam 1 nota)
+        // - qty per item per nota dibatasi maks_qty_item_per_nota (default 3)
         [$hBuka] = array_map('intval', explode(':', $jamBuka));
         [$hTutup] = array_map('intval', explode(':', $jamTutup));
+        $maxItemsPerNota = 5;
 
         foreach ($sales as $dayKey => $daySales) {
             $day = $days[$dayKey];
-            $jumlahNota = max(1, min($notaMax, rand($notaMin, max($notaMin, $notaMax)), count($daySales)));
-            $perNota = max(1, (int) ceil(count($daySales) / $jumlahNota));
-            $pack = array_chunk($daySales, $perNota);
 
-            foreach ($pack as $chunk) {
+            // greedy: tempatkan tiap entri ke nota pertama yang belum memuat barang tsb & masih ada slot
+            $notas = [];
+            foreach ($daySales as $c) {
+                $qty = max(1, min((int) $c['qty'], $maksQtyPerNota));
+                $entri = [
+                    'barang_id' => $c['barang_id'],
+                    'qty' => $qty,
+                    'price' => $c['price'],
+                    'no_sn' => $c['no_sn'],
+                ];
+                $idx = null;
+                for ($i = 0; $i < count($notas); $i++) {
+                    if (count($notas[$i]['items']) < $maxItemsPerNota && ! isset($notas[$i]['barang'][$c['barang_id']])) {
+                        $idx = $i;
+                        break;
+                    }
+                }
+                if ($idx === null) {
+                    $notas[] = ['items' => [$entri], 'barang' => [$c['barang_id'] => true]];
+                } else {
+                    $notas[$idx]['items'][] = $entri;
+                    $notas[$idx]['barang'][$c['barang_id']] = true;
+                }
+            }
+
+            foreach ($notas as $nb) {
                 $items = [];
                 $notaTotal = 0;
-                foreach ($chunk as $c) {
-                    $sub = $c['qty'] * $c['price'];
+                foreach ($nb['items'] as $c2) {
+                    $sub = $c2['qty'] * $c2['price'];
                     $items[] = [
-                        'barang_id' => $c['barang_id'],
-                        'qty' => $c['qty'],
-                        'harga_jual' => $c['price'],
-                        'no_sn' => $c['no_sn'],
+                        'barang_id' => $c2['barang_id'],
+                        'qty' => $c2['qty'],
+                        'harga_jual' => $c2['price'],
+                        'no_sn' => $c2['no_sn'],
                         'subtotal' => $sub,
                     ];
                     $notaTotal += $sub;
                 }
                 $waktu = $day->copy()->setTime(rand($hBuka, max($hBuka, $hTutup - 1)), rand(0, 59));
                 $notaSeq++;
+                $refNota = $this->refBebas($day->format('Ymd'), $notaSeq);
                 $transaksi[] = [
-                    'ref' => 'GEN-' . $day->format('Ymd') . '-' . str_pad((string) $notaSeq, 4, '0', STR_PAD_LEFT),
+                    'ref' => $refNota,
                     'tanggal_waktu' => $waktu,
                     'items' => $items,
                     'total' => $notaTotal,
@@ -524,7 +554,7 @@ class GenerateService
         }
 
         // 8. Penyesuaian akhir: dekatkan total ke target dalam toleransi (harga/qty/drop)
-        $transaksi = $this->penyesuaianAkhir($transaksi, $target, $toleransi, $kapasitasKurang, $avail, $notaSeq, $jamBuka, $jamTutup, $variasiMin);
+        $transaksi = $this->penyesuaianAkhir($transaksi, $target, $toleransi, $kapasitasKurang, $avail, $notaSeq, $jamBuka, $jamTutup, $variasiMin, $maksQtyPerNota);
 
         return $transaksi;
     }
@@ -572,7 +602,7 @@ class GenerateService
      *            (2) tambah/kurangi qty, (3) top-up nota / drop nota.
      * Kasus kapasitas kurang → selesai apa adanya (semaksimal stok).
      */
-    private function penyesuaianAkhir(array $transaksi, int $target, int $toleransi, bool $kapasitasKurang, array &$avail, int &$notaSeq, string $jamBuka, string $jamTutup, int $variasiMin): array
+    private function penyesuaianAkhir(array $transaksi, int $target, int $toleransi, bool $kapasitasKurang, array &$avail, int &$notaSeq, string $jamBuka, string $jamTutup, int $variasiMin, int $maksQtyPerNota): array
     {
         if ($kapasitasKurang || count($transaksi) === 0) {
             return $transaksi;
@@ -656,7 +686,7 @@ class GenerateService
 
                 if ($kebutuhan > 0) {
                     // 3) nota top-up di hari yang masih punya stok tersisa
-                    $topUp = $this->buatNotaTopUp($sisaTotal, $avail, $kebutuhan, $notaSeq, $jamBuka, $jamTutup);
+                    $topUp = $this->buatNotaTopUp($sisaTotal, $avail, $kebutuhan, $notaSeq, $jamBuka, $jamTutup, $maksQtyPerNota);
                     if ($topUp) {
                         $transaksi[] = $topUp;
                         $diproses = true;
@@ -758,7 +788,7 @@ class GenerateService
      * Buat 1 nota tambahan ("top-up") dari barang yang masih punya sisa stok di periode.
      * Dipakai penyesuaian akhir ketika total draft masih di bawah toleransi target.
      */
-    private function buatNotaTopUp(array &$sisaTotal, array &$avail, int $kebutuhan, int &$notaSeq, string $jamBuka, string $jamTutup): ?array
+    private function buatNotaTopUp(array &$sisaTotal, array &$avail, int $kebutuhan, int &$notaSeq, string $jamBuka, string $jamTutup, int $maksQtyPerNota): ?array
     {
         $best = null;
         foreach ($sisaTotal as $barangId => $sisa) {
@@ -792,7 +822,7 @@ class GenerateService
         [$hargaJual, $hargaBeli] = $this->hargaBarang($best['barang_id'], Carbon::parse($best['dayKey'])->copy()->endOfDay());
         $price = max($hargaJual, $hargaBeli);
         $qty = (int) floor($kebutuhan / max(1, $price));
-        $qty = max(1, min($qty, $best['qty']));
+        $qty = max(1, min($qty, $best['qty'], $maksQtyPerNota));
 
         $day = Carbon::parse($best['dayKey']);
         [$hBuka] = array_map('intval', explode(':', $jamBuka));
@@ -800,6 +830,7 @@ class GenerateService
         $waktu = $day->copy()->setTime(rand($hBuka, max($hBuka, $hTutup - 1)), rand(0, 59));
 
         $notaSeq++;
+        $refTopup = $this->refBebas($day->format('Ymd'), $notaSeq);
         $total = $qty * $price;
 
         // kurangi dari pool sisa
@@ -807,7 +838,7 @@ class GenerateService
         $sisaTotal[$best['barang_id']] = max(0, $sisaTotal[$best['barang_id']] - $qty);
 
         return [
-            'ref' => 'GEN-' . $day->format('Ymd') . '-' . str_pad((string) $notaSeq, 4, '0', STR_PAD_LEFT),
+            'ref' => $refTopup,
             'tanggal_waktu' => $waktu,
             'items' => [[
                 'barang_id' => $best['barang_id'],
@@ -818,6 +849,67 @@ class GenerateService
             ]],
             'total' => $total,
         ];
+    }
+
+    /**
+     * Generate REF_TRANSAKSI unik global: naikkan seq sampai tidak ada ref yang sama
+     * (termasuk ref milik batch yang dibatalkan — tetap tersimpan utk audit).
+     */
+    private function refBebas(string $dayKey, int &$seq): string
+    {
+        do {
+            $seq++;
+            $ref = 'GEN-' . $dayKey . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+        } while (TransaksiPenjualan::where('ref_transaksi', $ref)->exists());
+
+        return $ref;
+    }
+
+    /**
+     * Undo / batalkan batch yang SUDAH tersimpan (PRD 7 langkah 7-8; reversibel pasca-simpan).
+     * Reversal atomik: stok dikembalikan (kartu keluar dihapus) & NO_SN dikembalikan ke 'tersedia'.
+     * Baris transaksi & batch DI-PERTAHANKAN dgn status 'dibatalkan' (audit trail) dan dikeluarkan
+     * dari laporan/omset/export karena seluruh query memakai status='tersimpan'.
+     */
+    public function batalBatchTersimpan(int $batchId): BatchGenerate
+    {
+        $batch = BatchGenerate::findOrFail($batchId);
+        if ($batch->status !== 'tersimpan') {
+            throw new InvalidArgumentException('Hanya batch berstatus tersimpan yang bisa dibatalkan (undo).');
+        }
+
+        // Terkunci bila ada nota yang sudah diedit (keputusan produk)
+        if ($batch->transaksiPenjualan()->whereNotNull('diedit_at')->exists()) {
+            throw new InvalidArgumentException(
+                'Batch terkunci — ada nota telah diedit, sehingga undo tidak bisa dijalankan (konsistensi stok).'
+            );
+        }
+
+        DB::transaction(function () use ($batch) {
+            $transaksi = $batch->transaksiPenjualan()
+                ->where('status', 'tersimpan')
+                ->get();
+
+            foreach ($transaksi as $trx) {
+                // reversi NO_SN (kembalikan ke 'tersedia')
+                foreach ($trx->items as $item) {
+                    if ($item->no_sn) {
+                        ReferensiSn::where('barang_id', $item->barang_id)
+                            ->where('no_sn', $item->no_sn)
+                            ->where('transaksi_penjualan_id', $trx->id)
+                            ->update(['status' => 'tersedia', 'transaksi_penjualan_id' => null]);
+                    }
+                }
+                // stok dikembalikan & kartu keluar dihapus
+                $this->stock->batalEfekPenjualan($trx->id);
+                // audit: baris tetap, status dipindah supaya tak terhitung di laporan
+                $trx->update(['status' => 'dibatalkan']);
+            }
+
+            $batch->update(['status' => 'dibatalkan']);
+        });
+
+        return $batch->fresh();
     }
 
     /** Hapus draft periode tertentu (menimpa, aturan keras #3). */
@@ -855,8 +947,8 @@ class GenerateService
     public function simpanDraft(int $batchId): BatchGenerate
     {
         $batch = BatchGenerate::findOrFail($batchId);
-        if ($batch->status === 'tersimpan') {
-            throw new InvalidArgumentException('Batch ini sudah tersimpan.');
+        if ($batch->status !== 'draft') {
+            throw new InvalidArgumentException('Hanya batch draft yang bisa disimpan.');
         }
 
         $this->penjualan->terapkanDraftRekonstruksi($batch);

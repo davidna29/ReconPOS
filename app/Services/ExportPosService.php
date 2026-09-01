@@ -7,6 +7,7 @@ use App\Models\TemplateExportPosConfig;
 use App\Models\TokoSetting;
 use App\Models\TransaksiPenjualan;
 use Illuminate\Support\Carbon;
+use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -198,16 +199,28 @@ class ExportPosService
 
     private function resolvePeriode(?string $mulai, ?string $selesai, ?string $bulan): array
     {
-        if ($bulan && preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+        // Rentang tanggal eksplisit menang; shortcut bulan dipakai hanya bila tanggal kosong.
+        if (filled($mulai) && filled($selesai)) {
+            $from = Carbon::parse($mulai);
+            $to = Carbon::parse($selesai);
+            if ($from->greaterThan($to)) {
+                throw new InvalidArgumentException('Rentang tanggal tidak valid.');
+            }
+
+            return [$from, $to];
+        }
+
+        if ($bulan && preg_match('/^[0-9]{4}-[0-9]{2}$/', $bulan)) {
             $from = Carbon::parse($bulan . '-01')->startOfMonth();
             $to = $from->copy()->endOfMonth();
 
             return [$from, $to];
         }
+
         $from = Carbon::parse($mulai ?? now()->startOfMonth()->toDateString());
         $to = Carbon::parse($selesai ?? now()->endOfMonth()->toDateString());
         if ($from->greaterThan($to)) {
-            throw new \InvalidArgumentException('Rentang tanggal tidak valid.');
+            throw new InvalidArgumentException('Rentang tanggal tidak valid.');
         }
 
         return [$from, $to];
@@ -319,5 +332,20 @@ class ExportPosService
     public function pathFile(string $nama): string
     {
         return storage_path('app/private/export/' . $nama);
+    }
+
+    /**
+     * Hapus batch export beserta file fisiknya (file regenerable — tinggal unduh ulang).
+     * Nama file unik per batch (timestamp), jadi tidak menyentuh file batch lain.
+     */
+    public function hapusBatch(ExportBatch $batch): void
+    {
+        foreach ($batch->file_names ?? [] as $nama) {
+            $path = $this->pathFile($nama);
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
+        $batch->delete();
     }
 }

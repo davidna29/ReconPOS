@@ -3,15 +3,35 @@
 @section('title', 'Dashboard')
 
 @section('content')
-    <div class="flex items-end justify-between">
+    <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Overview</h2>
-            <p class="mt-1 text-body-md text-secondary">{{ \Illuminate\Support\Carbon::now()->translatedFormat('F Y') }}</p>
+            <p class="mt-1 text-body-md text-secondary">Periode aktif: <span class="font-semibold text-primary">{{ $labelPeriode }}</span></p>
         </div>
-        <button class="btn btn-secondary" onclick="window.print()">
-            <span class="material-symbols-outlined text-[18px]">calendar_month</span>
-            Bulan Berjalan
-        </button>
+
+        <!-- Pemilih periode kartu omset (bulan / tahun / rentang bebas) -->
+        <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-end gap-2">
+            <div>
+                <label class="label mb-0.5">Bulan</label>
+                <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
+            </div>
+            <div>
+                <label class="label mb-0.5">Tahun</label>
+                <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
+            </div>
+            <div>
+                <label class="label mb-0.5">Dari</label>
+                <input type="date" name="from" value="{{ request('from') }}" class="input">
+            </div>
+            <div>
+                <label class="label mb-0.5">Sampai</label>
+                <input type="date" name="to" value="{{ request('to') }}" class="input">
+            </div>
+            <button class="btn btn-primary btn-sm">
+                <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
+            </button>
+            <a href="{{ route('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
+        </form>
     </div>
 
     <!-- Bento Grid - Summary Cards -->
@@ -21,12 +41,12 @@
                 <span class="material-symbols-outlined text-8xl">payments</span>
             </div>
             <div>
-                <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Omset Bulan Berjalan</h3>
-                <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetBulanIni) }}</div>
+                <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Omset — {{ $labelPeriode }}</h3>
+                <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetPeriode) }}</div>
             </div>
             <div class="flex items-center gap-1 text-body-sm text-lunas-green">
                 <span class="material-symbols-outlined text-[16px]">trending_up</span>
-                <span>manual + hasil generate (tersimpan)</span>
+                <span>{{ $awal->format('d/m/Y') }} – {{ $akhir->format('d/m/Y') }} · manual + rekonstruksi (tersimpan)</span>
             </div>
         </div>
 
@@ -84,36 +104,80 @@
                 </div>
             </div>
 
-            <!-- Recent Transactions Table -->
+            <!-- Penjualan Terakhir -->
             <div class="card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                    <h3 class="text-headline-sm text-on-surface">Transaksi Terakhir</h3>
+                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                        <span class="material-symbols-outlined text-cash-blue">point_of_sale</span>
+                        Penjualan Terakhir
+                    </h3>
+                    <a href="{{ route('penjualan.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th class="px-3 py-2">No. Nota</th>
+                                <th class="px-3 py-2">Tanggal</th>
+                                <th class="px-3 py-2">Pelanggan</th>
+                                <th class="px-3 py-2 text-right">Total</th>
+                                <th class="px-3 py-2 text-center">Sumber</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($penjualanTerakhir as $t)
+                                <tr>
+                                    <td class="mono text-secondary">{{ $t['ref'] }}</td>
+                                    <td>{{ $t['tanggal']->format('d/m/Y H:i') }}</td>
+                                    <td class="font-medium">{{ $t['pihak'] }}</td>
+                                    <td class="mono text-right">{{ rupiah($t['total']) }}</td>
+                                    <td class="text-center">
+                                        @if ($t['sumber'] === 'rekonstruksi')
+                                            <x-badge color="blue">Rekonstruksi</x-badge>
+                                        @else
+                                            <x-badge color="green">Manual</x-badge>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="py-8 text-center text-secondary">Belum ada penjualan.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pembelian Terakhir -->
+            <div class="card overflow-hidden">
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
+                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                        <span class="material-symbols-outlined text-hutang-amber">shopping_cart</span>
+                        Pembelian Terakhir
+                    </h3>
                     <a href="{{ route('pembelian.invoice-hutang') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="tbl">
                         <thead>
                             <tr>
-                                <th class="px-3 py-2">ID</th>
+                                <th class="px-3 py-2">Invoice</th>
                                 <th class="px-3 py-2">Tanggal</th>
-                                <th class="px-3 py-2">Supplier / Pelanggan</th>
+                                <th class="px-3 py-2">Supplier</th>
                                 <th class="px-3 py-2 text-right">Total</th>
                                 <th class="px-3 py-2 text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($transaksiTerakhir as $t)
+                            @forelse ($pembelianTerakhir as $i)
                                 <tr>
-                                    <td class="mono text-secondary">{{ $t['ref'] }}</td>
-                                    <td>{{ $t['tanggal']->format('d M Y') }}</td>
-                                    <td class="font-medium">{{ $t['pihak'] }}</td>
-                                    <td class="mono text-right">{{ rupiah($t['total']) }}</td>
+                                    <td class="mono text-secondary">{{ $i['ref'] }}</td>
+                                    <td>{{ $i['tanggal']->format('d/m/Y') }}</td>
+                                    <td class="font-medium">{{ $i['pihak'] }}</td>
+                                    <td class="mono text-right">{{ rupiah($i['total']) }}</td>
                                     <td class="text-center">
-                                        @if ($t['jenis'] === 'penjualan' && $t['status'] === 'rekonstruksi')
-                                            <x-badge color="blue">Rekonstruksi</x-badge>
-                                        @elseif ($t['jenis'] === 'penjualan')
-                                            <x-badge color="green">Lunas</x-badge>
-                                        @elseif ($t['status'] === 'lunas')
+                                        @if ($i['status'] === 'lunas')
                                             <x-badge color="green">Lunas</x-badge>
                                         @else
                                             <x-badge color="amber">Hutang</x-badge>
@@ -122,7 +186,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="py-8 text-center text-secondary">Belum ada transaksi.</td>
+                                    <td colspan="5" class="py-8 text-center text-secondary">Belum ada pembelian.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -165,6 +229,32 @@
                         @if ($stokKritis->count() === 0)
                             <p class="text-body-sm text-secondary">Semua stok di atas ambang. 👍</p>
                         @endif
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- Barang Terbaru (10 SKU & Stok) -->
+            <div class="card overflow-hidden">
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
+                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                        <span class="material-symbols-outlined text-special-teal">inventory_2</span>
+                        Barang Terbaru (SKU & Stok)
+                    </h3>
+                    <a href="{{ route('barang.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    @forelse ($barangTerbaru as $b)
+                        <a href="{{ route('barang.show', $b) }}" class="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
+                            <div class="min-w-0 flex-1">
+                                <div class="mono text-mono-data text-secondary">{{ $b->kode_barang }}</div>
+                                <div class="truncate text-body-sm text-on-surface">{{ $b->nama }}</div>
+                            </div>
+                            <span class="badge {{ $b->stock <= 0 ? 'badge-red' : ($b->stock <= $ambang ? 'badge-amber' : 'badge-green') }}">
+                                {{ $b->stock }} {{ $b->satuan }}
+                            </span>
+                        </a>
+                    @empty
+                        <p class="px-4 py-6 text-center text-body-sm text-secondary">Belum ada barang.</p>
                     @endforelse
                 </div>
             </div>

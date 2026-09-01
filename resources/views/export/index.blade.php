@@ -32,7 +32,7 @@
             <p class="mb-4 text-body-sm text-secondary">
                 Mengikuti template Super Kasir (sheet <span class="mono">IMPORT_PENJUALAN</span>), kolom dari <strong>Pengaturan → Template Export POS</strong> (konfigurabel). Pre-validasi sebelum unduh; otomatis dipecah tiap 5.000 baris.
             </p>
-            <form method="POST" action="{{ route('export.format-a') }}" class="flex flex-col gap-3">
+            <form method="POST" action="{{ route('export.format-a') }}" data-export-form class="flex flex-col gap-3">
                 @csrf
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -46,8 +46,8 @@
                 </div>
                 <div>
                     <label class="label">…atau shortcut Bulan</label>
-                    <input type="month" name="bulan" value="{{ now()->format('Y-m') }}" class="input">
-                    <span class="hint">Jika diisi, tanggal di atas diabaikan (bulan penuh).</span>
+                    <input type="month" name="bulan" class="input">
+                    <span class="hint">Isi salah satu: rentang tanggal ATAU shortcut bulan — memilih yang satu mengosongkan yang lain.</span>
                 </div>
                 <button class="btn btn-primary self-start">
                     <span class="material-symbols-outlined text-[18px]">download</span> Unduh Format A (XLSX)
@@ -64,7 +64,7 @@
             <p class="mb-4 text-body-sm text-secondary">
                 Laporan manusiawi dengan baris ringkasan (total omset, jumlah nota, jumlah item). Excel (.xlsx).
             </p>
-            <form method="POST" action="{{ route('export.format-b') }}" class="flex flex-col gap-3">
+            <form method="POST" action="{{ route('export.format-b') }}" data-export-form class="flex flex-col gap-3">
                 @csrf
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -78,7 +78,8 @@
                 </div>
                 <div>
                     <label class="label">…atau shortcut Bulan</label>
-                    <input type="month" name="bulan" value="{{ now()->format('Y-m') }}" class="input">
+                    <input type="month" name="bulan" class="input">
+                    <span class="hint">Isi salah satu: rentang tanggal ATAU shortcut bulan — memilih yang satu mengosongkan yang lain.</span>
                 </div>
                 <div>
                     <label class="label">Sumber</label>
@@ -109,6 +110,7 @@
                         <th class="text-center">Jumlah File</th>
                         <th>File</th>
                         <th class="text-center">Sudah Diupload ke POS</th>
+                        <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -141,9 +143,19 @@
                                     @endif
                                 </form>
                             </td>
+                            <td class="text-right">
+                                <form method="POST" action="{{ route('export.destroy', $b) }}"
+                                    data-confirm="Hapus riwayat export Format {{ $b->format }} ({{ $b->created_at->format('d/m/Y H:i') }}, {{ $b->jumlah_file }} file)? Catatan & file dihapus permanen.">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus riwayat">
+                                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-10 text-center text-secondary">Belum ada export.</td></tr>
+                        <tr><td colspan="7" class="py-10 text-center text-secondary">Belum ada export.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -165,3 +177,25 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (function () {
+            // Filter periode saling eksklusif: pilih rentang tanggal ATAU shortcut bulan.
+            document.querySelectorAll('form[data-export-form]').forEach(function (form) {
+                var mulai = form.querySelector('input[name="periode_mulai"]');
+                var selesai = form.querySelector('input[name="periode_selesai"]');
+                var bulan = form.querySelector('input[name="bulan"]');
+                var kosongkanBulan = function () { if (bulan) bulan.value = ''; };
+                if (mulai) mulai.addEventListener('change', kosongkanBulan);
+                if (selesai) selesai.addEventListener('change', kosongkanBulan);
+                if (bulan) {
+                    bulan.addEventListener('change', function () {
+                        if (mulai) mulai.value = '';
+                        if (selesai) selesai.value = '';
+                    });
+                }
+            });
+        })();
+    </script>
+@endpush

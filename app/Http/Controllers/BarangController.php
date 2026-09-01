@@ -54,6 +54,11 @@ class BarangController extends Controller
             return back()->withErrors(['harga_jual' => 'Harga jual wajib diisi pada mode Kunci Manual.'])->withInput();
         }
 
+        // Cegah duplikat walau beda huruf besar/kecil (mis. "Stok1" vs "stok1")
+        if (Barang::whereRaw('UPPER(kode_barang) = ?', [strtoupper(trim($data['kode_barang']))])->exists()) {
+            return back()->withErrors(['kode_barang' => 'Kode barang sudah ada (huruf besar/kecil tidak dibedakan).'])->withInput();
+        }
+
         $barang = Barang::create([
             'tipe_item' => 'barang',
             'kode_barang' => $data['kode_barang'],

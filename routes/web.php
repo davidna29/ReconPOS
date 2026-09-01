@@ -66,11 +66,16 @@ Route::middleware('auth')->group(function () {
     Route::delete('/pembelian/{invoice}', [PembelianController::class, 'destroy'])->name('pembelian.destroy');
     Route::post('/pembelian/{invoice}/bayar', [PembelianController::class, 'bayarStore'])->name('pembelian.bayar');
     Route::get('/pembelian/{invoice}/print', [PembelianController::class, 'print'])->name('pembelian.print');
+    Route::post('/pembelian/print-batch', [PembelianController::class, 'printBatch'])->name('pembelian.print-batch');
 
     // ---- Penjualan manual / kasir-lite ----
     Route::get('/penjualan', [PenjualanController::class, 'index'])->name('penjualan.index');
     Route::get('/penjualan/tambah', [PenjualanController::class, 'create'])->name('penjualan.create');
     Route::post('/penjualan', [PenjualanController::class, 'store'])->name('penjualan.store');
+    Route::get('/penjualan/{transaksiPenjualan}/edit', [PenjualanController::class, 'edit'])->name('penjualan.edit');
+    Route::get('/penjualan/{transaksiPenjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
+    Route::post('/penjualan/print-batch', [PenjualanController::class, 'printBatch'])->name('penjualan.print-batch');
+    Route::put('/penjualan/{transaksiPenjualan}', [PenjualanController::class, 'update'])->name('penjualan.update');
     Route::get('/penjualan/stok/{barang}', [PenjualanController::class, 'stokBarang'])->name('penjualan.stok');
     Route::delete('/penjualan/{transaksiPenjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');
 
@@ -80,6 +85,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/generate/riwayat', [GenerateController::class, 'riwayat'])->name('generate.riwayat');
     Route::get('/generate/{batch}', [GenerateController::class, 'review'])->name('generate.review');
     Route::post('/generate/{batch}/simpan', [GenerateController::class, 'simpan'])->name('generate.simpan');
+    Route::post('/generate/{batch}/batalkan', [GenerateController::class, 'batalkan'])->name('generate.batalkan');
     Route::delete('/generate/{batch}', [GenerateController::class, 'hapusDraft'])->name('generate.batal');
     Route::delete('/generate/nota/{transaksiPenjualan}', [GenerateController::class, 'hapusNota'])->name('generate.hapus-nota');
     Route::patch('/generate/item/{item}', [GenerateController::class, 'updateLine'])->name('generate.update-line');
@@ -89,11 +95,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/export/format-a', [ExportController::class, 'downloadFormatA'])->name('export.format-a');
     Route::post('/export/format-b', [ExportController::class, 'downloadFormatB'])->name('export.format-b');
     Route::post('/export/{exportBatch}/tandai', [ExportController::class, 'tandaiUpload'])->name('export.tandai');
+    Route::delete('/export/{exportBatch}', [ExportController::class, 'destroy'])->name('export.destroy');
     Route::get('/export/{exportBatch}/unduh/{index}', [ExportController::class, 'unduh'])->name('export.unduh');
 
     // ---- Pengaturan (PRD 4.5) ----
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan', [PengaturanController::class, 'update'])->name('pengaturan.update');
+    Route::post('/pengaturan/password', [PengaturanController::class, 'updatePassword'])->name('pengaturan.password');
     Route::post('/pengaturan/template', [PengaturanController::class, 'updateTemplate'])->name('pengaturan.template');
     Route::post('/pengaturan/template/reset', [PengaturanController::class, 'resetTemplate'])->name('pengaturan.template.reset');
 });

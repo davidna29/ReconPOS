@@ -44,6 +44,8 @@
                             <td>
                                 @if ($b->status === 'draft')
                                     <x-badge color="amber">Draft</x-badge>
+                                @elseif ($b->status === 'dibatalkan')
+                                    <x-badge color="slate">Dibatalkan</x-badge>
                                 @else
                                     <x-badge color="green">Tersimpan</x-badge>
                                 @endif
@@ -56,11 +58,47 @@
                             </td>
                             <td>{{ $b->created_at->format('d/m/Y H:i') }}</td>
                             <td class="text-right">
-                                @if ($b->status === 'draft')
-                                    <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review</a>
-                                @else
-                                    <span class="text-[11px] text-secondary">sumber: rekonstruksi</span>
-                                @endif
+                                <div class="flex justify-end gap-1">
+                                    @if ($b->status === 'draft')
+                                        <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review</a>
+                                    @elseif ($b->status === 'tersimpan')
+                                        <form method="POST" action="{{ route('generate.batalkan', $b) }}"
+                                            data-confirm="Undo batch #{{ $b->id }}? Stok akan dikembalikan & NO_SN dilepas. Baris tetap tersimpan sebagai 'dibatalkan' (audit). Transaksi tidak lagi dihitung di omset/export.">
+                                            @csrf
+                                            <button class="btn btn-danger btn-sm">
+                                                <span class="material-symbols-outlined text-[16px]">undo</span> Undo
+                                            </button>
+                                        </form>
+                                    @endif
+                                    <button type="button" class="btn btn-secondary btn-sm" title="Detail Nota"
+                                        onclick="document.getElementById('det-b{{ $b->id }}').classList.toggle('hidden')">
+                                        <span class="material-symbols-outlined text-[16px]">visibility</span> Detail Nota
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="det-b{{ $b->id }}" class="hidden bg-slate-50">
+                            <td colspan="10">
+                                @forelse ($b->transaksiPenjualan as $trx)
+                                    <div class="border-b border-slate-200 px-3 py-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="mono font-semibold text-primary">{{ $trx->ref_transaksi }}</span>
+                                            <span class="text-body-sm text-secondary">{{ $trx->tanggal_waktu->format('d/m/Y H:i') }}</span>
+                                            <span class="mono text-body-sm font-bold ml-auto">{{ rupiah($trx->total) }}</span>
+                                        </div>
+                                        <ul class="mt-1 space-y-0.5 pl-4 text-body-sm text-on-surface">
+                                            @foreach ($trx->items as $it)
+                                                <li class="flex gap-2">
+                                                    <span class="flex-1">{{ $it->barang->nama }}@if ($it->no_sn) <span class="mono text-[11px] text-secondary">SN {{ $it->no_sn }}</span>@endif</span>
+                                                    <span class="mono text-secondary">{{ $it->qty }} × {{ uang($it->harga_jual) }}</span>
+                                                    <span class="mono w-24 text-right">{{ uang($it->subtotal) }}</span>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @empty
+                                    <p class="px-3 py-2 text-body-sm text-secondary">Tidak ada nota pada batch ini.</p>
+                                @endforelse
                             </td>
                         </tr>
                     @empty

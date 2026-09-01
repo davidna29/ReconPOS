@@ -103,4 +103,15 @@ class ExportController extends Controller
             ? 'Batch ditandai sudah diupload ke POS.'
             : 'Tanda "sudah diupload" dihapus.');
     }
+
+    /** Hapus riwayat export + file fisiknya (PRD 8 jejak; file regenerable). */
+    public function destroy(ExportBatch $exportBatch)
+    {
+        $this->service->hapusBatch($exportBatch);
+
+        return back()->with(
+            'success',
+            'Riwayat export Format ' . $exportBatch->format . ' (' . $exportBatch->created_at->format('d/m/Y H:i') . ') dihapus beserta file-nya.'
+        );
+    }
 }

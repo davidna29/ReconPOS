@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Barang;
 use App\Models\InvoicePembelian;
 use App\Models\Supplier;
+use App\Models\TokoSetting;
 use App\Models\User;
 use App\Services\PembelianService;
 use App\Services\PenjualanService;
@@ -162,6 +163,55 @@ class PembelianTest extends TestCase
         $this->assertSame(2, $inv->fresh()->items()->first()->qty);
     }
 
+    public function test_halaman_pembelian_memuat_nav_tabs(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-TAB');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+
+        foreach ([route('pembelian.create'), route('pembelian.invoice-hutang'), route('pembelian.invoice-lunas')] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertSee('Transaksi Pembelian')
+                ->assertSee('Data Hutang Belum Lunas')
+                ->assertSee('Data Pembelian (Lunas/Cash)');
+        }
+    }
+
+    public function test_sidebar_tidak_memuat_submenu_pembelian(): void
+    {
+        $this->authUser();
+        // keputusan produk: navigasi pembelian hanya via tab bar di dalam laman pembelian, bukan sidebar
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee(route('pembelian.invoice-lunas'));
+    }
+
+    public function test_cetak_invoice_footer_ppn(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-PPN');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        \App\Models\TokoSetting::utama()->update(['nama_toko' => 'Toko PPN', 'npwp' => '99.888.777.6-555.000']);
+
+        $this->get(route('pembelian.print', $inv))
+            ->assertOk()
+            ->assertSee('Harga sudah termasuk PPN.')
+            ->assertSee('NPWP: 99.888.777.6-555.000');
+    }
+
     public function test_hapus_invoice_yang_membuat_stok_minus_warning(): void
     {
         $this->authUser();
@@ -181,5 +231,91 @@ class PembelianTest extends TestCase
         // dengan force:
         $this->delete(route('pembelian.destroy', $inv) . '?force=1')->assertSessionHas('success');
         $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
+    }
+
+    public function test_cetak_batch_pembelian_terpilih(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-BATCH');
+        $s = $this->supplier();
+        $cash = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $hutang = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 10000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        TokoSetting::utama()->update(['nama_toko' => 'Toko Batch Beli']);
+
+        $res = $this->post(route('pembelian.print-batch'), ['ids' => [$cash->id, $hutang->id]]);
+        $res->assertOk()
+            ->assertSee($cash->no_invoice)
+            ->assertSee($hutang->no_invoice)
+            ->assertSee('pb-toggle')
+            ->assertSee('bulk-controls', false)
+            ->assertSee('Halaman baru per nota')
+            ->assertSee('print-page { padding: 24px 0; }', false);
+        $html = $res->getContent();
+        $this->assertSame(2, substr_count($html, '<div class="print-page">'));
+        $this->assertSame(2, substr_count($html, '*Harga sudah termasuk PPN.'));
+        $this->assertSame(1, substr_count($html, '>CASH<'));
+        $this->assertSame(1, substr_count($html, '>HUTANG<'));
+    }
+
+    public function test_cetak_batch_pembelian_tanpa_id_valid_flash_error(): void
+    {
+        $this->authUser();
+        $this->post(route('pembelian.print-batch'), ['ids' => [999999]])
+            ->assertSessionHas('error');
+    }
+
+    public function test_cetak_batch_pembelian_wajib_ada_id(): void
+    {
+        $this->authUser();
+        $this->post(route('pembelian.print-batch'), [])
+            ->assertSessionHasErrors('ids');
+    }
+
+    public function test_halaman_hutang_memuat_bulk_print(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-HUT');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 10000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->get(route('pembelian.invoice-hutang'))
+            ->assertOk()
+            ->assertSee('Cetak Terpilih')
+            ->assertSee('bulk-check', false)
+            ->assertSee('100 entri')
+            ->assertSee('name="entries"', false);
+    }
+
+    public function test_halaman_lunas_memuat_bulk_print(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-LUN');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->get(route('pembelian.invoice-lunas'))
+            ->assertOk()
+            ->assertSee('Cetak Terpilih')
+            ->assertSee('bulk-check', false)
+            ->assertSee('100 entri')
+            ->assertSee('name="entries"', false);
     }
 }

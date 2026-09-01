@@ -153,6 +153,27 @@ class PembelianController extends Controller
         return view('pembelian.print', compact('invoice'));
     }
 
+    /** Bulk print: cetak banyak invoice terpilih (dari tab Hutang / Lunas) dalam satu halaman. */
+    public function printBatch(Request $request)
+    {
+        // ids yang sudah tidak ada dibuang diam-diam oleh whereIn; hanya validasi tipe integer.
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $invoices = InvoicePembelian::with(['items.barang', 'supplier'])
+            ->whereIn('id', $validated['ids'])
+            ->orderBy('tanggal_transaksi')->orderBy('id')
+            ->get();
+
+        if ($invoices->isEmpty()) {
+            return back()->with('error', 'Tidak ada invoice valid untuk dicetak.');
+        }
+
+        return view('pembelian.print-batch', compact('invoices'));
+    }
+
     // ---- Excel: template & import pembelian (PRD 5.3) ----
     public function downloadTemplate()
     {

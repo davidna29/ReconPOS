@@ -36,6 +36,17 @@ class BarangTest extends TestCase
         ])->assertSessionHasErrors('kode_barang');
     }
 
+    public function test_store_kode_duplikat_beda_case_ditolak(): void
+    {
+        $this->authUser();
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'ABC-1', 'nama' => 'Satu', 'sn_atau_non_sn' => 'NON_SN']);
+        $this->post(route('barang.store'), [
+            'kode_barang' => 'abc-1', 'nama' => 'Satu Lagi', 'sn_atau_non_sn' => 'NON_SN',
+            'mode_harga_jual' => 'otomatis', 'status' => 'Dijual',
+        ])->assertSessionHasErrors('kode_barang');
+        $this->assertSame(1, Barang::count());
+    }
+
     public function test_kode_barang_readonly_saat_edit(): void
     {
         $this->authUser();

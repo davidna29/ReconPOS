@@ -6,19 +6,21 @@ use App\Models\Barang;
 use App\Models\InvoicePembelian;
 use App\Models\TokoSetting;
 use App\Models\TransaksiPenjualan;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $awalBulan = now()->startOfMonth();
-        $akhirBulan = now()->endOfMonth();
+        // ---- Periode untuk kartu Omset (PRD 1.2b; custom per bulan/tahun/rentang) ----
+        [$awal, $akhir, $labelPeriode] = $this->periodeDariRequest($request);
 
-        $omsetBulanIni = (int) TransaksiPenjualan::where('status', 'tersimpan')
-            ->whereBetween('tanggal_waktu', [$awalBulan, $akhirBulan])
+        $omsetPeriode = (int) TransaksiPenjualan::where('status', 'tersimpan')
+            ->whereBetween('tanggal_waktu', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()])
             ->sum('total');
 
+        // Hutang & stok bersifat "saat ini" (bukan terkait periode)
         $hutang = InvoicePembelian::where('status', 'belum_lunas')->get();
         $totalHutang = (int) $hutang->sum('sisa_hutang');
         $jatuhTempo7Hari = $hutang->filter(function ($inv) {
@@ -33,19 +35,18 @@ class DashboardController extends Controller
             ->get();
         $stokHabis = $stokKritis->where('stock', '<=', 0)->count();
 
-        // transaksi terakhir: penjualan & pembelian digabung, 10 terbaru
+        // Penjualan terakhir (terpisah dari pembelian — setiap jenis kartu sendiri)
         $penjualanTerakhir = TransaksiPenjualan::withCount('items')
             ->where('status', 'tersimpan')
             ->latest('tanggal_waktu')
             ->limit(8)
             ->get()
             ->map(fn ($t) => [
-                'jenis' => 'penjualan',
                 'ref' => $t->ref_transaksi,
                 'tanggal' => $t->tanggal_waktu,
                 'pihak' => 'Customer Umum',
                 'total' => $t->total,
-                'status' => $t->sumber === 'rekonstruksi' ? 'rekonstruksi' : 'lunas',
+                'sumber' => $t->sumber, // manual | rekonstruksi
             ]);
 
         $pembelianTerakhir = InvoicePembelian::with('supplier')
@@ -53,27 +54,71 @@ class DashboardController extends Controller
             ->limit(8)
             ->get()
             ->map(fn ($i) => [
-                'jenis' => 'pembelian',
                 'ref' => $i->no_invoice,
                 'tanggal' => $i->tanggal_transaksi,
                 'pihak' => $i->supplier?->nama ?? '-',
                 'total' => $i->total_setelah_diskon,
-                'status' => $i->status,
+                'status' => $i->status, // lunas | belum_lunas
             ]);
 
-        $transaksiTerakhir = $penjualanTerakhir->concat($pembelianTerakhir)
-            ->sortByDesc('tanggal')
-            ->take(10)
-            ->values();
+        // 10 SKU terakhir ditambahkan (dengan stok)
+        $barangTerbaru = Barang::where('tipe_item', 'barang')
+            ->latest('created_at')
+            ->limit(10)
+            ->get(['id', 'kode_barang', 'nama', 'satuan', 'stock']);
 
         return view('dashboard.index', compact(
-            'omsetBulanIni',
+            'awal',
+            'akhir',
+            'labelPeriode',
+            'omsetPeriode',
             'totalHutang',
             'jatuhTempo7Hari',
             'stokKritis',
             'stokHabis',
             'ambang',
-            'transaksiTerakhir',
+            'penjualanTerakhir',
+            'pembelianTerakhir',
+            'barangTerbaru',
         ));
+    }
+
+    /**
+     * Resolve periode dari query string: bulan (Y-m) > tahun (4 digit) > rentang (from/to) > default bulan berjalan.
+     *
+     * @return array{0: Carbon, 1: Carbon, 2: string}
+     */
+    private function periodeDariRequest(Request $request): array
+    {
+        // default: BULAN BERJALAN penuh (awal s.d. akhir bulan) — bukan hanya s/d hari ini
+        $awal = now()->copy()->startOfMonth();
+        $akhir = now()->copy()->endOfMonth();
+        $label = 'Bulan Berjalan — ' . bulan_id(now());
+
+        if ($bulan = (string) $request->query('bulan')) {
+            if (preg_match('/^\d{4}-\d{2}$/', $bulan) && Carbon::createFromFormat('Y-m', $bulan) !== false) {
+                $awal = Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
+                $akhir = $awal->copy()->endOfMonth();
+                $label = bulan_id($awal);
+            }
+        } elseif ($tahun = (int) $request->query('tahun')) {
+            if ($tahun >= 2000 && $tahun <= 2099) {
+                $awal = Carbon::create($tahun, 1, 1)->startOfDay();
+                $akhir = Carbon::create($tahun, 12, 31)->endOfDay();
+                $label = 'Tahun ' . $tahun;
+            }
+        } elseif ($request->query('from') || $request->query('to')) {
+            $from = $request->query('from');
+            $to = $request->query('to');
+            $parsedFrom = $from && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? Carbon::parse($from) : null;
+            $parsedTo = $to && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? Carbon::parse($to) : null;
+            if ($parsedFrom && $parsedTo && $parsedFrom->lte($parsedTo)) {
+                $awal = $parsedFrom;
+                $akhir = $parsedTo;
+                $label = $parsedFrom->format('d/m/Y') . ' – ' . $parsedTo->format('d/m/Y');
+            }
+        }
+
+        return [$awal, $akhir, $label];
     }
 }

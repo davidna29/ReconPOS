@@ -194,4 +194,238 @@ class GenerateTest extends TestCase
         $this->assertNotNull($draft);
         $this->get(route('generate.review', $draft))->assertOk();
     }
+
+    public function test_web_generate_item_dikecualikan_tidak_muncul_di_draft(): void
+    {
+        $this->authUser();
+        $bulan = Carbon::now()->startOfMonth();
+        [$a, $b] = $this->setupStok($bulan);
+
+        $this->post(route('generate.run'), [
+            'periode_mulai' => $bulan->format('Y-m-d'),
+            'periode_selesai' => $bulan->copy()->endOfMonth()->format('Y-m-d'),
+            'target_omset' => 800000,
+            'nota_min' => 1, 'nota_max' => 5, 'toleransi_persen' => 3,
+            'variasi_min' => -10, 'variasi_max' => 0,
+            'excluded_item_ids' => [(string) $b->id],
+        ])->assertRedirect();
+
+        $draft = BatchGenerate::where('status', 'draft')->first();
+        $this->assertNotNull($draft);
+        $this->get(route('generate.review', $draft))->assertOk();
+
+        $idsTerpakai = [];
+        foreach ($draft->transaksiPenjualan as $trx) {
+            foreach ($trx->items as $it) {
+                $idsTerpakai[] = $it->barang_id;
+            }
+        }
+        $this->assertNotContains($b->id, $idsTerpakai, 'Barang dikecualikan tidak boleh muncul di draft');
+        $this->assertNotEmpty($idsTerpakai, 'Draft tetap berisi barang lain');
+    }
+
+    public function test_undo_batch_tersimpan_reversibel(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        [$a] = $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+
+        $stokSebelumSimpan = $a->fresh()->stock;
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $batch = $res['batch'];
+        $svc->simpanDraft($batch->id);
+
+        $stokSesudahSimpan = $a->fresh()->stock;
+        $this->assertLessThan($stokSebelumSimpan, $stokSesudahSimpan); // stok terpotong
+
+        $snTerjual = \App\Models\ReferensiSn::where('status', 'terjual')->count();
+
+        // UNDO
+        $svc->batalBatchTersimpan($batch->id);
+
+        $this->assertSame($stokSebelumSimpan, $a->fresh()->stock);                     // stok kembali
+        $this->assertSame(0, (int) TransaksiPenjualan::where('status', 'tersimpan')->count()); // tidak ada rekonstruksi aktif
+        $this->assertSame(
+            \App\Models\ReferensiSn::count(),
+            \App\Models\ReferensiSn::where('status', 'tersedia')->count(),           // semua SN kembali tersedia
+        );
+        $this->assertGreaterThanOrEqual($snTerjual, \App\Models\ReferensiSn::where('status', 'tersedia')->count());
+        $this->assertSame('dibatalkan', $batch->fresh()->status);
+        $this->assertSame(
+            $batch->transaksiPenjualan()->count(),
+            $batch->transaksiPenjualan()->where('status', 'dibatalkan')->count(),       // baris dipertahankan utk audit
+        );
+    }
+
+    public function test_undo_ganda_ditolak(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $batch = $res['batch'];
+        $svc->simpanDraft($batch->id);
+        $svc->batalBatchTersimpan($batch->id);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $svc->batalBatchTersimpan($batch->id); // kedua kalinya ditolak
+    }
+
+    public function test_regenerate_setelah_undo_tidak_bentrok_ref(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+
+        $res1 = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $svc->simpanDraft($res1['batch']->id);
+        $svc->batalBatchTersimpan($res1['batch']->id);
+
+        // generate ulang periode sama: ref tidak boleh bentrok dgn ref 'dibatalkan' yang masih tersimpan
+        $res2 = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $this->assertSame('ok', $res2['status']);
+        $this->assertGreaterThan(0, $res2['batch']->transaksiPenjualan()->count());
+    }
+
+    public function test_riwayat_menampilkan_detail_nota(): void
+    {
+        $this->authUser();
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $svc->simpanDraft($res['batch']->id);
+
+        $this->get(route('generate.riwayat'))
+            ->assertOk()
+            ->assertSee('Detail Nota')
+            ->assertSee('GEN-');
+    }
+
+    public function test_index_penjualan_menyatu_manual_dan_rekonstruksi(): void
+    {
+        $this->authUser();
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+
+        // rekonstruksi tersimpan
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $svc->simpanDraft($res['batch']->id);
+        $refRekon = $res['batch']->transaksiPenjualan()->first()->ref_transaksi;
+
+        // manual sale — stok masuk di tanggal 2 & 8, jadi pakai tanggal akhir bulan
+        $tglManual = $bulan->copy()->endOfMonth()->subDays(2);
+        $bDenganStok = Barang::where('stock', '>', 0)->orderByDesc('stock')->first();
+        if (! $bDenganStok) {
+            $this->markTestSkipped('Tidak ada stok tersisa utk penjualan manual di skenario ini.');
+        }
+        app(\App\Services\PenjualanService::class)->simpanManual($tglManual, [['barang_id' => $bDenganStok->id, 'qty' => 1, 'harga_jual' => $bDenganStok->harga_jual]]);
+        $refManual = \App\Models\TransaksiPenjualan::where('sumber', 'manual')->first()->ref_transaksi;
+
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee($refRekon)
+            ->assertSee('Rekonstruksi')
+            ->assertSee($refManual);
+
+        // filter sumber=manual: rekonstruksi tidak tampil
+        $this->get(route('penjualan.index', ['sumber' => 'manual']))
+            ->assertOk()
+            ->assertSee($refManual)
+            ->assertDontSee($refRekon);
+    }
+
+    public function test_edit_rekonstruksi_mengunci_undo_batch(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $batch = $res['batch'];
+        $svc->simpanDraft($batch->id);
+
+        $trx = $batch->transaksiPenjualan()->first();
+        $item = $trx->items()->first();
+
+        // edit nota rekonstruksi (ubah harga item jadi +10.000)
+        $edited = app(\App\Services\PenjualanService::class)->edit($trx, $trx->tanggal_waktu, [[
+            'barang_id' => $item->barang_id,
+            'qty' => $item->qty,
+            'harga_jual' => $item->harga_jual + 10000,
+        ]]);
+
+        $this->assertNotNull($edited->diedit_at);
+        $this->assertNotSame($item->subtotal, $edited->fresh()->items()->first()->subtotal);
+
+        // batch total/selisih direkonsiliasi
+        $batch->refresh();
+        $this->assertSame(
+            (int) $batch->transaksiPenjualan()->sum('total'),
+            (int) $batch->total_generate
+        );
+
+        // undo sekarang TERKUNCI
+        $this->expectException(\InvalidArgumentException::class);
+        $svc->batalBatchTersimpan($batch->id);
+    }
+
+    public function test_generate_maks_qty_per_item_per_nota(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, ['maks_qty_item_per_nota' => 2], false);
+        $this->assertSame('ok', $res['status']);
+        $batch = $res['batch'];
+
+        foreach ($batch->transaksiPenjualan()->with('items.barang')->get() as $trx) {
+            $barangDalamNota = [];
+            foreach ($trx->items as $it) {
+                $this->assertLessThanOrEqual(2, $it->qty, 'Qty melebihi batas pada ' . $trx->ref_transaksi);
+                $this->assertNotContains($it->barang_id, $barangDalamNota, 'Barang ganda dlm 1 nota: ' . $trx->ref_transaksi);
+                $barangDalamNota[] = $it->barang_id;
+            }
+        }
+    }
+
+    public function test_generate_maks_1_semua_baris_qty_1(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 600000, ['maks_qty_item_per_nota' => 1], false);
+        $this->assertSame('ok', $res['status']);
+        $batch = $res['batch'];
+
+        foreach ($batch->transaksiPenjualan()->with('items')->get() as $trx) {
+            foreach ($trx->items as $it) {
+                $this->assertSame(1, $it->qty);
+            }
+        }
+    }
+
+    public function test_edit_rekonstruksi_sn_tetap_qty_1(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], false);
+        $batch = $res['batch'];
+        $svc->simpanDraft($batch->id);
+
+        $trx = $batch->transaksiPenjualan()->with('items.barang')->get()
+            ->first(fn ($t) => $t->items->contains(fn ($i) => $i->barang->isSn()));
+        if (! $trx) {
+            $this->markTestSkipped('Tidak ada item SN pada draft — kombinasi acak. '. ''.$batch->id);
+        }
+        $item = $trx->items->first(fn ($i) => $i->barang->isSn());
+
+        $this->expectException(\InvalidArgumentException::class);
+        app(\App\Services\PenjualanService::class)->edit($trx, $trx->tanggal_waktu, [[
+            'barang_id' => $item->barang_id,
+            'qty' => 2, // SN wajib 1
+            'harga_jual' => $item->harga_jual,
+        ]]);
+    }
 }

@@ -9,7 +9,7 @@ class TokoSetting extends Model
     protected $table = 'toko_settings';
 
     protected $fillable = [
-        'nama_toko', 'alamat', 'telepon', 'logo',
+        'nama_toko', 'alamat', 'telepon', 'npwp', 'logo',
         'margin_default', 'jam_buka', 'jam_tutup', 'hari_libur',
         'ambang_stok_menipis', 'parameter_generate', 'template_version',
     ];
@@ -26,6 +26,9 @@ class TokoSetting extends Model
     {
         return static::firstOrCreate(['id' => 1], [
             'nama_toko' => 'Bengkel Saya',
+            'alamat' => null,
+            'telepon' => null,
+            'npwp' => '',
             'margin_default' => 20,
             'jam_buka' => '08:00',
             'jam_tutup' => '17:00',
@@ -37,6 +40,8 @@ class TokoSetting extends Model
                 'toleransi_persen' => 2,
                 'variasi_min' => -10,
                 'variasi_max' => 0,
+                'maks_qty_item_per_nota' => 3,
+                'excluded_item_ids' => [],
             ],
             'template_version' => 'v1',
         ]);
@@ -50,6 +55,8 @@ class TokoSetting extends Model
             'toleransi_persen' => 2,
             'variasi_min' => -10,
             'variasi_max' => 0,
+            'maks_qty_item_per_nota' => 3,
+            'excluded_item_ids' => [],
         ], $this->parameter_generate ?? []);
     }
 }

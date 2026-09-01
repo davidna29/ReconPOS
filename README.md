@@ -17,11 +17,11 @@ s sesuai PRD `docs/PRD-Generate-Transaksi-Otomatis.md`, dengan desain mengikuti 
 | Dashboard | omset bulan berjalan (manual + rekonstruksi), hutang + jatuh tempo <=7 hari, SKU kritis, aksi cepat, transaksi terakhir | 1.2b |
 | Data Barang | master SKU, template import/export Excel, Update Harga Excel, Kartu Stok (satu-satunya jalur Stok Awal & Opname wajib alasan), Cetak Barcode, margin override + mode otomatis/kunci | 4.1, 4.3 |
 | Data Supplier | CRUD + modal ringkas, total hutang berjalan, riwayat pembelian | 4.4 |
-| Pembelian | form Transaksi (tab Cash / Hutang, Diskon Item + Diskon Total), Invoice Belum Lunas/Lunas, pelunasan cicilan, import Excel, edit/hapus atomik (5.5) | 5 |
-| Penjualan Manual (kasir-lite) | input manual (CUSTOMER_ID = 0) sebagai sumber `manual` untuk agregasi & export | 1.2b, 8 |
-| **Generate Transaksi** | periode + target omset -> draft per hari -> review/edit -> **Simpan** (potong stok, tandai SN, label `rekonstruksi`). Kapasitas stok kurang -> warning 2 opsi. Hari libur & jam operasional dipatuhi | 6, 7, 9 |
+| Pembelian | form Transaksi (tab Cash / Hutang, Diskon Item + Diskon Total), Invoice Belum Lunas/Lunas, pelunasan cicilan, import Excel, edit/hapus atomik (5.5), **bulk print / cetak terpilih** | 5 |
+| Penjualan Manual (kasir-lite) | input manual (CUSTOMER_ID = 0) sebagai sumber `manual` untuk agregasi & export, **bulk print / cetak terpilih** | 1.2b, 8 |
+| **Generate Transaksi** | periode + target omset -> draft per hari -> review/edit -> **Simpan** (potong stok, tandai SN, label `rekonstruksi`). Kapasitas stok kurang -> warning 2 opsi. Hari libur & jam operasional dipatuhi. **Item Dikecualikan** (checklist + pencarian, default dari Pengaturan) | 6, 7, 9 |
 | Export | **Format A** siap import POS Bengkel (template konfigurabel, pre-validasi, pecah 5.000 baris/file, sheet PETUNJUK) & **Format B** laporan internal + ringkasan; histori & tanda 'sudah diupload ke POS' | 4.2, 8 |
-| Pengaturan Toko | info toko, margin global, jam/hari operasional, parameter generate, ambang stok, **Template Export POS** | 4.5, 4.2 |
+| Pengaturan Toko | info toko, margin global, jam/hari operasional, parameter generate, ambang stok, **Template Export POS**, **ubah password admin** | 4.5, 4.2 |
 
 ---
 
@@ -55,6 +55,8 @@ Buka `http://localhost:8000` lalu login:
 ---
 
 ## Deploy ke Hostinger (shared hosting)
+
+> 🚀 **Pemula? Baca panduan langkah demi langkah:** [docs/DEPLOY-HOSTINGER.md](docs/DEPLOY-HOSTINGER.md) — versi ringkas di bawah.
 
 1. **Upload** seluruh folder proyek (kecuali `node_modules`, `vendor`) ke server, lalu **pindahkan isi `public/` ke `public_html/`**
    dan sesuaikan bootstrap path di `public/index.php` (mis. proyek di `~/domains/situs/public_html/app` ->

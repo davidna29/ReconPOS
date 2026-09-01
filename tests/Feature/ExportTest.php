@@ -90,4 +90,67 @@ class ExportTest extends TestCase
         $this->get(route('export.unduh', [$batch, 0]))->assertOk();
         $this->get(route('export.unduh', [$batch, 99]))->assertNotFound();
     }
+
+    public function test_hapus_batch_export_menghapus_baris_dan_file(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+        $svc = app(ExportPosService::class);
+        $svc->buildFormatA(now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d'));
+        $batch = ExportBatch::first();
+        $path = $svc->pathFile($batch->file_names[0]);
+        $this->assertFileExists($path);
+        // batch yang sudah ditandai "sudah diupload" tetap boleh dihapus
+        $batch->update(['status_upload_manual' => true]);
+
+        $this->delete(route('export.destroy', $batch))
+            ->assertSessionHas('success');
+        $this->assertDatabaseMissing('export_batch', ['id' => $batch->id]);
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function test_halaman_export_memuat_tombol_hapus(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+        app(ExportPosService::class)->buildFormatA(now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d'));
+
+        $this->get(route('export.index'))
+            ->assertOk()
+            ->assertSee('Aksi')
+            ->assertSee('Hapus riwayat');
+    }
+
+    public function test_export_rentang_tanggal_menang_atas_bulan(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+        // regresi bug: bulan selalu terisi default ikut terkirim — rentang tanggal harus menang
+        app(ExportPosService::class)->buildFormatA('2026-07-01', '2026-07-31', '2026-09');
+        $batch = ExportBatch::latest('id')->first();
+
+        $this->assertSame('2026-07-01', $batch->filter_mulai?->format('Y-m-d'));
+        $this->assertSame('2026-07-31', $batch->filter_selesai?->format('Y-m-d'));
+    }
+
+    public function test_export_shortcut_bulan_masih_berfungsi(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+        app(ExportPosService::class)->buildFormatA(null, null, '2026-08');
+        $batch = ExportBatch::latest('id')->first();
+
+        $this->assertSame('2026-08-01', $batch->filter_mulai?->format('Y-m-d'));
+        $this->assertSame('2026-08-31', $batch->filter_selesai?->format('Y-m-d'));
+    }
+
+    public function test_halaman_export_tanpa_default_bulan(): void
+    {
+        $this->authUser();
+
+        $this->get(route('export.index'))
+            ->assertOk()
+            ->assertDontSee('name="bulan" value=', false)
+            ->assertSee('data-export-form', false);
+    }
 }

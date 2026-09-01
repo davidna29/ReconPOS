@@ -187,6 +187,9 @@
     .segmented .active-hutang {
         @apply bg-hutang-amber text-white;
     }
+    .segmented .active-lunas {
+        @apply bg-lunas-green text-white;
+    }
 
     .nav-link {
         @apply mx-2 my-1 flex items-center gap-3 rounded-lg px-4 py-2 text-body-md font-medium text-secondary transition-all duration-200 hover:bg-surface-container-high hover:text-primary;
@@ -210,6 +213,31 @@
     direction: ltr;
     -webkit-font-feature-settings: 'liga';
     -webkit-font-smoothing: antialiased;
+}
+
+/* Sidebar: minimize desktop 240px -> rail ikon 64px (toggle via body.sidebar-minimized) */
+main {
+    transition: margin-left 0.2s ease;
+}
+@media (min-width: 768px) {
+    body.sidebar-minimized #app-sidebar {
+        width: 64px;
+    }
+    body.sidebar-minimized #app-sidebar .sidebar-brand {
+        justify-content: center;
+        padding-inline: 0;
+    }
+    body.sidebar-minimized #app-sidebar .nav-link {
+        justify-content: center;
+        padding-inline: 0;
+    }
+    body.sidebar-minimized #app-sidebar .nav-label,
+    body.sidebar-minimized #app-sidebar .sidebar-brand-text {
+        display: none;
+    }
+    body.sidebar-minimized main {
+        margin-left: 64px;
+    }
 }
 
 /** Cetak invoice & barcode label (PRD 5.2 print, 4.3 cetak barcode) */

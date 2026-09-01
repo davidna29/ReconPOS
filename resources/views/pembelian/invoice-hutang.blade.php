@@ -4,22 +4,23 @@
 
 @section('content')
     @php($label = 'Data Hutang Belum Lunas')
+    @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">{{ $label }}</h2>
-            <p class="mt-1 text-body-md text-secondary">Invoice pembelian tab Hutang dengan Sisa Hutang > 0 (PRD 5.2a)</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('pembelian.create') }}" class="btn btn-primary btn-sm">
-                <span class="material-symbols-outlined text-[16px]">add</span> Transaksi Pembelian
-            </a>
-            <a href="{{ route('pembelian.invoice-lunas') }}" class="btn btn-secondary btn-sm">Data Pembelian (Lunas)</a>
+            <p class="mt-1 text-body-md text-secondary">Invoice pembelian tab <strong>Hutang</strong> dengan Sisa Hutang lebih dari 0 (belum lunas) — PRD 5.2a</p>
         </div>
     </div>
 
     <div class="card overflow-hidden">
-        <div class="border-b border-outline-variant p-3">
+        <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
+            @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
             <form method="GET" class="flex items-center gap-2">
+                <select name="entries" class="input w-auto" onchange="this.form.submit()">
+                    @foreach ([10, 25, 50, 100] as $n)
+                        <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
+                    @endforeach
+                </select>
                 <div class="relative">
                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary">search</span>
                     <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari invoice / supplier…" class="input w-64 pl-9">
@@ -32,6 +33,7 @@
             <table class="tbl">
                 <thead>
                     <tr>
+                        <th class="w-8"><input type="checkbox" id="bulk-all-hutang" class="bulk-all shrink-0 rounded border-outline-variant text-primary focus:ring-primary" title="Pilih semua di halaman ini"></th>
                         <th>No</th>
                         <th>Invoice</th>
                         <th>Tanggal Transaksi</th>
@@ -44,6 +46,7 @@
                 <tbody>
                     @forelse ($invoices as $i => $inv)
                         <tr @class(['row-overdue' => $inv->jatuh_tempo && $inv->jatuh_tempo->isPast()])>
+                            <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="hutang" value="{{ $inv->id }}"></td>
                             <td class="text-secondary">{{ $invoices->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
                             <td>{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
@@ -83,7 +86,7 @@
                             </td>
                         </tr>
                         <tr id="bayar-{{ $inv->id }}" class="hidden bg-slate-50">
-                            <td colspan="7">
+                            <td colspan="8">
                                 <form method="POST" action="{{ route('pembelian.bayar', $inv) }}" class="flex flex-wrap items-end gap-3 p-3">
                                     @csrf
                                     <div>
@@ -103,7 +106,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
+                        <tr><td colspan="8" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -1,26 +1,25 @@
 @extends('layouts.app')
 
-@section('title', 'Data Pembelian')
+@section('title', 'Data Pembelian (Lunas/Cash)')
 
 @section('content')
+    @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Data Pembelian</h2>
-            <p class="mt-1 text-body-md text-secondary">Data barang Pembelian — Cash langsung lunas + Hutang yang sudah dilunasi (PRD 5.2b)</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('pembelian.invoice-hutang') }}" class="btn btn-amber btn-sm">
-                <span class="material-symbols-outlined text-[16px]">receipt_long</span> Data Hutang Belum Lunas
-            </a>
-            <a href="{{ route('pembelian.create') }}" class="btn btn-primary btn-sm">
-                <span class="material-symbols-outlined text-[16px]">add</span> Transaksi Pembelian
-            </a>
+            <h2 class="text-headline-lg text-on-surface">Data Pembelian (Lunas/Cash)</h2>
+            <p class="mt-1 text-body-md text-secondary">Transaksi <strong>Cash</strong> (langsung lunas) + Invoice <strong>Hutang yang sudah dilunasi</strong> penuh — PRD 5.2b</p>
         </div>
     </div>
 
     <div class="card overflow-hidden">
-        <div class="border-b border-outline-variant p-3">
+        <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
+            @include('partials.bulk-print', ['scope' => 'lunas', 'action' => route('pembelian.print-batch')])
             <form method="GET" class="flex items-center gap-2">
+                <select name="entries" class="input w-auto" onchange="this.form.submit()">
+                    @foreach ([10, 25, 50, 100] as $n)
+                        <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
+                    @endforeach
+                </select>
                 <div class="relative">
                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary">search</span>
                     <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari invoice / supplier…" class="input w-64 pl-9">
@@ -32,6 +31,7 @@
             <table class="tbl">
                 <thead>
                     <tr>
+                        <th class="w-8"><input type="checkbox" id="bulk-all-lunas" class="bulk-all shrink-0 rounded border-outline-variant text-primary focus:ring-primary" title="Pilih semua di halaman ini"></th>
                         <th>No</th>
                         <th>Invoice</th>
                         <th>Tanggal</th>
@@ -46,6 +46,7 @@
                     @forelse ($invoices as $i => $inv)
                         @php($kembali = $inv->jenis === 'cash' ? max(0, $inv->bayar_atau_dp - $inv->total_setelah_diskon) : 0)
                         <tr>
+                            <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="lunas" value="{{ $inv->id }}"></td>
                             <td class="text-secondary">{{ $invoices->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $inv->no_invoice }}
                                 @if ($inv->sumber === 'import_excel')<x-badge color="slate" class="ml-1">import</x-badge>@endif
@@ -77,7 +78,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
+                        <tr><td colspan="9" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
                     @endforelse
                 </tbody>
             </table>

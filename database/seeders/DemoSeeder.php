@@ -6,6 +6,7 @@ use App\Models\Barang;
 use App\Models\KategoriBarang;
 use App\Models\Supplier;
 use App\Models\TokoSetting;
+use App\Services\GenerateService;
 use App\Services\HargaService;
 use App\Services\PembelianService;
 use App\Services\PenjualanService;
@@ -68,14 +69,15 @@ class DemoSeeder extends Seeder
             $barangMap[$d[0]] = $barang;
         }
 
-        // Pembelian tersebar di bulan berjalan (sampai hari ini) — sumber kartu stok masuk
+        // ---- Pembelian: tersebar di SELURUH bulan berjalan (konsisten di tanggal berapa pun hari ini) ----
         $pembelian = app(PembelianService::class);
         $hariIni = now();
+        $bulan = $hariIni->copy()->startOfMonth();
         $jadwal = [
-            1 => ['OLI-001', 'OLI-002', 'FLT-001'],
-            3 => ['BUS-001', 'RKT-001'],
-            5 => ['AKI-001', 'AKI-002'],
-            8 => ['KPR-001', 'KPR-002', 'FLT-002'],
+            1  => ['OLI-001', 'OLI-002', 'FLT-001'],
+            3  => ['BUS-001', 'RKT-001'],
+            5  => ['AKI-001', 'AKI-002'],
+            8  => ['KPR-001', 'KPR-002', 'FLT-002'],
             11 => ['RKT-002', 'RNR-001'],
             14 => ['BAN-001', 'LMP-001'],
             17 => ['OLI-001', 'OLI-002'],
@@ -83,19 +85,18 @@ class DemoSeeder extends Seeder
             23 => ['KPR-001', 'RKT-001', 'BAN-001'],
         ];
 
+        // seed RNG agar data contoh stabil antar 'migrate:fresh --seed'
+        mt_srand(31082026);
+
         $no = 0;
         foreach ($jadwal as $tglHari => $kodes) {
-            if ($tglHari > $hariIni->day) {
-                continue;
-            }
-            $tanggal = $hariIni->copy()->startOfMonth()->addDays($tglHari - 1)->setTime(rand(8, 10), rand(0, 59));
+            $tanggal = $bulan->copy()->addDays($tglHari - 1)->setTime(rand(8, 10), rand(0, 59));
             $items = [];
             foreach ($kodes as $kode) {
                 $b = $barangMap[$kode];
-                $qty = rand(3, 8);
-                $hargaBeli = $b->harga_beli_terakhir > 0 ? $b->harga_beli_terakhir : 0;
+                $qty = rand(4, 9);
                 $def = collect($barangDef)->first(fn ($x) => $x[0] === $kode);
-                $hargaBeli = (int) round($def[5] * (1 + rand(-5, 5) / 100));
+                $hargaBeli = (int) round($def[5] * (1 + rand(-4, 4) / 100));
                 $items[] = [
                     'barang_id' => $b->id,
                     'harga_beli' => $hargaBeli,
@@ -120,27 +121,60 @@ class DemoSeeder extends Seeder
                     'items' => $items,
                 ], 'manual');
             } catch (\Throwable $e) {
-                // skip invoice yang gagal (mis. no invoice bentrok) — demo tetap berjalan
                 $this->command?->warn('Pembelian demo di-skip: ' . $e->getMessage());
             }
             $no++;
         }
 
-        // 2 penjualan manual di bulan berjalan (sumber manual — terhitung di target generate)
+        // ---- Penjualan manual: 3 nota di tanggal yg stoknya sudah masuk (hari 10-13) ----
         $penjualan = app(PenjualanService::class);
-        foreach ([2 => 'OLI-001', 4 => 'BUS-001'] as $tglHari => $kode) {
-            if ($tglHari > $hariIni->day) {
-                continue;
-            }
+        $mapManual = [10 => ['OLI-001', 2], 12 => ['FLT-001', 1], 13 => ['AKI-001', 1]];
+        foreach ($mapManual as $tglHari => [$kode, $qty]) {
             $b = $barangMap[$kode];
             try {
                 $penjualan->simpanManual(
-                    $hariIni->copy()->startOfMonth()->addDays($tglHari - 1)->setTime(rand(9, 16), rand(0, 59)),
-                    [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => $b->harga_jual]],
+                    $bulan->copy()->addDays($tglHari - 1)->setTime(rand(9, 16), rand(0, 59)),
+                    [['barang_id' => $b->id, 'qty' => $qty, 'harga_jual' => $b->harga_jual]],
                 );
-            } catch (\Throwable) {
-                // stok mungkin belum masuk — abaikan
+            } catch (\Throwable $e) {
+                $this->command?->warn('Penjualan manual demo di-skip (' . $kode . '): ' . $e->getMessage());
             }
+        }
+
+        // ---- Rekonstruksi: 1 batch TERSIMPAN + 1 batch DRAFT (bisa dicoba Review) ----
+        $generate = app(GenerateService::class);
+        $mulai = $bulan->copy();
+        $selesai = $bulan->copy()->endOfMonth();
+
+        // a) batch tersimpan (pembukuan resmi) — target 1.5 jt (fallback: semaksimal stok)
+        mt_srand(12092026);
+        try {
+            $res1 = $generate->generate($mulai->copy(), $selesai->copy(), 1500000, [], false);
+            if (($res1['status'] ?? '') === 'kapasitas_kurang') {
+                $res1 = $generate->generate($mulai->copy(), $selesai->copy(), 1500000, [], true);
+            }
+            $batch1 = $res1['batch'] ?? null;
+            if ($batch1) {
+                $generate->simpanDraft($batch1->id);
+                $this->command?->info('Batch rekonstruksi TERSIMPAN: #' . $batch1->id . ' (total ' . rupiah($batch1->total_generate) . ').');
+            }
+        } catch (\Throwable $e) {
+            $this->command?->warn('Generate tersimpan demo di-skip: ' . $e->getMessage());
+        }
+
+        // b) batch draft utk percobaan Review/Generate Ulang
+        mt_srand(15092026);
+        try {
+            $res2 = $generate->generate($mulai->copy(), $selesai->copy(), 4500000, [], false);
+            if (($res2['status'] ?? '') === 'kapasitas_kurang') {
+                $res2 = $generate->generate($mulai->copy(), $selesai->copy(), 4500000, [], true);
+            }
+            $batch2 = $res2['batch'] ?? null;
+            if ($batch2 && ($batch2->status ?? '') === 'draft') {
+                $this->command?->info('Batch rekonstruksi DRAFT utk dicoba review: #' . $batch2->id . ' (total ' . rupiah($batch2->total_generate) . ').');
+            }
+        } catch (\Throwable $e) {
+            $this->command?->warn('Generate draft demo di-skip: ' . $e->getMessage());
         }
 
         $this->command?->info('Demo data siap: ' . count($barangMap) . ' barang, ' . count($suppliers) . ' supplier, pembelian & penjualan contoh di bulan berjalan.');

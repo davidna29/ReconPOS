@@ -18,6 +18,24 @@
         .muted { color: #6b7280; }
         .total-row td { font-weight: 700; background: #f8fafc; }
         .barcode-label { text-align: center; padding: 8px; border: 1px dashed #cbd5e1; }
+        /* Bulk print: default page break per nota; toggle .pb-off mematikan */
+        .print-area .print-page { page-break-after: always; }
+        .print-area.pb-off .print-page { page-break-after: auto; }
+        .print-page:last-child { page-break-after: auto; }
+        /* Ruang atas-bawah antar nota agar tidak menempel */
+        .print-page { padding: 24px 0; }
+        /* Kontrol toggle "Halaman baru per nota" (tidak ikut tercetak) */
+        .bulk-controls {
+            position: fixed; top: 12px; right: 12px; z-index: 50;
+            display: flex; align-items: center; gap: 8px;
+            background: #fff; border: 1px solid #cbd5e1; border-radius: 8px;
+            padding: 6px 10px; font-size: 12px; color: #111827;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+        @media print {
+            .invoice { break-inside: avoid; }
+            .bulk-controls { display: none !important; }
+        }
     </style>
 </head>
 
