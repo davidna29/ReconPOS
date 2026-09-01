@@ -15,7 +15,7 @@ return new class extends Migration
             $table->unsignedInteger('margin_dipakai')->nullable();
             $table->unsignedBigInteger('harga_jual_efektif');
             $table->dateTime('tanggal_berlaku')->index();
-            $table->foreignId('invoice_pembelian_id')->nullable()->constrained('invoice_pembelian')->nullOnDelete();
+            $table->foreignId('invoice_pembelian_id')->nullable(); // FK ditambahkan di migration terpisah (urutan MySQL)
             $table->timestamps();
         });
     }

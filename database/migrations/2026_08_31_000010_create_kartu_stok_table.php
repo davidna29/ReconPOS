@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('jenis', 25);                                  // masuk_pembelian | keluar_penjualan | stok_awal | opname
             $table->integer('qty');                                       // + masuk, - keluar
             $table->foreignId('invoice_pembelian_id')->nullable()->constrained('invoice_pembelian')->nullOnDelete();
-            $table->foreignId('transaksi_penjualan_id')->nullable()->constrained('transaksi_penjualan')->nullOnDelete();
+            $table->foreignId('transaksi_penjualan_id')->nullable(); // FK ditambahkan di migration terpisah (urutan MySQL)
             $table->string('keterangan')->nullable();
             $table->timestamps();
             $table->index(['barang_id', 'tanggal']);
