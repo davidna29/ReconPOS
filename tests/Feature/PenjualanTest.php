@@ -317,7 +317,6 @@ class PenjualanTest extends TestCase
         $this->authUser();
         $this->beliDanJual('P-TGT', 10, 50000, 5, 60000); // total 300.000
 
-        // buat batch_generate dengan target 500.000 untuk bulan berjalan
         \App\Models\BatchGenerate::create([
             'periode_mulai' => now()->startOfMonth()->toDateString(),
             'periode_selesai' => now()->endOfMonth()->toDateString(),
@@ -329,6 +328,55 @@ class PenjualanTest extends TestCase
         $this->get(route('penjualan.index'))
             ->assertOk()
             ->assertSee('Target: ' . rupiah(500000))
-            ->assertSee('Sisa: ' . rupiah(200000)); // 500.000 - 300.000
+            ->assertSee('Sisa: ' . rupiah(200000));
+    }
+
+    public function test_hapus_rekonstruksi_belum_diedit_ditolak(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'P-REK1', 'nama' => 'Rek1', 'sn_atau_non_sn' => 'NON_SN']);
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
+        ]);
+        $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
+        $trx->update(['sumber' => 'rekonstruksi']);
+
+        $this->deleteJson(route('penjualan.destroy', $trx))
+            ->assertStatus(422)
+            ->assertJson(['success' => false]);
+    }
+
+    public function test_hapus_rekonstruksi_sudah_diedit_berhasil(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'P-REK2', 'nama' => 'Rek2', 'sn_atau_non_sn' => 'NON_SN']);
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
+        ]);
+        $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
+        $trx->update(['sumber' => 'rekonstruksi', 'diedit_at' => now()]);
+
+        $this->deleteJson(route('penjualan.destroy', $trx))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trx->id]);
+    }
+
+    public function test_tombol_hapus_muncul_untuk_rekonstruksi_diedit(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-RH', 10, 50000, 1, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
+        $trx->update(['sumber' => 'rekonstruksi', 'diedit_at' => now()]);
+
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee('data-delete-ajax', false);
     }
 }

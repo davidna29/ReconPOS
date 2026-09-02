@@ -308,7 +308,8 @@ class PenjualanService
 
     public function hapus(TransaksiPenjualan $trx): void
     {
-        if ($trx->sumber === 'rekonstruksi') {
+        // rekonstruksi belum diedit → harus lewat undo batch; sudah diedit → boleh hapus langsung
+        if ($trx->sumber === 'rekonstruksi' && ! $trx->diedit_at) {
             throw new InvalidArgumentException('Penjualan hasil generate dihapus lewat halaman Generate (batalkan draft).');
         }
 
