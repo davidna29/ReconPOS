@@ -43,7 +43,7 @@ class PengaturanController extends Controller
             'excluded_item_ids.*' => ['integer', 'exists:barang,id'],
             // hari libur
             'libur_dates' => ['nullable', 'array'],
-            'libur_dates.*' => ['date'],
+            'libur_dates.*' => ['nullable', 'date'],
             'libur_weekly' => ['nullable', 'array'],
             'libur_weekly.*' => ['in:Mon,Tue,Wed,Thu,Fri,Sat,Sun'],
             'template_version' => ['nullable', 'string', 'max:20'],
