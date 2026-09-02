@@ -304,7 +304,8 @@ main {
 .dark .border-l-danger-red { border-left-color: var(--color-danger-red) !important; }
 .dark th { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
 .dark td { border-bottom-color: var(--color-outline-variant) !important; }
-.dark .hover\:bg-slate-50:hover { background-color: var(--color-surface-container) !important; }
+.dark .hover\:bg-slate-50:hover { background-color: var(--color-surface-container-high) !important; }
+.dark .tbl tbody tr:hover { background-color: var(--color-surface-container-high) !important; }
 .dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.15) !important; }
 .dark .hover\:bg-blue-50:hover { background-color: rgba(59, 130, 246, 0.15) !important; }
 .dark .hover\:bg-amber-50:hover { background-color: rgba(245, 158, 11, 0.15) !important; }
@@ -315,6 +316,8 @@ main {
 .dark .input::placeholder { color: var(--color-on-surface-variant) !important; }
 .dark .hint { color: var(--color-on-surface-variant) !important; }
 .dark .label { color: var(--color-on-surface) !important; }
+.dark .btn-primary { background-color: #3a6dcc !important; color: #ffffff !important; }
+.dark .btn-primary:hover { background-color: #4a7dde !important; }
 .dark .btn-secondary { background-color: var(--color-surface-container) !important; border-color: var(--color-outline-variant) !important; color: var(--color-on-surface) !important; }
 .dark .btn-secondary:hover { background-color: var(--color-surface-container-high) !important; }
 .dark .btn-icon { color: var(--color-on-surface-variant) !important; }
@@ -345,10 +348,10 @@ main {
 .dark .mono { color: var(--color-on-surface) !important; }
 .dark a { color: var(--color-primary) !important; }
 .dark a:hover { opacity: 0.85; }
-.dark .badge-green { background-color: rgba(34, 197, 94, 0.15) !important; color: #4ade80 !important; }
-.dark .badge-blue { background-color: rgba(59, 130, 246, 0.15) !important; color: #60a5fa !important; }
+.dark .badge-green { background-color: rgba(34, 197, 94, 0.20) !important; color: #86efac !important; }
+.dark .badge-blue { background-color: rgba(59, 130, 246, 0.20) !important; color: #93c5fd !important; }
 .dark .badge-slate { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
-.dark .badge-amber { background-color: rgba(245, 158, 11, 0.15) !important; color: #fbbf24 !important; }
+.dark .badge-amber { background-color: rgba(245, 158, 11, 0.20) !important; color: #fcd34d !important; }
 .dark .badge-red { background-color: rgba(239, 68, 68, 0.15) !important; color: #f87171 !important; }
 .dark .badge-teal { background-color: rgba(20, 184, 166, 0.15) !important; color: #2dd4bf !important; }
 
