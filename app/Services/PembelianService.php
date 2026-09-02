@@ -353,11 +353,18 @@ class PembelianService
                 );
             }
 
+            // Cek per SKU (agregat): reversal mengurangi stok sebesar JUMLAH qty semua baris
+            // barang yang sama. Cek per-baris bisa lolos padahal total reversal membuat minus
+            // (mis. SKU ganda 4x6=24, stok 10 → 10-24=-14 tanpa warning).
             $dampak = [];
-            foreach ($invoice->items as $it) {
-                $barang = Barang::find($it->barang_id);
-                if ($barang && ($barang->stock - $it->qty) < 0) {
-                    $dampak[] = $barang->nama . ' (sisa ' . $barang->stock . ' < qty invoice ' . $it->qty . ')';
+            foreach ($invoice->items->groupBy('barang_id') as $barangId => $itemRows) {
+                $barang = Barang::find($barangId);
+                if (! $barang) {
+                    continue;
+                }
+                $totalQty = (int) $itemRows->sum('qty');
+                if (($barang->stock - $totalQty) < 0) {
+                    $dampak[] = $barang->nama . ' (sisa ' . $barang->stock . ' < qty invoice ' . $totalQty . ')';
                 }
             }
             if (! $force && count($dampak) > 0) {

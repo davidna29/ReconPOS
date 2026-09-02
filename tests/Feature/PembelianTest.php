@@ -233,6 +233,36 @@ class PembelianTest extends TestCase
         $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
     }
 
+    public function test_hapus_invoice_stok_minus_agregat_multibaris(): void
+    {
+        // SKU sama di 2 baris (6+6=12) — cek warning TIDAK boleh lolos diam-diam (bug agregasi).
+        $this->authUser();
+        $b = $this->barang('B-AGG');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 600000,
+            'items' => [
+                ['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 6, 'diskon_item' => 0],
+                ['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 6, 'diskon_item' => 0],
+            ],
+        ]);
+        // jual 2 dari 12 -> stok 10; hapus invoice (total 12) -> akan minus 2
+        app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 2, 'harga_jual' => 60000]]);
+        $this->assertSame(10, (int) $b->fresh()->stock);
+
+        // tanpa force: HARUS warning (sebelumnya lolos diam-diam karena cek per-baris)
+        $this->delete(route('pembelian.destroy', $inv))->assertSessionHas('stok_warning');
+        $this->assertDatabaseHas('invoice_pembelian', ['id' => $inv->id]);
+        $this->assertSame(10, (int) $b->fresh()->stock);
+
+        // dengan force: invoice terhapus & stok = 10 - 12 = -2
+        $this->delete(route('pembelian.destroy', $inv) . '?force=1')->assertSessionHas('success');
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
+        $this->assertSame(-2, (int) $b->fresh()->stock);
+    }
+
     public function test_cetak_batch_pembelian_terpilih(): void
     {
         $this->authUser();
