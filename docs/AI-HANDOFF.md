@@ -53,7 +53,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - Form Cash/Hutang (toggle). Cash: bayar ≥ total (server tolak bila kurang). Hutang: DP + sisa; jatuh tempo auto = akhir bulan ke-3; pelunasan cicilan → lunas saat sisa 0.
 - Simpan = tambah stok (kartu_stok masuk) + histori harga (harga_jual dikalkulasi ulang hanya saat mode otomatis).
 - Edit/hapus atomik dgn guard: hapus invoice hutang ber-historipembayaran **diblokir**; edit dgn qty baru < qty terjual sejak invoice **ditolak**; hapus yang membuat stok minus → warning 2 opsi (force) — **valid di kedua jalur**: non-JS (modal partial resolve-stok-warning) & AJAX (confirm "Lanjutkan/Batalkan" → kirim ulang force=1, lihat app.js). Pesan sukses force menyebut stok minus utk investigasi. **Cek warning hapus dihitung PER SKU (agregat total qty semua baris barang yang sama), bukan per baris** — cek per-baris bisa lolos diam-diam & reversal (yag mengurangi total) membuat stok minus besar tanpa warning (contoh: SKU ganda 4×6=24, stok 10 → hapus → −14).
-- **Audit stok**: `scripts/cek-anomali-stok.php` (read-only) mencetak barang stok<0, drift kolom stock vs kartu stok, invoice terkait, & invoice SKU ganda — utk investigasi stok minus.
+- **Audit stok**: `scripts/cek-anomali-stok.php` (read-only, jalan `php scripts/cek-anomali-stok.php`) mencetak: (1) barang stok<0 + invoice terkait + 10 kartu terakhir, (2) invoice SKU-ganda + **stok saat ini SKU tsb** (aman/tidak utk dihapus), (3) **drift semua barang** (`barang.stock` vs `SUM(kartu_stok.qty)`) — utk investigasi stok minus & konsistensi data.
 
 ### Penjualan (satu laman "/penjualan")
 - Menampilkan **manual + rekonstruksi** (badge Manual/Rekonstruksi + tanda "diedit"); tab filter Semua/Manual/Rekonstruksi.

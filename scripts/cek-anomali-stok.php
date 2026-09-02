@@ -77,7 +77,36 @@ if ($ganda->isEmpty()) {
         $barang = Barang::find($g->barang_id);
         $namaInv = $inv ? $inv->no_invoice : '(invoice sudah dihapus)';
         $kode = $barang ? $barang->kode_barang : '(barang sudah dihapus)';
-        echo "- {$namaInv} : {$kode} x {$g->n} baris (qty total {$g->q}) — hapus invoice ini mengurangi stok {$g->q}\n";
+        $stok = $barang ? (int) $barang->stock : null;
+        $aman = ($stok !== null && $stok >= (int) $g->q) ? 'AMAN dihapus' : "warning jika dihapus (stok {$stok} < qty {$g->q})";
+        echo "- {$namaInv} : {$kode} x {$g->n} baris (qty total {$g->q}) — stok saat ini = {$stok} → {$aman}\n";
+    }
+}
+
+echo "========== 3) DRIFT KOLOM STOCK vs KARTU STOK (semua barang) ==========\n";
+// Drift = barang.stock ≠ SUM(kartu_stok.qty) — tanda data tidak konsisten.
+$driftedAll = [];
+foreach (Barang::where('tipe_item', 'barang')->get() as $b) {
+    $sum = (int) KartuStok::where('barang_id', $b->id)->sum('qty');
+    if ((int) $b->stock !== $sum) {
+        $driftedAll[] = [
+            'kode' => $b->kode_barang,
+            'nama' => $b->nama,
+            'stock' => (int) $b->stock,
+            'kartu' => $sum,
+            'drift' => (int) $b->stock - $sum,
+        ];
+    }
+}
+if (count($driftedAll) === 0) {
+    echo "Semua barang sinkron (barang.stock == SUM kartu_stok.qty).\n";
+} else {
+    usort($driftedAll, fn ($a, $b) => abs($b['drift']) <=> abs($a['drift']));
+    foreach (array_slice($driftedAll, 0, 40) as $d) {
+        echo "- {$d['kode']} ({$d['nama']}): stock={$d['stock']} vs kartu={$d['kartu']} → selisih {$d['drift']}\n";
+    }
+    if (count($driftedAll) > 40) {
+        echo (count($driftedAll) - 40) . " barang lain juga drift (cetak dibatasi 40).\n";
     }
 }
 
