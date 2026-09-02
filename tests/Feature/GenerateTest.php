@@ -428,4 +428,72 @@ class GenerateTest extends TestCase
             'harga_jual' => $item->harga_jual,
         ]]);
     }
+
+    public function test_hapus_batch_draft_dari_riwayat(): void
+    {
+        $this->authUser();
+        $batch = BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 100000,
+            'status' => 'draft',
+        ]);
+
+        $this->deleteJson(route('generate.hapus-batch', $batch))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('batch_generate', ['id' => $batch->id]);
+    }
+
+    public function test_hapus_batch_dibatalkan_dari_riwayat(): void
+    {
+        $this->authUser();
+        $batch = BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 100000,
+            'status' => 'dibatalkan',
+        ]);
+
+        $this->deleteJson(route('generate.hapus-batch', $batch))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('batch_generate', ['id' => $batch->id]);
+    }
+
+    public function test_hapus_batch_tersimpan_ditolak(): void
+    {
+        $this->authUser();
+        $batch = BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 100000,
+            'status' => 'tersimpan',
+        ]);
+
+        $this->deleteJson(route('generate.hapus-batch', $batch))
+            ->assertStatus(422)
+            ->assertJson(['success' => false]);
+    }
+
+    public function test_riwayat_batch_terurut_terbaru(): void
+    {
+        $this->authUser();
+        $a = BatchGenerate::create([
+            'periode_mulai' => now()->subMonth()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->subMonth()->endOfMonth()->toDateString(),
+            'target_omset' => 100000,
+            'status' => 'draft',
+        ]);
+        $b = BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 200000,
+            'status' => 'draft',
+        ]);
+
+        $this->get(route('generate.riwayat'))
+            ->assertOk()
+            ->assertSeeInOrder(['#' . $b->id, '#' . $a->id]);
+    }
 }

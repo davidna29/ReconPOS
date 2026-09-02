@@ -95,6 +95,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/generate/{batch}', [GenerateController::class, 'hapusDraft'])->name('generate.batal');
     Route::delete('/generate/nota/{transaksiPenjualan}', [GenerateController::class, 'hapusNota'])->name('generate.hapus-nota');
     Route::patch('/generate/item/{item}', [GenerateController::class, 'updateLine'])->name('generate.update-line');
+    Route::delete('/generate/{batch}/hapus', [GenerateController::class, 'hapusBatch'])->name('generate.hapus-batch');
 
     // ---- Export (PRD 8) ----
     Route::get('/export', [ExportController::class, 'index'])->name('export.index');

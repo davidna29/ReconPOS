@@ -61,12 +61,31 @@
                                 <div class="flex justify-end gap-1">
                                     @if ($b->status === 'draft')
                                         <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review</a>
+                                        <form method="POST" action="{{ route('generate.hapus-batch', $b) }}"
+                                            data-confirm="Hapus draft batch #{{ $b->id }}? Tidak ada efek ke stok."
+                                            data-delete-ajax>
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn btn-danger btn-sm">
+                                                <span class="material-symbols-outlined text-[16px]">delete</span>
+                                            </button>
+                                        </form>
                                     @elseif ($b->status === 'tersimpan')
                                         <form method="POST" action="{{ route('generate.batalkan', $b) }}"
                                             data-confirm="Undo batch #{{ $b->id }}? Stok akan dikembalikan & NO_SN dilepas. Baris tetap tersimpan sebagai 'dibatalkan' (audit). Transaksi tidak lagi dihitung di omset/export.">
                                             @csrf
                                             <button class="btn btn-danger btn-sm">
                                                 <span class="material-symbols-outlined text-[16px]">undo</span> Undo
+                                            </button>
+                                        </form>
+                                    @elseif ($b->status === 'dibatalkan')
+                                        <form method="POST" action="{{ route('generate.hapus-batch', $b) }}"
+                                            data-confirm="Hapus batch dibatalkan #{{ $b->id }}? Tidak ada efek ke stok."
+                                            data-delete-ajax>
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn btn-danger btn-sm">
+                                                <span class="material-symbols-outlined text-[16px]">delete</span>
                                             </button>
                                         </form>
                                     @endif

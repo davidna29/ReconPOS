@@ -154,6 +154,22 @@ class GenerateController extends Controller
         }
     }
 
+    /** Hapus batch draft atau dibatalkan dari halaman Riwayat. */
+    public function hapusBatch(Request $request, BatchGenerate $batch)
+    {
+        try {
+            $this->service->hapusBatch($batch->id);
+
+            return $request->expectsJson()
+                ? response()->json(['success' => true, 'message' => 'Batch #' . $batch->id . ' dihapus.'])
+                : redirect()->route('generate.riwayat')->with('success', 'Batch #' . $batch->id . ' dihapus.');
+        } catch (InvalidArgumentException $e) {
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'error' => $e->getMessage()], 422)
+                : back()->with('error', $e->getMessage());
+        }
+    }
+
     /** Edit 1 baris item draft (qty/harga) pada review. */
     public function updateLine(Request $request, TransaksiPenjualanItem $item)
     {
@@ -176,7 +192,7 @@ class GenerateController extends Controller
     {
         $batches = BatchGenerate::withCount('transaksiPenjualan')
             ->with(['transaksiPenjualan.items.barang'])
-            ->latest()
+            ->latest('id')
             ->paginate(15);
 
         return view('generate.riwayat', compact('batches'));

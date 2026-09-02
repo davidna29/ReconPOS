@@ -1003,4 +1003,22 @@ class GenerateService
             }
         });
     }
+
+    /** Hapus batch draft atau dibatalkan dari riwayat (bukan tersimpan). */
+    public function hapusBatch(int $batchId): void
+    {
+        $batch = BatchGenerate::withCount('transaksiPenjualan')->findOrFail($batchId);
+
+        if ($batch->status === 'tersimpan') {
+            throw new InvalidArgumentException('Batch yang sudah tersimpan tidak bisa dihapus. Gunakan Undo terlebih dahulu.');
+        }
+
+        DB::transaction(function () use ($batch) {
+            foreach ($batch->transaksiPenjualan as $trx) {
+                $trx->items()->delete();
+                $trx->delete();
+            }
+            $batch->delete();
+        });
+    }
 }

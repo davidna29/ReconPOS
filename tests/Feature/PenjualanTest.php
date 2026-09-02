@@ -218,7 +218,7 @@ class PenjualanTest extends TestCase
         $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trx->id]);
     }
 
-    public function test_hapus_penjualan_ajax_rekonstruksi_ditolak(): void
+    public function test_hapus_penjualan_ajax_rekonstruksi_berhasil(): void
     {
         $this->authUser();
         $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
@@ -230,13 +230,12 @@ class PenjualanTest extends TestCase
             'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
         ]);
         $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
-
-        // simulasikan rekonstruksi
         $trx->update(['sumber' => 'rekonstruksi']);
 
+        // rekonstruksi sekarang bisa dihapus langsung (guard dihapus)
         $this->deleteJson(route('penjualan.destroy', $trx))
-            ->assertStatus(422)
-            ->assertJson(['success' => false]);
+            ->assertOk()
+            ->assertJson(['success' => true]);
     }
 
     public function test_bulk_hapus_penjualan_ajax(): void
@@ -331,24 +330,6 @@ class PenjualanTest extends TestCase
             ->assertSee('Sisa: ' . rupiah(200000));
     }
 
-    public function test_hapus_rekonstruksi_belum_diedit_ditolak(): void
-    {
-        $this->authUser();
-        $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
-        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'P-REK1', 'nama' => 'Rek1', 'sn_atau_non_sn' => 'NON_SN']);
-        app(PembelianService::class)->simpan([
-            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
-            'jenis' => 'cash', 'bayar_atau_dp' => 500000,
-            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
-        ]);
-        $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
-        $trx->update(['sumber' => 'rekonstruksi']);
-
-        $this->deleteJson(route('penjualan.destroy', $trx))
-            ->assertStatus(422)
-            ->assertJson(['success' => false]);
-    }
-
     public function test_hapus_rekonstruksi_sudah_diedit_berhasil(): void
     {
         $this->authUser();
@@ -374,6 +355,37 @@ class PenjualanTest extends TestCase
         $this->beliDanJual('P-RH', 10, 50000, 1, 60000);
         $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
         $trx->update(['sumber' => 'rekonstruksi', 'diedit_at' => now()]);
+
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee('data-delete-ajax', false);
+    }
+
+    public function test_hapus_rekonstruksi_belum_diedit_berhasil(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'P-REK3', 'nama' => 'Rek3', 'sn_atau_non_sn' => 'NON_SN']);
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
+        ]);
+        $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
+        $trx->update(['sumber' => 'rekonstruksi']); // belum diedit
+
+        $this->deleteJson(route('penjualan.destroy', $trx))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trx->id]);
+    }
+
+    public function test_tombol_hapus_untuk_semua_rekonstruksi(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-RA', 10, 50000, 1, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
+        $trx->update(['sumber' => 'rekonstruksi']); // belum diedit, tetap ada tombol hapus
 
         $this->get(route('penjualan.index'))
             ->assertOk()

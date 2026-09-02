@@ -144,7 +144,7 @@
                                     <a href="{{ route('penjualan.print', $t) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Cetak Struk">
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
-                                    @if ($t->sumber === 'manual' || $t->diedit_at)
+                                    @if ($t->sumber !== 'draft')
                                         <form method="POST" action="{{ route('penjualan.destroy', $t) }}" data-confirm="Hapus penjualan {{ $t->ref_transaksi }}? Stok akan dikembalikan." data-delete-ajax>
                                             @csrf
                                             @method('DELETE')
