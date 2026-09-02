@@ -23,7 +23,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan serve
   ```
 - Akun admin demo: `admin@gentot.local` / `gentot2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (±73 test, SQLite :memory:).
+- Test: `php artisan test` (±115 test, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 
 ## 3. Arsitektur (folder di `app/`)
@@ -37,7 +37,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   - `PenjualanService` — penjualan manual + commit draft rekonstruksi + **edit nota (rekonsiliasi stok/SN, set diedit_at)**.
   - `GenerateService` — algoritma rekonstruksi (lihat §5).
   - `ExportPosService` / `ExcelImportService` — export Format A/B & import xlsx.
-- `Http/Controllers/` — Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Pengaturan. Route: `routes/web.php` (semua auth; login throttle 5/menit; CSRF default; session lifetime 120 menit).
+- `Http/Controllers/` — Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Pengaturan, **StokTracking** (tracking stok FIFO). Route: `routes/web.php` (semua auth; login throttle 5/menit; CSRF default; session lifetime 120 menit). Semua hapus transaksi & batch via **AJAX** (tanpa redirect) — controller return JSON saat `$request->expectsJson()`, tetap redirect utk non-JS.
 
 ## 4. Konvensi Data
 
@@ -56,8 +56,9 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 ### Penjualan (satu laman "/penjualan")
 - Menampilkan **manual + rekonstruksi** (badge Manual/Rekonstruksi + tanda "diedit"); tab filter Semua/Manual/Rekonstruksi.
+- **Kartu Omset di atas halaman** (pola dashboard): total omset tersimpan periode + **Sisa Target** (bila ada batch_generate tersimpan yg periode-nya overlap; target dari batch tsb). Filter periode bulan/tahun/rentang (param `bulan/tahun/from/to`, default bulan berjalan) — hanya mempengaruhi kartu, bukan tabel.
 - Nota tersimpan (keduanya) bisa **diedit** (tanggal, item, qty, harga) — reversal&reapply stok/SN atomik; rekonstruksi yang diedit → `diedit_at` → **undo batch terkunci**.
-- Hapus hanya untuk manual (rekonstruksi lewat undo batch).
+- **Hapus via AJAX (tanpa redirect)** — manual & rekonstruksi (diedit ATAU tidak) **boleh dihapus langsung**; guard rekonstruksi sudah dihapus. **Bulk delete** via ceklis (route penjualan.bulk-delete). Draft tidak pernah tampil di halaman ini.
 - Cetak struk: `penjualan.print` — header toko (+NPWP bila diisi), tanpa label sumber, footer "*Harga sudah termasuk PPN."; **tidak ada tombol Cetak/Kembali** di view print (pakai Ctrl+P).
 
 ### Generate Transaksi (inti fitur)
@@ -69,11 +70,18 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - Ref nota unik global (`refBebas` — baris "dibatalkan" tetap menempati ref).
 - Sinkron per request (< 5 detik; ramah shared hosting). Draft tersimpan di DB → review/edit → **Simpan** (potong stok, tandai SN, label rekonstruksi).
 - **Undo batch tersimpan**: reversal stok+SN → status `dibatalkan` (baris dipertahankan utk audit); ditolak bila ada nota diedit.
+- **Riwayat** (`/generate/riwayat`) urut terbaru di atas (`latest('id')`); batch **draft & dibatalkan** bisa **dihapus** (AJAX, route generate.hapus-batch) — cascade items+transaksi+batch; batch **tersimpan ditolak** (hapus nota via halaman Penjualan, undo via tombol Undo).
 
 ### Export / Import Excel
 - Format A: kolom dari `template_export_pos_config` (konfigurabel), pre-validasi, **pecah 5.000 baris/file**, sheet PETUNJUK; Format B: laporan + ringkasan; histori + tanda "sudah diupload ke POS". Filter periode export: **rentang tanggal (mulai–selesai) menang atas shortcut bulan**; di UI keduanya saling-eksklusif (input bulan tanpa default, memilih yang satu mengosongkan yang lain).
 - Template Data Barang: **prefilled semua SKU existing + dropdown validasi** (SN, STATUS literal; KATEGORI via sheet tersembunyi "Daftar"); import all-or-nothing (`ImportFileException` dgn array errors); lookup KODE_BARANG **case-insensitive** + duplikat dalam file ditolak; STOCK_AWAL hanya utk barang baru.
 - Import pembelian dikelompokkan per `REF_PEMBELIAN`; supplier harus sudah terdaftar.
+
+### Tracking Stok (/stok-tracking — Stock Aging Report)
+- Tujuan: lihat stok yang masih tersisa dari batch pembelian per bulan, utk prioritas menghabiskan stok terlama (FIFO) via penjualan manual.
+- **Algoritma**: per barang dgn stock > 0, ambil semua kartu_stok masuk (masuk_pembelian, stok_awal, opname positif) + keluar (keluar_penjualan); simulasi FIFO — tiap keluar menghabiskan batch paling tua; sisa per batch = qty asli − yg dikonsumsi. Batch dgn sisa > 0 ditampilkan.
+- View: **Ringkasan Total Stok Keseluruhan** (luar filter — query `Barang::sum('stock')`) + **filter bulan** (checkbox; default semua bulan) + tabel per bulan (SKU, kode, sumber Pembelian/Stok Awal/Penyesuaian, tgl masuk, qty awal, sisa, umur hari).
+- Catatan: opname bisa positif/negatif; pemfilteran & tampilan tabel berbasis bulan dari batch tersisa.
 
 ## 6. Jebakan Teknis yang Diketahui
 
@@ -93,10 +101,10 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 ## 8. Status Fitur (per Agustus–Sept 2026)
 
-**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, barang terbaru), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode), Supplier, Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print/cetak terpilih**), Generate (draft→review→simpan, undo batch + terkunci saat diedit, detail nota per ref, maks qty per item per nota), Export A/B + histori (tombol hapus per item riwayat — baris + file XLSX ikut dihapus; batch berstatus "sudah diupload" tetap bisa dihapus), Pengaturan (termasuk NPWP, parameter generate, & **ubah password admin**).
+**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, barang terbaru), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode), Supplier, **Tracking Stok** (stock aging FIFO, ringkasan total + filter bulan), Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**, **AJAX delete + bulk delete**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print**, **AJAX delete + bulk delete**, **kartu omset + sisa target + filter periode**), Generate (draft→review→simpan, undo batch, hapus batch draft/dibatalkan di Riwayat, rekonstruksi bisa dihapus langsung), Export A/B + histori (tombol hapus per item, filter tanggal yang benar), Pengaturan (NPWP, parameter generate, ubah password admin, fix libur_dates), **Dark mode toggle** (gelap/terang).
 
 **Belum/tunda:** tombol "Cetak/Kembali" di view print sengaja dihapus; penggantian footer lama menjadi "*Harga sudah termasuk PPN." sudah diterapkan di penjualan & pembelian print.
 
 **Bulk print (cetak terpilih):** di halaman Penjualan, Data Hutang Belum Lunas, dan Data Pembelian (Lunas/Cash) ada kolom ceklis per baris + tombol "Cetak Terpilih (N)" di toolbar. Submit POST route print-batch (penjualan.print-batch / pembelian.print-batch) dengan ids[]; server memvalidasi (min 1 id, integer; id tak dikenal dibuang diam-diam; penjualan hanya status=tersimpan; tanpa id valid → flash error) lalu membuka satu halaman cetak berisi semua dokumen terpilih (class .print-page, break-inside: avoid via @media print; tiap nota diberi padding vertikal 24px atas-bawah agar tidak menempel — berlaku di kedua mode page break). Halaman cetak punya toggle **"Halaman baru per nota"** (partial partials.bulk-print-toggle; default aktif, tanpa JS tetap page break per nota karena .pb-off mematikan page-break-after via CSS; kontrol non-print di pojok kanan atas, disembunyikan saat print via @media print). Markup dokumen dipakai bersama via partial penjualan.partials.struk & pembelian.partials.invoice; tab baru via target="_blank" (gestur klik → lolos popup-blocker), cetak dengan Ctrl+P.
 
-**Keputusan penting:** navigasi Pembelian via tab bar di dalam halaman (bukan submenu sidebar); item "Penjualan Manual" diganti "Penjualan" (satu laman); edit nota rekonstruksi otomatis mengunci undo batch; **sidebar**: desktop bisa di-minimize (rail ikon 64px, toggle hamburger di header, state tersimpan di localStorage via body.sidebar-minimized), mobile terbuka sebagai drawer tanpa backdrop-blur (sidebar z-40 di atas overlay z-30).
+**Keputusan penting:** navigasi Pembelian via tab bar di dalam halaman (bukan submenu sidebar); item "Penjualan Manual" diganti "Penjualan" (satu laman); **hapus nota/barang/batch via AJAX** (tanpa redirect — row langsung hilang, fallback redirect utk non-JS); **dark mode**: toggle di sidebar (body/.dark pada <html>, localStorage 'theme', default prefers-color-scheme, CSS overrides variabel @theme, cetak selalu terang); edit nota rekonstruksi mengunci undo batch tapi nota tsb boleh dihapus langsung (guard rekonstruksi dihapus); **sidebar**: desktop minimize (rail ikon 64px, localStorage via body.sidebar-minimized), mobile drawer tanpa backdrop-blur (sidebar z-40 di atas overlay z-30).
