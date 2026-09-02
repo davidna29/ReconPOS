@@ -8,6 +8,7 @@ use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\PembelianController;
 use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\PenjualanController;
+use App\Http\Controllers\StokTrackingController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
@@ -43,6 +44,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/barang/{barang}/opname', [BarangController::class, 'opnameStore'])->name('barang.opname');
     Route::post('/barang/{barang}/stok-awal', [BarangController::class, 'stokAwalStore'])->name('barang.stokAwal');
     Route::get('/barang/{barang}/barcode', [BarangController::class, 'cetakBarcode'])->name('barang.barcode');
+
+    // ---- Tracking Stok ----
+    Route::get('/stok-tracking', [StokTrackingController::class, 'index'])->name('stok-tracking.index');
 
     // ---- Data Supplier (PRD 4.4) ----
     Route::get('/supplier', [SupplierController::class, 'index'])->name('supplier.index');

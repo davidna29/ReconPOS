@@ -44,6 +44,12 @@
                 </a>
             </li>
             <li>
+                <a class="nav-link {{ request()->routeIs('stok-tracking.*') ? 'nav-link-active' : '' }}" href="{{ route('stok-tracking.index') }}" title="Tracking Stok">
+                    <span class="material-symbols-outlined">history</span>
+                    <span class="nav-label">Tracking Stok</span>
+                </a>
+            </li>
+            <li>
                 <a class="nav-link {{ request()->routeIs('supplier.*') ? 'nav-link-active' : '' }}" href="{{ route('supplier.index') }}" title="Data Supplier">
                     <span class="material-symbols-outlined">local_shipping</span>
                     <span class="nav-label">Data Supplier</span>
