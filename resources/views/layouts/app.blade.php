@@ -45,19 +45,19 @@
 
         <ul class="flex flex-1 flex-col gap-1 overflow-y-auto">
             <li>
-                <a class="nav-link {{ request()->routeIs('dashboard', 'publik.dashboard') ? 'nav-link-active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
+                <a class="nav-link {{ request()->routeIs('dashboard', 'publik.dashboard') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'dashboard') }}" title="Dashboard">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
                     <span class="nav-label">Dashboard</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('barang.*', 'publik.barang.*') ? 'nav-link-active' : '' }}" href="{{ route('barang.index') }}" title="Data Barang">
+                <a class="nav-link {{ request()->routeIs('barang.*', 'publik.barang.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'barang.index') }}" title="Data Barang">
                     <span class="material-symbols-outlined">inventory_2</span>
                     <span class="nav-label">Data Barang</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('stok-tracking.*', 'publik.stok-tracking.*') ? 'nav-link-active' : '' }}" href="{{ route('stok-tracking.index') }}" title="Tracking Stok">
+                <a class="nav-link {{ request()->routeIs('stok-tracking.*', 'publik.stok-tracking.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'stok-tracking.index') }}" title="Tracking Stok">
                     <span class="material-symbols-outlined">history</span>
                     <span class="nav-label">Tracking Stok</span>
                 </a>
@@ -71,13 +71,13 @@
             </li>
             @endif
             <li>
-                <a class="nav-link {{ request()->routeIs('pembelian.*', 'publik.pembelian.*') ? 'nav-link-active' : '' }}" href="{{ route('pembelian.invoice-hutang') }}" title="Pembelian">
+                <a class="nav-link {{ request()->routeIs('pembelian.*', 'publik.pembelian.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'pembelian.invoice-hutang') }}" title="Pembelian">
                     <span class="material-symbols-outlined">shopping_cart</span>
                     <span class="nav-label">Pembelian</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('penjualan.*', 'publik.penjualan.*') ? 'nav-link-active' : '' }}" href="{{ route('penjualan.index') }}" title="Penjualan">
+                <a class="nav-link {{ request()->routeIs('penjualan.*', 'publik.penjualan.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'penjualan.index') }}" title="Penjualan">
                     <span class="material-symbols-outlined">point_of_sale</span>
                     <span class="nav-label">Penjualan</span>
                 </a>
