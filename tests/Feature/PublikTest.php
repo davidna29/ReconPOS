@@ -92,6 +92,20 @@ class PublikTest extends TestCase
             ->assertDontSee('Sumber Transaksi');
     }
 
+    public function test_publik_sidebar_menu_menunjuk_route_publik(): void
+    {
+        // Guard bug: sidebar publik harus menunjuk route publik.* (bukan route admin yg redirect ke login).
+        $html = $this->get(route('publik.dashboard'))->assertOk()->getContent();
+
+        foreach (['publik.dashboard', 'publik.barang.index', 'publik.stok-tracking.index', 'publik.pembelian.invoice-hutang', 'publik.penjualan.index'] as $name) {
+            $this->assertStringContainsString(route($name), $html, "Sidebar publik harus memuat link ke route {$name}");
+        }
+
+        // Sidebar publik TIDAK boleh memuat link ke route admin utk menu publik.
+        $this->assertStringNotContainsString('href="' . route('barang.index') . '"', $html);
+        $this->assertStringNotContainsString('href="' . route('penjualan.index') . '"', $html);
+    }
+
     public function test_publik_barang_index_readonly(): void
     {
         $b = $this->barang('PB-IDX', 'Busi NGK');

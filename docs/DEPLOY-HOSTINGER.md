@@ -208,7 +208,9 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
     php artisan route:cache
     php artisan view:cache
 
-> Setiap kali Anda mengubah isi `.env` atau kode, jalankan ulang `config:cache` (atau `php artisan optimize:clear` lalu cache lagi).
+> Setiap kali Anda mengubah isi `.env` atau kode, jalankan ulang cache: `php artisan optimize:clear` lalu `php artisan config:cache route:cache view:cache`.
+>
+> **Penting utk route BARU (mis. menambah fitur `/publik`)**: kalau `route:cache` tidak dijalankan ulang setelah upload kode baru, semua route baru akan **404 di hosting**. Jalankan `php artisan optimize:clear` dulu (menghapus file `bootstrap/cache/routes-*.php`), baru cache lagi.
 
 ## 11. SSL & HTTPS (wajib kalau pakai https)
 
