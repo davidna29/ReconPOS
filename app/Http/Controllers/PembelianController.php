@@ -237,7 +237,7 @@ class PembelianController extends Controller
             $hasil = $this->excel->importPembelian($request->file('file')->getRealPath());
 
             return redirect()->route('pembelian.invoice-lunas')
-                ->with('success', 'Import pembelian selesai: ' . $hasil['jumlah_invoice'] . ' invoice dibuat.');
+                ->with('success', 'Import pembelian selesai: ' . $hasil['dibuat'] . ' invoice baru, ' . $hasil['diupdate'] . ' invoice diperbarui.');
         } catch (ImportFileException $e) {
             return back()->withErrors(['file' => $e->getMessage() . (count($e->getErrors()) ? ' Contoh: ' . implode(' | ', array_slice($e->getErrors(), 0, 5)) : '')]);
         }

@@ -7,6 +7,7 @@ use App\Models\InvoicePembelian;
 use App\Models\KategoriBarang;
 use App\Models\Supplier;
 use App\Services\ExcelImportService;
+use App\Services\PembelianService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
@@ -191,6 +192,97 @@ class ExcelTemplateTest extends TestCase
         Supplier::create(['nama' => 'Aneka Motor Jaya', 'kontak' => '082345']);
     }
 
+    /** Buat file xlsx import pembelian dari baris asso [kolom alfabet => nilai]; baris pertama data = row 2. */
+    private function buatFilePembelian(array $rows): string
+    {
+        $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL'];
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        foreach ($rows as $r => $row) {
+            foreach ($row as $cell => $val) {
+                $sheet->setCellValue($cell . ($r + 2), $val);
+            }
+        }
+        $p = sys_get_temp_dir() . '/import-pbl-' . uniqid() . '.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($p);
+
+        return $p;
+    }
+
+    public function test_upload_pembelian_ref_jadi_nomor_invoice(): void
+    {
+        Supplier::create(['nama' => 'PT. Bintang Sparepart', 'kontak' => '081']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-REF', 'nama' => 'Ban', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $mod = $this->buatFilePembelian([
+            ['A' => '04002600226207035', 'B' => '2026-09-23 10:00', 'C' => 'PT. Bintang Sparepart', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-REF', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+
+        $hasil = app(ExcelImportService::class)->importPembelian($mod);
+        $this->assertSame(1, $hasil['dibuat']);
+        $this->assertSame(0, $hasil['diupdate']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame('04002600226207035', $inv->no_invoice); // REF jadi nomor invoice
+        $this->assertSame('import_excel', $inv->sumber);
+    }
+
+    public function test_upload_pembelian_ulang_ref_sama_mengupdate(): void
+    {
+        Supplier::create(['nama' => 'PT B', 'kontak' => '1']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-UPS', 'nama' => 'Ban UPS', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        $svc = app(ExcelImportService::class);
+
+        // sesi 1: REF R-1 qty 2 → buat invoice
+        $f1 = $this->buatFilePembelian([
+            ['A' => 'R-1', 'B' => '2026-09-23 10:00', 'C' => 'PT B', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-UPS', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        $h1 = $svc->importPembelian($f1);
+        $this->assertSame(1, $h1['dibuat']);
+        $this->assertSame(1, InvoicePembelian::count());
+        $this->assertSame(2, (int) Barang::where('kode_barang', 'B-UPS')->first()->stock);
+
+        // sesi 2: REF sama, qty 3 → UPDATE (tetap 1 invoice, stok disesuaikan)
+        $f2 = $this->buatFilePembelian([
+            ['A' => 'R-1', 'B' => '2026-09-23 10:00', 'C' => 'PT B', 'D' => 'CASH', 'E' => 150000, 'G' => 'B-UPS', 'H' => 3, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        $h2 = $svc->importPembelian($f2);
+        $this->assertSame(0, $h2['dibuat']);
+        $this->assertSame(1, $h2['diupdate']);
+        $this->assertSame(1, InvoicePembelian::count());
+        $inv = InvoicePembelian::firstOrFail()->load('items');
+        $this->assertSame('R-1', $inv->no_invoice);
+        $this->assertSame(3, (int) $inv->items->first()->qty);
+        $this->assertSame(3, (int) Barang::where('kode_barang', 'B-UPS')->first()->stock);
+    }
+
+    public function test_upload_pembelian_ref_konflik_non_import_ditolak(): void
+    {
+        $s = Supplier::create(['nama' => 'PT C', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-CFL', 'nama' => 'Ban CFL', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        // invoice manual dengan no_invoice yang sama dengan REF upload
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'no_invoice' => 'MAN-1', 'jenis' => 'cash', 'bayar_atau_dp' => 90000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 45000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $stokSebelum = (int) $b->fresh()->stock;
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'MAN-1', 'B' => '2026-09-23 10:00', 'C' => 'PT C', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-CFL', 'H' => 4, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        try {
+            app(ExcelImportService::class)->importPembelian($f);
+            $this->fail('Harus ImportFileException utk bentrok nomor invoice non-import.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('bukan dari upload', implode(' | ', $e->getErrors()));
+        }
+        $this->assertSame(1, InvoicePembelian::count()); // semua di-rollback
+        $this->assertSame($stokSebelum, (int) $b->fresh()->stock);
+    }
+
     public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
     {
         $this->setupSupplier();
@@ -302,8 +394,9 @@ class ExcelTemplateTest extends TestCase
         $hasil = $svc->importPembelian($mod);
         $this->assertSame(1, $hasil['jumlah_invoice']);
 
-        // no_invoice di-generate sistem (REF_PEMBELIAN hanya pengelompokan)
+        // no_invoice = REF_PEMBELIAN (bukan generate sistem)
         $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame('PB-001', $inv->no_invoice);
         $this->assertSame('PT. Bintang Sparepart', $inv->supplier->nama);
         $this->assertSame(135000, (int) $inv->total_setelah_diskon);
         $this->assertSame('lunas', $inv->status);

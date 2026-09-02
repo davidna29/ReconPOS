@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Exceptions\ImportFileException;
 use App\Models\Barang;
+use App\Models\InvoicePembelian;
 use App\Models\KategoriBarang;
 use App\Models\Supplier;
 use Illuminate\Support\Carbon;
+use InvalidArgumentException;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
@@ -236,6 +238,12 @@ class ExcelImportService
             '11) Kalau memakai template LAMA yang masih berisi baris contoh (mis. supplier "PT. Bintang',
             '    Sparepart" atau kode "BLT-001"): HAPUS baris contoh itu sebelum mengisi — baris contoh',
             '    ikut diimpor sebagai transaksi dan menyebabkan file ditolak.',
+            '12) NOMOR INVOICE = REF_PEMBELIAN: nomor yang Anda isi dipakai langsung sebagai nomor invoice',
+            '    (bukan otomatis). Isi sebagai TEKS (format cell "Text" / awali tanda kutip) agar angka',
+            '    nol di depan tidak hilang (mis. 04002600226207035). Maksimal 40 karakter.',
+            '13) UPLOAD ULANG dengan REF_PEMBELIAN yang sama akan MEMPERBARUI invoice tsb (stok & histori',
+            '    disesuaikan otomatis) — bukan membuat invoice ganda. Perubahan qty di bawah qty yang sudah',
+            '    terjual akan ditolak demi menjaga stok.',
         ];
         foreach ($garis as $i => $teks) {
             $petunjuk->setCellValue('A' . ($i + 1), $teks);
@@ -488,6 +496,10 @@ class ExcelImportService
                 $errors[] = 'Baris ' . $no . ': REF_PEMBELIAN wajib diisi (pengelompokan invoice).';
                 continue;
             }
+            if (mb_strlen($ref) > 40) {
+                $errors[] = 'Baris ' . $no . ': REF_PEMBELIAN maksimal 40 karakter (dipakai sebagai nomor invoice).';
+                continue;
+            }
             $parsed = $this->cobaParseTanggal($tgl);
             if (! $parsed) {
                 $errors[] = 'Baris ' . $no . ': TANGGAL_WAKTU tidak valid (' . $tgl . '). Format: YYYY-MM-DD HH:MM.';
@@ -556,7 +568,13 @@ class ExcelImportService
         }
 
         $jumlahInvoice = 0;
-        DB::transaction(function () use ($groups, $supplierCache, &$jumlahInvoice) {
+        $dibuat = 0;
+        $diupdate = 0;
+        $applyErrors = [];
+
+        // All-or-nothing tetap: semua grup diaplikasikan; bila ada 1 error, seluruh file
+        // di-rollback (transaksi ini dilempar sebelum commit).
+        DB::transaction(function () use ($groups, $supplierCache, &$jumlahInvoice, &$dibuat, &$diupdate, &$applyErrors) {
             foreach ($groups as $ref => $g) {
                 $m = $g['metadata'];
                 $items = [];
@@ -568,7 +586,10 @@ class ExcelImportService
                         'diskon_item' => $it['diskon_item'],
                     ];
                 }
-                $this->pembelian->simpan([
+                // REF_PEMBELIAN dipakai sebagai NOMOR INVOICE (PRD 5.3): user bisa melacak
+                // invoice via nomor yang mereka pakai, dan re-upload REF yang sama = UPDATE.
+                $data = [
+                    'no_invoice' => $ref,
                     'supplier_id' => $supplierCache[$m['supplier']],
                     'tanggal_transaksi' => $m['tanggal']->format('Y-m-d H:i'),
                     'jenis' => strtolower($m['jenis']),
@@ -576,12 +597,35 @@ class ExcelImportService
                     'bayar_atau_dp' => $m['bayar_dp'],
                     'jatuh_tempo' => $m['jatuh_tempo'] !== '' ? $m['jatuh_tempo'] : null,
                     'items' => $items,
-                ], 'import_excel');
-                $jumlahInvoice++;
+                ];
+
+                try {
+                    $existing = InvoicePembelian::where('no_invoice', $ref)->first();
+                    if ($existing) {
+                        // Upload ulang dengan REF sama → perbarui invoice tsb, bukan duplikat.
+                        if ($existing->sumber !== 'import_excel') {
+                            throw new InvalidArgumentException(
+                                'Nomor "' . $ref . '" sudah dipakai transaksi non-import (bukan dari upload). Ganti REF_PEMBELIAN atau hapus invoice tsb dulu.'
+                            );
+                        }
+                        $this->pembelian->edit($existing, $data); // batal efek lama → terapkan baru (no_invoice tetap)
+                        $diupdate++;
+                    } else {
+                        $this->pembelian->simpan($data, 'import_excel');
+                        $dibuat++;
+                    }
+                    $jumlahInvoice++;
+                } catch (InvalidArgumentException $e) {
+                    $applyErrors[] = 'REF_PEMBELIAN "' . $ref . '": ' . $e->getMessage();
+                }
+            }
+
+            if (count($applyErrors) > 0) {
+                throw new ImportFileException(array_slice($applyErrors, 0, 50));
             }
         });
 
-        return ['jumlah_invoice' => $jumlahInvoice];
+        return ['jumlah_invoice' => $jumlahInvoice, 'dibuat' => $dibuat, 'diupdate' => $diupdate];
     }
 
     /**
