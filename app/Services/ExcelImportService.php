@@ -129,13 +129,118 @@ class ExcelImportService
         return $path;
     }
 
-    /** Download template pembelian (PRD 5.3). */
+    /**
+     * Download template transaksi pembelian (PRD 5.3).
+     * - Kolom SUPPLIER punya DROPDOWN dari master supplier (sheet hidden 'Daftar').
+     * - Kolom JENIS_TRANSAKSI dropdown literal CASH/HUTANG.
+     * - Sheet PETUNJUK berisi panduan langkah-demi-langkah agar upload berhasil.
+     * - TANPA baris contoh data: baris contoh lama (mis. "PT. Bintang Sparepart"/"BLT-001")
+     *   ikut terbaca sebagai transaksi saat upload dan membuat seluruh file ditolak.
+     */
     public function templatePembelian(): string
     {
         $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL'];
-        $contoh = ['PB-001', date('Y-m-d') . ' 09:00', 'PT. Bintang Sparepart', 'CASH', '', '', 'BLT-001', '10', '45000', '0', ''];
 
-        return $this->tulisTemplate('template-pembelian', $headers, [$contoh]);
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('DATA'); // Nama bebas, tetap ACTIVE sheet (bacaSheet pakai getActiveSheet)
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->getStyle('A1:' . chr(ord('A') + count($headers) - 1) . '1')->getFont()->setBold(true);
+
+        // Daftar supplier utk dropdown (sheet hidden 'Daftar')
+        $suppliers = Supplier::orderBy('nama')->pluck('nama')->values();
+        if ($suppliers->count() > 0) {
+            $daftar = $spreadsheet->createSheet();
+            $daftar->setTitle('Daftar');
+            foreach ($suppliers as $i => $nama) {
+                $daftar->setCellValue('A' . ($i + 1), $nama);
+            }
+            $daftar->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+        }
+
+        $this->terapkanValidasiPembelian($spreadsheet, $sheet, $suppliers->count());
+        $this->tulisPetunjukPembelian($spreadsheet);
+
+        // Sheet data Wajib tetap active: createSheet() membuat sheet baru menjadi active,
+        // padahal bacaSheet() membaca getActiveSheet() — kalau active = PETUNJUK, import gagal.
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->simpanSpreadsheet($spreadsheet, 'template-pembelian');
+    }
+
+    /** Dropdown Excel utk template pembelian: JENIS_TRANSAKSI (literal) & SUPPLIER (sheet hidden 'Daftar'). */
+    private function terapkanValidasiPembelian(Spreadsheet $spreadsheet, Worksheet $sheet, int $jumlahSupplier): void
+    {
+        $akhir = 1000; // baris kosong di bawah header tetap punya dropdown (allowBlank)
+
+        $tambah = function (string $cell, string $formula) use ($akhir, $sheet): void {
+            $v = new DataValidation();
+            $v->setSqref($cell . '2:' . $cell . $akhir);
+            $v->setType(DataValidation::TYPE_LIST);
+            $v->setFormula1($formula);
+            $v->setAllowBlank(true);
+            $v->setShowDropDown(false); // false = panah dropdown TAMPIL (konvensi OOXML terbalik)
+            $sheet->setDataValidation($cell . '2', $v);
+        };
+
+        // JENIS_TRANSAKSI (kolom D)
+        $tambah('D', '"CASH,HUTANG"');
+
+        // SUPPLIER (kolom C) — dari master supplier; pakai range sheet hidden agar nama
+        // berisi koma/tanda baca tidak merusak formula list literal.
+        if ($jumlahSupplier > 0) {
+            $tambah('C', "'Daftar'!\$A\$1:\$A\$" . $jumlahSupplier);
+        }
+    }
+
+    /** Sheet PETUNJUK utk template pembelian — panduan agar upload berhasil (PRD 5.3). */
+    private function tulisPetunjukPembelian(Spreadsheet $spreadsheet): void
+    {
+        $petunjuk = $spreadsheet->createSheet();
+        $petunjuk->setTitle('PETUNJUK');
+        $petunjuk->getColumnDimension('A')->setWidth(160);
+
+        $garis = [
+            'PANDUAN UPLOAD PEMBELIAN (Agar Berhasil)',
+            '=================================================================',
+            '1) Prasyarat:',
+            '   - Semua KODE_BARANG yang dipakai HARUS sudah ada di menu Data Barang.',
+            '   - Semua SUPPLIER HARUS sudah terdaftar di menu Data Supplier.',
+            '   - Kolom SUPPLIER memakai DROPDOWN: klik sel lalu pilih nama dari daftar, JANGAN ketik manual.',
+            '     (Kalau sel SUPPLIER tidak menampilkan panah dropdown, berarti belum ada supplier terdaftar —',
+            '      daftarkan dulu di Data Supplier, lalu unduh template baru.)',
+            '2) Kolom WAJIB diisi: REF_PEMBELIAN, TANGGAL_WAKTU, SUPPLIER, JENIS_TRANSAKSI, KODE_BARANG, QTY, HARGA_BELI.',
+            '3) Format penulisan:',
+            '   - TANGGAL_WAKTU : YYYY-MM-DD + spasi + HH:MM  (contoh: 2026-09-05 09:30).',
+            '   - JENIS_TRANSAKSI: pilih CASH atau HUTANG dari dropdown.',
+            '   - QTY & HARGA_BELI: angka lebih dari 0, tanpa huruf/Rp/titik ribuan.',
+            '4) REF_PEMBELIAN = pengelompokan invoice:',
+            '   - Semua baris dengan REF_PEMBELIAN sama dijadikan SATU invoice.',
+            '   - Metadata (SUPPLIER, TANGGAL_WAKTU, JENIS_TRANSAKSI) antar baris dalam 1 REF wajib konsisten.',
+            '5) BAYAR_DP:',
+            '   - JENIS CASH   : isi nominal bayar, TIDAK boleh kurang dari total (kosongkan = bayar pas).',
+            '   - JENIS HUTANG : isi uang muka/DP (boleh 0).',
+            '6) JATUH_TEMPO: hanya untuk HUTANG, boleh dikosongkan (otomatis = akhir bulan ke-3).',
+            '7) DISKON:',
+            '   - DISKON_ITEM  : nominal Rp potongan per baris (isi 0 kalau tidak ada).',
+            '   - DISKON_TOTAL : nominal Rp potongan sekali per invoice, isi di salah satu baris grup REF tsb.',
+            '8) Contoh pengisian 1 baris (baris 2 = data pertama):',
+            '   REF_PEMBELIAN | TANGGAL_WAKTU   | SUPPLIER pilihan dropdown   | JENIS | BAYAR_DP | KODE_BARANG | QTY | HARGA_BELI | DISKON_ITEM | DISKON_TOTAL',
+            '   PB-001        | 2026-09-05 09:30 | PT. Bintang Sparepart       | CASH  | 140000    | BLT-001      | 2   | 45000      | 0           | 0',
+            '9) Cara upload: menu Pembelian -> "Upload Transaksi Excel" -> pilih file -> Upload.',
+            '10) ATURAN ALL-OR-NOTHING: kalau ada 1 baris kesalahan, SELURUH file dibatalkan',
+            '    (tidak ada data yang tersimpan). Pesan error menyebut nomor baris (baris 2 = data pertama).',
+            '    Perbaiki baris tsb lalu upload ulang.',
+            '11) Kalau memakai template LAMA yang masih berisi baris contoh (mis. supplier "PT. Bintang',
+            '    Sparepart" atau kode "BLT-001"): HAPUS baris contoh itu sebelum mengisi — baris contoh',
+            '    ikut diimpor sebagai transaksi dan menyebabkan file ditolak.',
+        ];
+        foreach ($garis as $i => $teks) {
+            $petunjuk->setCellValue('A' . ($i + 1), $teks);
+        }
+        $petunjuk->getStyle('A1')->getFont()->setBold(true)->setSize(14);
     }
 
     /** Download template update harga (PRD 4.3a). */

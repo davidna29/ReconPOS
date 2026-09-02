@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Barang;
+use App\Models\InvoicePembelian;
 use App\Models\KategoriBarang;
+use App\Models\Supplier;
 use App\Services\ExcelImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -177,5 +179,143 @@ class ExcelTemplateTest extends TestCase
             $this->assertTrue($ada, 'Error harus menyebut duplikat dalam file: ' . implode(' | ', $e->getErrors()));
         }
         $this->assertSame(0, Barang::count()); // all-or-nothing: tidak ada data berubah
+    }
+
+    // ----------------------------------------------------------------------
+    // Template pembelian: dropdown SUPPLIER (data aplikasi) + panduan PETUNJUK
+    // ----------------------------------------------------------------------
+
+    private function setupSupplier(): void
+    {
+        Supplier::create(['nama' => 'PT. Bintang Sparepart', 'kontak' => '081234']);
+        Supplier::create(['nama' => 'Aneka Motor Jaya', 'kontak' => '082345']);
+    }
+
+    public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
+    {
+        $this->setupSupplier();
+
+        $path = app(ExcelImportService::class)->templatePembelian();
+
+        $reader = new XlsxReader(); // tanpa readDataOnly agar data validation ikut terbaca
+        $spreadsheet = $reader->load($path);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // sheet data bernama DATA & header 11 kolom tetap
+        $this->assertSame('DATA', $sheet->getTitle());
+        $this->assertSame('REF_PEMBELIAN', $sheet->getCell('A1')->getValue());
+        $this->assertSame('SUPPLIER', $sheet->getCell('C1')->getValue());
+        $this->assertSame('DISKON_TOTAL', $sheet->getCell('K1')->getValue());
+        // TANPA baris contoh data (baris 2 kosong)
+        $this->assertTrue(empty($sheet->getCell('A2')->getValue()), 'Tidak boleh ada baris contoh data di A2.');
+        $this->assertTrue(empty($sheet->getCell('C2')->getValue()), 'Tidak boleh ada data contoh SUPPLIER di C2.');
+
+        $validasi = array_values($sheet->getDataValidationCollection());
+        $cari = fn ($cue) => collect($validasi)->first(
+            fn ($v) => str_contains((string) $v->getFormula1(), $cue)
+        );
+
+        // SUPPLIER (kolom C): dropdown dari sheet hidden 'Daftar'
+        $sup = $cari('Daftar');
+        $this->assertNotNull($sup, 'Harus ada data validation SUPPLIER yang merujuk sheet Daftar.');
+        $this->assertSame(DataValidation::TYPE_LIST, $sup->getType());
+        // sqref dinormalisasi PhpSpreadsheet ke sel anchor (C2) setelah baca ulang
+        $this->assertStringContainsString('C2:', (string) $sup->getSqref() . ':');
+        $this->assertTrue($sup->getAllowBlank());
+
+        // JENIS_TRANSAKSI (kolom D): literal CASH/HUTANG
+        $jenis = $cari('CASH,HUTANG');
+        $this->assertNotNull($jenis);
+        $this->assertSame(DataValidation::TYPE_LIST, $jenis->getType());
+        $this->assertStringContainsString('D2', (string) $jenis->getSqref());
+
+        // sheet Daftar (hidden) berisi nama supplier urut alfabetis
+        $daftar = $spreadsheet->getSheetByName('Daftar');
+        $this->assertNotNull($daftar);
+        $this->assertSame(Worksheet::SHEETSTATE_VERYHIDDEN, $daftar->getSheetState());
+        $this->assertSame('Aneka Motor Jaya', $daftar->getCell('A1')->getValue());
+        $this->assertSame('PT. Bintang Sparepart', $daftar->getCell('A2')->getValue());
+
+        // sheet PETUNJUK ada (panduan)
+        $petunjuk = $spreadsheet->getSheetByName('PETUNJUK');
+        $this->assertNotNull($petunjuk);
+        $this->assertStringContainsString('PANDUAN UPLOAD PEMBELIAN', (string) $petunjuk->getCell('A1')->getValue());
+    }
+
+    public function test_template_pembelian_tanpa_supplier_tidak_crash(): void
+    {
+        // Tidak ada supplier terdaftar — dropdown SUPPLIER dilewati, file tetap valid.
+        $path = app(ExcelImportService::class)->templatePembelian();
+
+        $reader = new XlsxReader();
+        $spreadsheet = $reader->load($path);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $validasi = array_values($sheet->getDataValidationCollection());
+        $adaDaftar = collect($validasi)->contains(
+            fn ($v) => str_contains((string) $v->getFormula1(), 'Daftar')
+        );
+        $this->assertFalse($adaDaftar, 'Tanpa supplier tidak boleh ada validation yang merujuk sheet Daftar.');
+        $this->assertSame('DATA', $sheet->getTitle());
+        $this->assertNotNull($spreadsheet->getSheetByName('PETUNJUK'));
+    }
+
+    public function test_round_trip_upload_pembelian_isi_dari_template(): void
+    {
+        Supplier::create(['nama' => 'PT. Bintang Sparepart', 'kontak' => '081234']);
+        Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'BLT-001', 'nama' => 'Baut',
+            'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual',
+        ]);
+
+        $svc = app(ExcelImportService::class);
+        $path = $svc->templatePembelian();
+
+        // isi 2 baris dengan REF sama (1 invoice) memakai nama supplier dari dropdown
+        $reader = new XlsxReader();
+        $spreadsheet = $reader->load($path);
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A2', 'PB-001');
+        $sheet->setCellValue('B2', '2026-09-05 09:30');
+        $sheet->setCellValue('C2', 'PT. Bintang Sparepart');
+        $sheet->setCellValue('D2', 'CASH');
+        $sheet->setCellValue('E2', 140000);
+        $sheet->setCellValue('G2', 'BLT-001');
+        $sheet->setCellValue('H2', 2);
+        $sheet->setCellValue('I2', 45000);
+        $sheet->setCellValue('J2', 0);
+        $sheet->setCellValue('K2', 0);
+
+        $sheet->setCellValue('A3', 'PB-001');
+        $sheet->setCellValue('B3', '2026-09-05 09:30');
+        $sheet->setCellValue('C3', 'PT. Bintang Sparepart');
+        $sheet->setCellValue('D3', 'CASH');
+        $sheet->setCellValue('E3', 140000); // metadata grup wajib konsisten (nilai dari baris terakhir)
+        $sheet->setCellValue('G3', 'BLT-001');
+        $sheet->setCellValue('H3', 1);
+        $sheet->setCellValue('I3', 45000);
+        $sheet->setCellValue('J3', 0);
+
+        $mod = sys_get_temp_dir() . '/template-pembelian-isi.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($mod);
+
+        $hasil = $svc->importPembelian($mod);
+        $this->assertSame(1, $hasil['jumlah_invoice']);
+
+        // no_invoice di-generate sistem (REF_PEMBELIAN hanya pengelompokan)
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame('PT. Bintang Sparepart', $inv->supplier->nama);
+        $this->assertSame(135000, (int) $inv->total_setelah_diskon);
+        $this->assertSame('lunas', $inv->status);
+
+        $this->assertSame(3, (int) Barang::where('kode_barang', 'BLT-001')->first()->stock); // 2+1 masuk
+
+        // Upload template kosong (baris contoh sudah tidak ada) -> "File kosong" tanpa crash
+        try {
+            $svc->importPembelian($path);
+            $this->fail('Harus dilempar ImportFileException "File kosong" utk template tanpa data.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('File kosong', $e->getMessage());
+        }
     }
 }

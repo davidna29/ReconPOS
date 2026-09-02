@@ -75,7 +75,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 ### Export / Import Excel
 - Format A: kolom dari `template_export_pos_config` (konfigurabel), pre-validasi, **pecah 5.000 baris/file**, sheet PETUNJUK; Format B: laporan + ringkasan; histori + tanda "sudah diupload ke POS". Filter periode export: **rentang tanggal (mulai–selesai) menang atas shortcut bulan**; di UI keduanya saling-eksklusif (input bulan tanpa default, memilih yang satu mengosongkan yang lain).
 - Template Data Barang: **prefilled semua SKU existing + dropdown validasi** (SN, STATUS literal; KATEGORI via sheet tersembunyi "Daftar"); import all-or-nothing (`ImportFileException` dgn array errors); lookup KODE_BARANG **case-insensitive** + duplikat dalam file ditolak; STOCK_AWAL hanya utk barang baru.
-- Import pembelian dikelompokkan per `REF_PEMBELIAN`; supplier harus sudah terdaftar.
+- Import pembelian dikelompokkan per `REF_PEMBELIAN`; supplier harus sudah terdaftar. **Template Excel pembelian**: kolom SUPPLIER punya dropdown dari master supplier (sheet hidden `Daftar`, nama asli di aplikasi), kolom JENIS_TRANSAKSI dropdown CASH/HUTANG, sheet PETUNJUK berisi panduan langkah-demi-langkah upload, dan **TANPA baris contoh data** (baris contoh lama ikut terbaca sebagai transaksi & menggagalkan upload all-or-nothing).
 
 ### Tracking Stok (/stok-tracking — Stock Aging Report)
 - Tujuan: lihat stok yang masih tersisa dari batch pembelian per bulan, utk prioritas menghabiskan stok terlama (FIFO) via penjualan manual.

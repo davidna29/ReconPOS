@@ -23,6 +23,11 @@ class StockService
         ?int $penjualanId = null,
         ?string $keterangan = null,
     ): KartuStok {
+        // Hindari instance stale: kalau 1 invoice berisi 2+ baris barang yang SAMA,
+        // semua Barang di-find di awal simpan (stok lama sama), mutasi kedua menimpa
+        // barang.stock padahal kartu stok sudah benar (lihat AI-HANDOFF §6).
+        $barang->refresh();
+
         $row = KartuStok::create([
             'barang_id' => $barang->id,
             'tanggal' => $tanggal,
