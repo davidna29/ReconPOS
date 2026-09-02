@@ -80,6 +80,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================
+    // DARK MODE TOGGLE
+    // ============================
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        });
+    }
+
+    // ============================
     // AJAX BULK DELETE
     // ============================
     document.querySelectorAll('[data-bulk-delete-btn]').forEach((btn) => {

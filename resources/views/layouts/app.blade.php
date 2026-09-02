@@ -11,6 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script>
+        (function () {
+            var pref = localStorage.getItem('theme');
+            var dark = pref === 'dark' || (!pref && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (dark) document.documentElement.classList.add('dark');
+        })();
+    </script>
 </head>
 
 <body class="flex min-h-screen bg-surface-muted font-sans text-on-surface">
@@ -20,7 +27,7 @@
     <!-- SideNavBar (replika struktur code.html, menu sesuai PRD) -->
     <nav id="app-sidebar"
         class="fixed left-0 top-0 z-40 flex h-screen w-[240px] -translate-x-full flex-col border-r border-outline-variant bg-surface-container-low transition-all duration-200 md:z-20 md:translate-x-0">
-        <div class="sidebar-brand mb-8 flex items-center gap-3 px-4 py-4">
+        <div class="sidebar-brand mb-4 flex items-center gap-3 px-4 py-4">
             <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-primary text-lg font-bold text-on-primary">
                 <span class="material-symbols-outlined" data-icon="build">build</span>
             </div>
@@ -28,6 +35,10 @@
                 <h1 class="text-headline-sm font-black text-primary">Mechanic Hub</h1>
                 <p class="text-body-sm text-secondary">Super Kasir Mode</p>
             </div>
+            <button id="theme-toggle" type="button" class="btn-icon ml-auto" title="Toggle gelap/terang">
+                <span class="material-symbols-outlined text-[20px] dark-icon hidden">light_mode</span>
+                <span class="material-symbols-outlined text-[20px] light-icon">dark_mode</span>
+            </button>
         </div>
 
         <ul class="flex flex-1 flex-col gap-1 overflow-y-auto">
