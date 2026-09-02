@@ -61,19 +61,46 @@ document.addEventListener('DOMContentLoaded', () => {
             const tr = form.closest('tr');
             const csrf = form.querySelector('input[name="_token"]')?.value || document.querySelector('meta[name="csrf-token"]')?.content;
 
-            fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                body: new URLSearchParams({ _method: 'DELETE', _token: csrf }),
-            })
+            // kirim(false) = hapus biasa; kirim(true) = force (lanjut walau stok minus).
+            const kirim = (force) => {
+                const body = new URLSearchParams({ _method: 'DELETE', _token: csrf });
+                if (force) body.append('force', '1');
+                return fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                    body: body,
+                });
+            };
+
+            kirim(false)
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
                     removeRow(tr);
                     showToast(data.message || 'Berhasil dihapus.');
-                } else {
-                    alert(data.error || 'Gagal menghapus.');
+                    return;
                 }
+                if (data.stok_warning) {
+                    // Hapus invoice pembelian akan membuat stok minus — beri 2 opsi
+                    // (Lanjutkan = force, seperti modal non-JS resolve-stok-warning).
+                    const lanjut = window.confirm(
+                        (data.error || 'Menghapus akan membuat stok minus.') +
+                        '\n\nLanjutkan hapus dengan menandai anomali stok?'
+                    );
+                    if (!lanjut) return; // Batalkan — baris tetap utuh.
+                    return kirim(true)
+                        .then(r => r.json())
+                        .then(d2 => {
+                            if (d2.success) {
+                                removeRow(tr);
+                                showToast(d2.message || 'Berhasil dihapus (stok minus).');
+                            } else {
+                                alert(d2.error || 'Gagal menghapus.');
+                            }
+                        })
+                        .catch(() => alert('Gagal menghapus. Periksa koneksi.'));
+                }
+                alert(data.error || 'Gagal menghapus.');
             })
             .catch(() => alert('Gagal menghapus. Periksa koneksi.'));
         });

@@ -52,7 +52,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 ### Pembelian
 - Form Cash/Hutang (toggle). Cash: bayar ≥ total (server tolak bila kurang). Hutang: DP + sisa; jatuh tempo auto = akhir bulan ke-3; pelunasan cicilan → lunas saat sisa 0.
 - Simpan = tambah stok (kartu_stok masuk) + histori harga (harga_jual dikalkulasi ulang hanya saat mode otomatis).
-- Edit/hapus atomik dgn guard: hapus invoice hutang ber-historipembayaran **diblokir**; edit dgn qty baru < qty terjual sejak invoice **ditolak**; hapus yang membuat stok minus → warning 2 opsi (force).
+- Edit/hapus atomik dgn guard: hapus invoice hutang ber-historipembayaran **diblokir**; edit dgn qty baru < qty terjual sejak invoice **ditolak**; hapus yang membuat stok minus → warning 2 opsi (force) — **valid di kedua jalur**: non-JS (modal partial resolve-stok-warning) & AJAX (confirm "Lanjutkan/Batalkan" → kirim ulang force=1, lihat app.js). Pesan sukses force menyebut stok minus utk investigasi.
 
 ### Penjualan (satu laman "/penjualan")
 - Menampilkan **manual + rekonstruksi** (badge Manual/Rekonstruksi + tanda "diedit"); tab filter Semua/Manual/Rekonstruksi.

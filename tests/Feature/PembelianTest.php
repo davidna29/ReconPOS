@@ -353,6 +353,30 @@ class PembelianTest extends TestCase
         $this->deleteJson(route('pembelian.destroy', $inv))
             ->assertStatus(422)
             ->assertJson(['success' => false, 'stok_warning' => true]);
+        // Tanpa force: invoice & stok TIDAK berubah (warning hanya informasi)
+        $this->assertDatabaseHas('invoice_pembelian', ['id' => $inv->id]);
+        $this->assertSame(0, (int) $b->fresh()->stock);
+    }
+
+    public function test_hapus_invoice_ajax_stok_warning_force(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-AJF');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 2, 'harga_jual' => 60000]]);
+
+        // Dengan force (simulasi klik "Lanjutkan" di JS): invoice terhapus & stok jadi minus
+        $this->deleteJson(route('pembelian.destroy', $inv), ['force' => true])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
+        $this->assertSame(-2, (int) $b->fresh()->stock);
     }
 
     public function test_bulk_hapus_invoice_ajax(): void

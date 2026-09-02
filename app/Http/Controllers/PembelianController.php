@@ -132,7 +132,9 @@ class PembelianController extends Controller
     {
         try {
             $this->service->hapus($invoice, $request->boolean('force'));
-            $msg = 'Invoice ' . $invoice->no_invoice . ' dihapus (efek stok dibatalkan).';
+            $msg = $request->boolean('force')
+                ? 'Invoice ' . $invoice->no_invoice . ' dihapus. Stok menjadi minus — cek Kartu Stok untuk investigasi.'
+                : 'Invoice ' . $invoice->no_invoice . ' dihapus (efek stok dibatalkan).';
 
             return $request->expectsJson()
                 ? response()->json(['success' => true, 'message' => $msg])
