@@ -318,4 +318,65 @@ class PembelianTest extends TestCase
             ->assertSee('100 entri')
             ->assertSee('name="entries"', false);
     }
+
+    public function test_hapus_invoice_ajax(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-AJAX');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+
+        $this->deleteJson(route('pembelian.destroy', $inv))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $inv->id]);
+    }
+
+    public function test_hapus_invoice_ajax_stok_warning(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-AJW');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 2, 'harga_jual' => 60000]]);
+
+        $this->deleteJson(route('pembelian.destroy', $inv))
+            ->assertStatus(422)
+            ->assertJson(['success' => false, 'stok_warning' => true]);
+    }
+
+    public function test_bulk_hapus_invoice_ajax(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-DEL');
+        $s = $this->supplier();
+        $a = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $b2 = $this->barang('B-DEL2');
+        $c = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 200000,
+            'items' => [['barang_id' => $b2->id, 'harga_beli' => 50000, 'qty' => 4, 'diskon_item' => 0]],
+        ]);
+
+        $this->postJson(route('pembelian.bulk-delete'), ['ids' => [$a->id, $c->id]])
+            ->assertOk()
+            ->assertJsonPath('deleted', fn ($d) => count($d) === 2);
+
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $a->id]);
+        $this->assertDatabaseMissing('invoice_pembelian', ['id' => $c->id]);
+    }
 }

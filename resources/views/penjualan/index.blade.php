@@ -27,6 +27,12 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 @include('partials.bulk-print', ['scope' => 'penjualan', 'action' => route('penjualan.print-batch')])
+                <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
+                    data-bulk-delete-btn="penjualan"
+                    data-bulk-delete-url="{{ route('penjualan.bulk-delete') }}"
+                    title="Hapus semua item terpilih dari halaman ini">
+                    <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
+                </button>
                 <form method="GET" class="flex items-center gap-2">
                     @if ($sumber)<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
                     <select name="entries" class="input w-auto" onchange="this.form.submit()">
@@ -58,7 +64,7 @@
                 </thead>
                 <tbody>
                     @forelse ($transaksis as $i => $t)
-                        <tr>
+                        <tr data-id="{{ $t->id }}">
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="penjualan" value="{{ $t->id }}"></td>
                             <td class="text-secondary">{{ $transaksis->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $t->ref_transaksi }}</td>
@@ -87,7 +93,7 @@
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
                                     @if ($t->sumber === 'manual')
-                                        <form method="POST" action="{{ route('penjualan.destroy', $t) }}" data-confirm="Hapus penjualan {{ $t->ref_transaksi }}? Stok akan dikembalikan.">
+                                        <form method="POST" action="{{ route('penjualan.destroy', $t) }}" data-confirm="Hapus penjualan {{ $t->ref_transaksi }}? Stok akan dikembalikan." data-delete-ajax>
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus">

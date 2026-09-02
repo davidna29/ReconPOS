@@ -141,15 +141,52 @@ class PenjualanController extends Controller
         return view('penjualan.print-batch', ['trxs' => $trxs]);
     }
 
-    public function destroy(TransaksiPenjualan $transaksiPenjualan)
+    public function destroy(Request $request, TransaksiPenjualan $transaksiPenjualan)
     {
         try {
             $this->service->hapus($transaksiPenjualan);
+            $msg = 'Penjualan ' . $transaksiPenjualan->ref_transaksi . ' dihapus, stok dikembalikan.';
 
-            return redirect()->route('penjualan.index')->with('success', 'Penjualan dihapus, stok dikembalikan.');
+            return $request->expectsJson()
+                ? response()->json(['success' => true, 'message' => $msg])
+                : redirect()->route('penjualan.index')->with('success', $msg);
         } catch (InvalidArgumentException $e) {
-            return back()->with('error', $e->getMessage());
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'error' => $e->getMessage()], 422)
+                : back()->with('error', $e->getMessage());
         }
+    }
+
+    /** Bulk delete: hapus banyak nota via AJAX, toleran error per item. */
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $deleted = [];
+        $errors = [];
+        foreach ($validated['ids'] as $id) {
+            $trx = TransaksiPenjualan::find($id);
+            if (! $trx || $trx->status !== 'tersimpan') {
+                $errors[$id] = 'Tidak ditemukan atau bukan nota tersimpan.';
+                continue;
+            }
+            try {
+                $this->service->hapus($trx);
+                $deleted[] = $id;
+            } catch (Throwable $e) {
+                $errors[$id] = $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'success' => count($deleted) > 0,
+            'deleted' => $deleted,
+            'errors' => $errors,
+            'message' => count($deleted) . ' nota dihapus.' . (count($errors) ? ' ' . count($errors) . ' gagal.' : ''),
+        ]);
     }
 
     /** Endpoint riwayat mutasi per barang utk form penjualan (info sisa stok). */

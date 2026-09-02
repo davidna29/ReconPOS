@@ -39,6 +39,11 @@
                 const n = terpilih().length;
                 countEl.textContent = n;
                 btn.disabled = n === 0;
+                // juga update tombol bulk delete jika ada di halaman yang sama
+                const delCountEl = document.getElementById('bulk-delete-count-' + scope);
+                const delBtn = document.querySelector('[data-bulk-delete-btn="' + scope + '"]');
+                if (delCountEl) delCountEl.textContent = n;
+                if (delBtn) delBtn.disabled = n === 0;
             }
             if (allEl) {
                 allEl.addEventListener('change', () => {

@@ -132,18 +132,63 @@ class PembelianController extends Controller
     {
         try {
             $this->service->hapus($invoice, $request->boolean('force'));
+            $msg = 'Invoice ' . $invoice->no_invoice . ' dihapus (efek stok dibatalkan).';
 
-            return redirect()->route('pembelian.invoice-hutang')->with('success', 'Invoice ' . $invoice->no_invoice . ' dihapus (efek stok dibatalkan).');
+            return $request->expectsJson()
+                ? response()->json(['success' => true, 'message' => $msg])
+                : redirect()->route('pembelian.invoice-hutang')->with('success', $msg);
         } catch (StokException $e) {
-            // tampilkan warning 2 opsi: lanjutkan (stok minus) / batalkan
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'stok_warning' => true,
+                    'detail' => $e->getDetail(),
+                ], 422);
+            }
+
             return back()->with('stok_warning', [
                 'invoice' => $invoice->id,
                 'pesan' => $e->getMessage(),
                 'detail' => $e->getDetail(),
             ]);
         } catch (InvalidArgumentException $e) {
-            return back()->with('error', $e->getMessage());
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'error' => $e->getMessage()], 422)
+                : back()->with('error', $e->getMessage());
         }
+    }
+
+    /** Bulk delete: hapus banyak invoice via AJAX, toleran error per item. */
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $deleted = [];
+        $errors = [];
+        foreach ($validated['ids'] as $id) {
+            $inv = InvoicePembelian::find($id);
+            if (! $inv) {
+                $errors[$id] = 'Invoice tidak ditemukan.';
+                continue;
+            }
+            try {
+                $this->service->hapus($inv, false);
+                $deleted[] = $id;
+            } catch (Throwable $e) {
+                $errors[$id] = $e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'success' => count($deleted) > 0,
+            'deleted' => $deleted,
+            'errors' => $errors,
+            'message' => count($deleted) . ' invoice dihapus.' . (count($errors) ? ' ' . count($errors) . ' gagal.' : ''),
+        ]);
     }
 
     public function print(InvoicePembelian $invoice)

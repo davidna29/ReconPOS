@@ -15,6 +15,12 @@
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
             @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
+                <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
+                    data-bulk-delete-btn="hutang"
+                    data-bulk-delete-url="{{ route('pembelian.bulk-delete') }}"
+                    title="Hapus semua invoice terpilih">
+                    <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-hutang">0</span>)
+                </button>
             <form method="GET" class="flex items-center gap-2">
                 <select name="entries" class="input w-auto" onchange="this.form.submit()">
                     @foreach ([10, 25, 50, 100] as $n)
@@ -45,7 +51,7 @@
                 </thead>
                 <tbody>
                     @forelse ($invoices as $i => $inv)
-                        <tr @class(['row-overdue' => $inv->jatuh_tempo && $inv->jatuh_tempo->isPast()])>
+                        <tr data-id="{{ $inv->id }}" @class(['row-overdue' => $inv->jatuh_tempo && $inv->jatuh_tempo->isPast()])>
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="hutang" value="{{ $inv->id }}"></td>
                             <td class="text-secondary">{{ $invoices->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
@@ -75,7 +81,7 @@
                                     <a href="{{ route('pembelian.print', $inv) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Print">
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
-                                    <form method="POST" action="{{ route('pembelian.destroy', $inv) }}" data-confirm="Hapus invoice {{ $inv->no_invoice }}? Efek stok & histori akan dibatalkan.">
+                                    <form method="POST" action="{{ route('pembelian.destroy', $inv) }}" data-confirm="Hapus invoice {{ $inv->no_invoice }}? Efek stok & histori akan dibatalkan." data-delete-ajax>
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus">

@@ -67,6 +67,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/pembelian/{invoice}/bayar', [PembelianController::class, 'bayarStore'])->name('pembelian.bayar');
     Route::get('/pembelian/{invoice}/print', [PembelianController::class, 'print'])->name('pembelian.print');
     Route::post('/pembelian/print-batch', [PembelianController::class, 'printBatch'])->name('pembelian.print-batch');
+    Route::post('/pembelian/bulk-delete', [PembelianController::class, 'bulkDelete'])->name('pembelian.bulk-delete');
 
     // ---- Penjualan manual / kasir-lite ----
     Route::get('/penjualan', [PenjualanController::class, 'index'])->name('penjualan.index');
@@ -75,6 +76,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/penjualan/{transaksiPenjualan}/edit', [PenjualanController::class, 'edit'])->name('penjualan.edit');
     Route::get('/penjualan/{transaksiPenjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
     Route::post('/penjualan/print-batch', [PenjualanController::class, 'printBatch'])->name('penjualan.print-batch');
+    Route::post('/penjualan/bulk-delete', [PenjualanController::class, 'bulkDelete'])->name('penjualan.bulk-delete');
     Route::put('/penjualan/{transaksiPenjualan}', [PenjualanController::class, 'update'])->name('penjualan.update');
     Route::get('/penjualan/stok/{barang}', [PenjualanController::class, 'stokBarang'])->name('penjualan.stok');
     Route::delete('/penjualan/{transaksiPenjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');

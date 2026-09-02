@@ -205,4 +205,76 @@ class PenjualanTest extends TestCase
             ->assertSee('100 entri')
             ->assertSee('name="entries"', false);
     }
+
+    public function test_hapus_penjualan_ajax(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-AJAX', 10, 50000, 2, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
+
+        $this->deleteJson(route('penjualan.destroy', $trx))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+        $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trx->id]);
+    }
+
+    public function test_hapus_penjualan_ajax_rekonstruksi_ditolak(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'S', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'P-REK', 'nama' => 'Rek', 'sn_atau_non_sn' => 'NON_SN']);
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 10, 'diskon_item' => 0]],
+        ]);
+        $trx = app(PenjualanService::class)->simpanManual(now(), [['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000]]);
+
+        // simulasikan rekonstruksi
+        $trx->update(['sumber' => 'rekonstruksi']);
+
+        $this->deleteJson(route('penjualan.destroy', $trx))
+            ->assertStatus(422)
+            ->assertJson(['success' => false]);
+    }
+
+    public function test_bulk_hapus_penjualan_ajax(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-B1', 10, 50000, 1, 60000);
+        $this->beliDanJual('P-B2', 10, 50000, 1, 70000);
+        $trxs = TransaksiPenjualan::where('sumber', 'manual')->pluck('id')->all();
+        $this->assertCount(2, $trxs);
+
+        $this->postJson(route('penjualan.bulk-delete'), ['ids' => $trxs])
+            ->assertOk()
+            ->assertJsonPath('deleted', fn ($d) => count($d) === 2);
+
+        $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trxs[0]]);
+        $this->assertDatabaseMissing('transaksi_penjualan', ['id' => $trxs[1]]);
+    }
+
+    public function test_bulk_hapus_penjualan_partial_error(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-P1', 10, 50000, 1, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
+
+        $this->postJson(route('penjualan.bulk-delete'), ['ids' => [$trx->id, 99999]])
+            ->assertOk()
+            ->assertJsonPath('deleted', fn ($d) => count($d) === 1)
+            ->assertJsonPath('errors', fn ($e) => isset($e['99999']));
+    }
+
+    public function test_halaman_penjualan_memuat_tombol_bulk_hapus(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-BH', 10, 50000, 1, 60000);
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee('Hapus Terpilih')
+            ->assertSee('bulk-delete-btn', false)
+            ->assertSee('data-delete-ajax', false);
+    }
 }
