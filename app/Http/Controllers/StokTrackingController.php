@@ -10,6 +10,14 @@ class StokTrackingController extends Controller
 {
     public function index(Request $request)
     {
+        // 0. Total stok keseluruhan (tanpa filter)
+        $totalStok = (int) Barang::where('tipe_item', 'barang')
+            ->where('stock', '>', 0)
+            ->sum('stock');
+        $totalSku = Barang::where('tipe_item', 'barang')
+            ->where('stock', '>', 0)
+            ->count();
+
         // 1. Ambil semua barang dengan stock > 0
         $barangs = Barang::where('tipe_item', 'barang')
             ->where('stock', '>', 0)
@@ -79,7 +87,8 @@ class StokTrackingController extends Controller
             ->values();
 
         // 5. Filter berdasarkan months[] dari request
-        $selectedMonths = $request->input('months') ?? $availableMonths->slice(-3)->values()->all();
+        // Default: semua bulan (bukan 3 terlama) agar user melihat gambaran lengkap
+        $selectedMonths = $request->input('months') ?? $availableMonths->values()->all();
         if (! is_array($selectedMonths)) {
             $selectedMonths = [$selectedMonths];
         }
@@ -99,7 +108,8 @@ class StokTrackingController extends Controller
         $grouped = $filtered->groupBy(fn ($r) => $r['tanggal']->format('Y-m'));
 
         return view('stok-tracking.index', compact(
-            'grouped', 'availableMonths', 'selectedMonths'
+            'grouped', 'availableMonths', 'selectedMonths',
+            'totalStok', 'totalSku',
         ));
     }
 }

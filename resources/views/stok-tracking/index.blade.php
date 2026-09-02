@@ -10,6 +10,18 @@
         </div>
     </div>
 
+    <!-- Ringkasan Total Stok (luar filter) -->
+    <div class="relative mb-4 flex h-24 items-center justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div class="absolute -bottom-3 -right-3 opacity-5">
+            <span class="material-symbols-outlined text-7xl">inventory</span>
+        </div>
+        <div>
+            <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Stok Keseluruhan</h3>
+            <div class="mt-1 text-headline-md font-bold text-primary">{{ number_format($totalStok) }} item dari {{ number_format($totalSku) }} SKU</div>
+        </div>
+        <span class="text-body-sm text-secondary">Semua barang dengan stok > 0</span>
+    </div>
+
     <!-- Filter Bulan -->
     <div class="card">
         <form method="GET" action="{{ route('stok-tracking.index') }}" class="flex flex-wrap items-center gap-3 p-3">
