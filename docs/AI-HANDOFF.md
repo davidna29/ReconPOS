@@ -43,7 +43,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 - **Uang = integer rupiah** di seluruh DB; helper: `rupiah(50000)` → "Rp 50.000", `uang()` → "50.000", `tanggal_id()`, `bulan_id()` (ada di `app/Support/helpers.php`, diautoload).
 - `toko_settings` (1 baris): nama_toko, alamat, telepon, **npwp**, logo, margin_default, jam_buka, jam_tutup, hari_libur {dates[], weekly[]}, ambang_stok_menipis, template_version, parameter_generate JSON:
-  `{nota_min, nota_max, toleransi_persen, variasi_min, variasi_max, maks_qty_item_per_nota (default 3), excluded_item_ids[]}`.
+  `{nota_min, nota_max, toleransi_persen, variasi_min, variasi_max, maks_qty_item_per_nota (default 3), maks_sku_per_nota (default 1), excluded_item_ids[]}`.
 - Status transaksi/batch: `draft` → `tersimpan` → (undo) `dibatalkan`. **Semua laporan/omset/export memfilter `status='tersimpan'`**; baris draft/dibatalkan tidak pernah dihitung.
 - `diedit_at` pada `transaksi_penjualan`: nota pernah diedit → **batch rekonstruksi tidak bisa di-undo**.
 
@@ -67,7 +67,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - Timeline ketersediaan per hari (konservatif: barang masuk hari H baru bisa dijual H+1); **kapasitas = peak availability × harga** (bukan jumlah per-hari).
 - Kapasitas < sisa target → **warning 2 opsi** (lanjut semaksimal / batal).
 - Distribusi harian proporsional bobot stok masuk; unit-pool fill (SN qty=1 + NO_SN unik; non-SN NO_SN kosong; variasi harga −10%..0%, tidak pernah < harga beli; jam operasional & hari libur dipatuhi).
-- **`maks_qty_item_per_nota`** (default 3) membatasi unit per item per nota; pengemasan greedy → **tidak ada barang ganda dalam 1 nota**.
+- **`maks_qty_item_per_nota`** (default 3) membatasi unit 1 SKU dalam 1 nota (mis. 4 = 1 nota bisa 1-4 ban); **`maks_sku_per_nota`** (default 1) membatasi **jumlah jenis barang berbeda per nota** — default 1 = tiap nota hanya berisi 1 SKU (barang non-SN yang sama digabung jadi 1 baris dgn qty ≤ cap; SKU SN tetap 1 baris qty=1 + NO_SN unik), disarankan utk toko ban (1 nota = 1-4 ban dari 1 SKU). `penyesuaianAkhir` menambah qty item juga dibatasi cap yg sama. Parameter diatur di Pengaturan → Parameter Generate (dan bisa di-override per generate).
 - Ref nota unik global (`refBebas` — baris "dibatalkan" tetap menempati ref).
 - Sinkron per request (< 5 detik; ramah shared hosting). Draft tersimpan di DB → review/edit → **Simpan** (potong stok, tandai SN, label rekonstruksi).
 - **Undo batch tersimpan**: reversal stok+SN → status `dibatalkan` (baris dipertahankan utk audit); ditolak bila ada nota diedit.

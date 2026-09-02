@@ -39,6 +39,7 @@ class PengaturanController extends Controller
             'variasi_min' => ['nullable', 'integer', 'min:-50', 'max:0'],
             'variasi_max' => ['nullable', 'integer', 'min:-50', 'max:50'],
             'maks_qty_item_per_nota' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'maks_sku_per_nota' => ['nullable', 'integer', 'min:1', 'max:5'],
             'excluded_item_ids' => ['nullable', 'array'],
             'excluded_item_ids.*' => ['integer', 'exists:barang,id'],
             // hari libur
@@ -74,6 +75,7 @@ class PengaturanController extends Controller
                 'variasi_min' => (int) ($data['variasi_min'] ?? $settings->parameterGenerate()['variasi_min']),
                 'variasi_max' => (int) ($data['variasi_max'] ?? $settings->parameterGenerate()['variasi_max']),
                 'maks_qty_item_per_nota' => (int) ($data['maks_qty_item_per_nota'] ?? $settings->parameterGenerate()['maks_qty_item_per_nota']),
+                'maks_sku_per_nota' => (int) ($data['maks_sku_per_nota'] ?? $settings->parameterGenerate()['maks_sku_per_nota']),
                 'excluded_item_ids' => array_map('intval', $data['excluded_item_ids'] ?? []),
             ]),
             'template_version' => $data['template_version'] ?? $settings->template_version,

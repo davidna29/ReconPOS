@@ -41,6 +41,7 @@ class TokoSetting extends Model
                 'variasi_min' => -10,
                 'variasi_max' => 0,
                 'maks_qty_item_per_nota' => 3,
+                'maks_sku_per_nota' => 1,
                 'excluded_item_ids' => [],
             ],
             'template_version' => 'v1',
@@ -56,6 +57,7 @@ class TokoSetting extends Model
             'variasi_min' => -10,
             'variasi_max' => 0,
             'maks_qty_item_per_nota' => 3,
+            'maks_sku_per_nota' => 1,
             'excluded_item_ids' => [],
         ], $this->parameter_generate ?? []);
     }

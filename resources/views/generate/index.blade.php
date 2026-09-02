@@ -80,7 +80,12 @@
             <div>
                 <label class="label">Maks Qty / Item / Nota</label>
                 <input type="number" name="maks_qty_item_per_nota" min="1" max="20" value="{{ old('maks_qty_item_per_nota', $params['maks_qty_item_per_nota'] ?? 3) }}" class="input">
-                <span class="hint">Batas unit tiap barang dalam 1 nota (default 3) — hasil lebih realistis utk item besar seperti ban.</span>
+                <span class="hint">Batas unit 1 jenis barang dalam 1 nota (default 3) — utk ban setel 4 supaya 1 nota = 1-4 ban.</span>
+            </div>
+            <div>
+                <label class="label">Maks Jenis Barang (SKU) / Nota</label>
+                <input type="number" name="maks_sku_per_nota" min="1" max="5" value="{{ old('maks_sku_per_nota', $params['maks_sku_per_nota'] ?? 1) }}" class="input">
+                <span class="hint">1 = 1 nota hanya 1 jenis barang (mis. 4 ban sama); 2-5 = campuran (default 1).</span>
             </div>
             <div class="md:col-span-3">
                 <p class="mb-1 rounded-lg border border-outline-variant bg-surface-muted px-3 py-2 text-body-sm text-secondary">

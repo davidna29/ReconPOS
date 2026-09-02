@@ -112,7 +112,12 @@
                     <div>
                         <label class="label">Maks Qty / Item / Nota</label>
                         <input type="number" name="maks_qty_item_per_nota" min="1" max="20" value="{{ $pg['maks_qty_item_per_nota'] }}" class="input">
-                        <span class="hint">Batas unit tiap barang dalam 1 nota hasil generate (default 3).</span>
+                        <span class="hint">Batas unit 1 jenis barang dalam 1 nota hasil generate (mis. 4 = 1 nota bisa 1-4 ban) (default 3).</span>
+                    </div>
+                    <div>
+                        <label class="label">Maks Jenis Barang (SKU) / Nota</label>
+                        <input type="number" name="maks_sku_per_nota" min="1" max="5" value="{{ $pg['maks_sku_per_nota'] ?? 1 }}" class="input">
+                        <span class="hint">1 = tiap nota hanya berisi 1 jenis barang (disarankan utk toko ban — 1 nota = 1-4 ban dari 1 SKU). 2-5 = maksimal jenis campuran per nota (default 1).</span>
                     </div>
                     <div>
                         <label class="label">Ambang Stok Menipis</label>

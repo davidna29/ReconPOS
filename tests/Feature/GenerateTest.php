@@ -380,12 +380,13 @@ class GenerateTest extends TestCase
         $batch = $res['batch'];
 
         foreach ($batch->transaksiPenjualan()->with('items.barang')->get() as $trx) {
-            $barangDalamNota = [];
+            $skuDalamNota = [];
             foreach ($trx->items as $it) {
                 $this->assertLessThanOrEqual(2, $it->qty, 'Qty melebihi batas pada ' . $trx->ref_transaksi);
-                $this->assertNotContains($it->barang_id, $barangDalamNota, 'Barang ganda dlm 1 nota: ' . $trx->ref_transaksi);
-                $barangDalamNota[] = $it->barang_id;
+                $skuDalamNota[$it->barang_id] = true;
             }
+            // default maks_sku_per_nota = 1 → tiap nota hanya 1 jenis barang
+            $this->assertSame(1, count($skuDalamNota), 'Nota harus berisi 1 SKU saja (default): ' . $trx->ref_transaksi);
         }
     }
 
@@ -402,6 +403,29 @@ class GenerateTest extends TestCase
             foreach ($trx->items as $it) {
                 $this->assertSame(1, $it->qty);
             }
+        }
+    }
+
+    public function test_generate_maks_sku_per_nota(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+
+        // maks_sku_per_nota = 1 → setiap nota hanya 1 jenis barang (kasus toko ban)
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, ['maks_sku_per_nota' => 1], false);
+        $this->assertSame('ok', $res['status']);
+        foreach ($res['batch']->transaksiPenjualan()->with('items')->get() as $trx) {
+            $this->assertSame(1, collect($trx->items)->pluck('barang_id')->unique()->count(),
+                'Dengan maks_sku_per_nota=1, nota ' . $trx->ref_transaksi . ' harus 1 SKU saja.');
+        }
+
+        // maks_sku_per_nota = 2 → setiap nota maks 2 jenis barang
+        $res2 = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, ['maks_sku_per_nota' => 2], false);
+        $this->assertSame('ok', $res2['status']);
+        foreach ($res2['batch']->transaksiPenjualan()->with('items')->get() as $trx) {
+            $this->assertLessThanOrEqual(2, collect($trx->items)->pluck('barang_id')->unique()->count(),
+                'Dengan maks_sku_per_nota=2, nota ' . $trx->ref_transaksi . ' maks 2 SKU.');
         }
     }
 

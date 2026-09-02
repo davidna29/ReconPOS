@@ -134,8 +134,10 @@ Buka `http://localhost:8000/publik` **tanpa login** — versi tampilan (read-onl
 stok per hari (running balance, konsumsi simulasi carry-forward) -> cek kapasitas (warning) -> alokasi harian
 proporsional stok masuk dengan jitter natural -> unit-pool fill (SN qty=1 + NO_SN unik, non-SN NO_SN kosong,
 variasi harga -10%..0% tidak pernah di bawah harga beli, tidak ada transaksi di hari libur, jam dalam jam
-operasional) -> penyesuaian akhir (tuning harga dalam rentang variasi / qty / top-up / drop) agar total dalam
-toleransi -> **draft reversibel** -> review/edit -> Simpan (potong stok & tandai SN, atomik).
+operasional) -> pengemasan nota (parameter `maks_sku_per_nota` default 1 = tiap nota hanya 1 jenis barang,
+qty per SKU ≤ `maks_qty_item_per_nota`, mis. 1 nota = 1-4 ban dari 1 SKU utk toko ban) -> penyesuaian akhir
+(tuning harga dalam rentang variasi / qty / top-up / drop) agar total dalam toleransi -> **draft reversibel**
+-> review/edit -> Simpan (potong stok & tandai SN, atomik).
 
 ---
 

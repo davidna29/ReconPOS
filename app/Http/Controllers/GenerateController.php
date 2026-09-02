@@ -45,6 +45,7 @@ class GenerateController extends Controller
             'variasi_min' => ['nullable', 'integer', 'min:-50', 'max:0'],
             'variasi_max' => ['nullable', 'integer', 'min:-50', 'max:50'],
             'maks_qty_item_per_nota' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'maks_sku_per_nota' => ['nullable', 'integer', 'min:1', 'max:5'],
             'excluded_item_ids' => ['nullable', 'array'],
         ]);
 
@@ -58,6 +59,7 @@ class GenerateController extends Controller
             'variasi_min' => (int) ($validated['variasi_min'] ?? -10),
             'variasi_max' => (int) ($validated['variasi_max'] ?? 0),
             'maks_qty_item_per_nota' => (int) ($validated['maks_qty_item_per_nota'] ?? 3),
+            'maks_sku_per_nota' => (int) ($validated['maks_sku_per_nota'] ?? 1),
             'excluded_item_ids' => $validated['excluded_item_ids'] ?? [],
         ];
 

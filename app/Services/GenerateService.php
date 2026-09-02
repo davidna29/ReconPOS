@@ -103,6 +103,7 @@ class GenerateService
             (int) ($params['nota_max'] ?? 8),
             (int) ($params['toleransi_persen'] ?? 2),
             (int) ($params['maks_qty_item_per_nota'] ?? 3),
+            (int) ($params['maks_sku_per_nota'] ?? 1),
             (int) ($params['variasi_min'] ?? -10),
             (int) ($params['variasi_max'] ?? 0),
             (string) $params['jam_buka'],
@@ -275,6 +276,7 @@ class GenerateService
         int $notaMax,
         int $toleransi,
         int $maksQtyPerNota,
+        int $maksSkuPerNota,
         int $variasiMin,
         int $variasiMax,
         string $jamBuka,
@@ -492,38 +494,89 @@ class GenerateService
             $sisa -= $qty * $price;
         }
 
-        // Paketkan penjualan per hari menjadi nota:
-        // - tiap nota 1-5 item, BEDA barang (tidak ada 2 baris barang sama dalam 1 nota)
-        // - qty per item per nota dibatasi maks_qty_item_per_nota (default 3)
+        // Paketkan penjualan per hari menjadi nota (PRD 6; parametrik):
+        // - tiap nota memuat MAKS. maks_sku_per_nota JENIS BARANG berbeda (default 1:
+        //   "1 nota = 1-4 ban dari 1 SKU" utk bengkel ban).
+        // - Baris non-SN utk SKU yang sama DIGABUNG jadi 1 baris (qty ≤ maks_qty_item_per_nota;
+        //   lebih → pecah ke nota lain dengan SKU yang sama). Harga gabungan = rata-rata
+        //   tertimbang (pembulatan kecil — penyesuaianAkhir menjaga total dalam toleransi).
+        // - Barang SN tetap 1 baris qty=1 + NO_SN unik (tidak digabung).
+        // - Maks baris per nota tetap 5.
         [$hBuka] = array_map('intval', explode(':', $jamBuka));
         [$hTutup] = array_map('intval', explode(':', $jamTutup));
         $maxItemsPerNota = 5;
+        $maxSku = max(1, min((int) $maksSkuPerNota, $maxItemsPerNota));
 
         foreach ($sales as $dayKey => $daySales) {
             $day = $days[$dayKey];
 
-            // greedy: tempatkan tiap entri ke nota pertama yang belum memuat barang tsb & masih ada slot
-            $notas = [];
+            // kelompokkan entri per SKU (urutan kemunculan dipertahankan)
+            $buckets = [];
             foreach ($daySales as $c) {
-                $qty = max(1, min((int) $c['qty'], $maksQtyPerNota));
-                $entri = [
-                    'barang_id' => $c['barang_id'],
-                    'qty' => $qty,
-                    'price' => $c['price'],
-                    'no_sn' => $c['no_sn'],
-                ];
-                $idx = null;
-                for ($i = 0; $i < count($notas); $i++) {
-                    if (count($notas[$i]['items']) < $maxItemsPerNota && ! isset($notas[$i]['barang'][$c['barang_id']])) {
+                $buckets[$c['barang_id']][] = $c;
+            }
+
+            $notas = [];
+            foreach ($buckets as $barangId => $entries) {
+                foreach ($entries as $c) {
+                    $qty = max(1, min((int) $c['qty'], $maksQtyPerNota));
+                    $entri = [
+                        'barang_id' => (int) $barangId,
+                        'qty' => $qty,
+                        'price' => (int) $c['price'],
+                        'no_sn' => $c['no_sn'],
+                    ];
+
+                    // cari nota: (a) belum penuh baris, (b) boleh memuat SKU ini
+                    // (belum ada SKU ini ATAU jumlah SKU dari SKU ini masih < kapasitas garis),
+                    // utk SKU yang sama: gabung non-SN bila masih muat qty cap.
+                    $idx = null;
+                    for ($i = 0; $i < count($notas); $i++) {
+                        $n = $notas[$i];
+                        if (count($n['items']) >= $maxItemsPerNota) {
+                            continue;
+                        }
+                        $punya = isset($n['barang'][$barangId]);
+                        $skuCount = count($n['barang']);
+                        if (! $punya && $skuCount >= $maxSku) {
+                            continue;
+                        }
+                        if ($punya) {
+                            if ($entri['no_sn'] !== null || $n['qty'][$barangId] + $qty > $maksQtyPerNota) {
+                                continue; // SN tak digabung; non-SN tak boleh melewati cap
+                            }
+                        }
                         $idx = $i;
                         break;
                     }
-                }
-                if ($idx === null) {
-                    $notas[] = ['items' => [$entri], 'barang' => [$c['barang_id'] => true]];
-                } else {
-                    $notas[$idx]['items'][] = $entri;
-                    $notas[$idx]['barang'][$c['barang_id']] = true;
+
+                    if ($idx === null) {
+                        $notas[] = [
+                            'items' => [$entri],
+                            'barang' => [$barangId => true],
+                            'qty' => [$barangId => $qty],
+                        ];
+                    } else {
+                        // gabung ke baris SKU yang sama bila non-SN & muat; selain itu tambah baris baru
+                        if ($entri['no_sn'] === null && isset($notas[$idx]['barang'][$barangId])) {
+                            // cari baris utk SKU tsb & sesuaikan qty+harga (rata-rata tertimbang)
+                            foreach ($notas[$idx]['items'] as &$existing) {
+                                if ($existing['barang_id'] === $barangId && $existing['no_sn'] === null) {
+                                    $oldQty = (int) $existing['qty'];
+                                    $newQty = $oldQty + $qty;
+                                    $existing['qty'] = $newQty;
+                                    $existing['price'] = (int) round(($oldQty * (int) $existing['price'] + $qty * (int) $entri['price']) / $newQty);
+                                    break;
+                                }
+                            }
+                            unset($existing);
+                            $notas[$idx]['qty'][$barangId] = $newQty ?? ($notas[$idx]['qty'][$barangId] + $qty);
+                        } else {
+                            $notas[$idx]['items'][] = $entri;
+                            $notas[$idx]['barang'][$barangId] = true;
+                            $notas[$idx]['qty'][$barangId] = ($notas[$idx]['qty'][$barangId] ?? 0) + $qty;
+                        }
+                    }
                 }
             }
 
@@ -663,12 +716,16 @@ class GenerateService
                             if ($it['no_sn'] !== null) {
                                 continue;
                             }
+                            // jaga qty per SKU per nota tetap ≤ maks_qty_item_per_nota (realisme nota)
+                            if ((int) $it['qty'] >= $maksQtyPerNota) {
+                                continue;
+                            }
                             $availQty = $avail[$it['barang_id']][$dayKey] ?? 0;
                             $sisa = $sisaTotal[$it['barang_id']] ?? 0;
                             if ($sisa <= 0) {
                                 continue;
                             }
-                            $tambah = min(max(1, (int) floor($kebutuhan / max(1, $it['harga_jual']))), max($availQty, $sisa), 50, $sisa);
+                            $tambah = min(max(1, (int) floor($kebutuhan / max(1, $it['harga_jual']))), max($availQty, $sisa), 50, $sisa, max(0, $maksQtyPerNota - (int) $it['qty']));
                             if ($tambah <= 0) {
                                 continue;
                             }
