@@ -3,6 +3,8 @@
 @section('title', 'Invoice ' . $invoice->no_invoice)
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -17,10 +19,12 @@
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
+            @if (! $publik)
             <a href="{{ route('pembelian.edit', $invoice) }}" class="btn btn-secondary btn-sm">
                 <span class="material-symbols-outlined text-[16px]">edit</span> Edit
             </a>
-            <a href="{{ route('pembelian.print', $invoice) }}" target="_blank" class="btn btn-secondary btn-sm">
+            @endif
+            <a href="{{ $r('pembelian.print', $invoice) }}" target="_blank" class="btn btn-secondary btn-sm">
                 <span class="material-symbols-outlined text-[16px]">print</span> Print
             </a>
         </div>
@@ -95,7 +99,7 @@
                 </div>
             @endif
 
-            @if ($invoice->status === 'belum_lunas')
+            @if (! $publik && $invoice->status === 'belum_lunas')
                 <div class="card-pad border-l-4 border-l-hutang-amber">
                     <h3 class="mb-2 text-headline-sm text-hutang-amber">Sisa Hutang: {{ rupiah($invoice->sisa_hutang) }}</h3>
                     <form method="POST" action="{{ route('pembelian.bayar', $invoice) }}" class="flex flex-col gap-2">

@@ -3,6 +3,7 @@
 @section('title', 'Kartu Stok — ' . $barang->nama)
 
 @section('content')
+    @php($publik = $publik ?? false)
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Kartu Stok: {{ $barang->nama }}</h2>
@@ -11,6 +12,7 @@
                 <span class="font-bold {{ $barang->stock <= 0 ? 'text-danger-red' : 'text-lunas-green' }}">{{ $barang->stock }} {{ $barang->satuan }}</span>
             </p>
         </div>
+        @if (! $publik)
         <div class="flex gap-2">
             @if ($barang->stock === 0 && ! $barang->sudahDipakaiTransaksi())
                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('stok-awal-form').classList.toggle('hidden')">
@@ -21,8 +23,10 @@
                 <span class="material-symbols-outlined text-[18px]">fact_check</span> Stok Opname
             </button>
         </div>
+        @endif
     </div>
 
+    @if (! $publik)
     <div id="stok-awal-form" class="card hidden p-4">
         <form method="POST" action="{{ route('barang.stokAwal', $barang) }}" class="flex flex-wrap items-end gap-3">
             @csrf
@@ -50,6 +54,7 @@
             <span class="text-[11px] text-secondary">Selisih otomatis tercatat sebagai 1 baris "opname" di Kartu Stok (PRD 4.3b).</span>
         </form>
     </div>
+    @endif
 
     <div class="card">
         <div class="overflow-x-auto">

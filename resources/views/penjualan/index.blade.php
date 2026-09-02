@@ -3,11 +3,20 @@
 @section('title', 'Penjualan')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Penjualan</h2>
-            <p class="mt-1 text-body-md text-secondary">Penjualan manual + hasil generate transaksi — baris rekonstruksi berlabel <span class="badge badge-blue">Rekonstruksi</span></p>
+            <p class="mt-1 text-body-md text-secondary">
+                @if ($publik)
+                    Daftar transaksi penjualan (lihat saja)
+                @else
+                    Penjualan manual + hasil generate transaksi — baris rekonstruksi berlabel <span class="badge badge-blue">Rekonstruksi</span>
+                @endif
+            </p>
         </div>
+        @if (! $publik)
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('generate.index') }}" class="btn btn-secondary btn-sm">
                 <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Generate Transaksi
@@ -16,9 +25,11 @@
                 <span class="material-symbols-outlined text-[16px]">add</span> Transaksi Penjualan Baru
             </a>
         </div>
+        @endif
     </div>
 
-    <!-- Filter Periode + Kartu Omset -->
+    <!-- Filter Periode + Kartu Omset (hanya admin) -->
+    @if (! $publik)
     <form method="GET" action="{{ route('penjualan.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
         @if ($sumber)<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
         <div>
@@ -42,7 +53,9 @@
         </button>
         <a href="{{ route('penjualan.index') }}{{ $sumber ? '?sumber='.$sumber : '' }}" class="btn btn-secondary btn-sm">Reset</a>
     </form>
+    @endif
 
+    @if (! $publik)
     <div class="relative mb-4 flex h-32 flex-col justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
         <div class="absolute -bottom-4 -right-4 opacity-5">
             <span class="material-symbols-outlined text-8xl">payments</span>
@@ -69,15 +82,19 @@
             @endif
         </div>
     </div>
+    @endif
 
     <div class="card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant p-3">
+            @if (! $publik)
             <div class="segmented">
                 <a href="{{ route('penjualan.index') }}" class="{{ ! $sumber ? 'active-cash' : '' }}">Semua @if ($jumlah['semua'])>0<span class="badge badge-slate">{{ $jumlah['semua'] }}</span>@endif</a>
                 <a href="{{ route('penjualan.index', ['sumber' => 'manual']) }}" class="{{ $sumber === 'manual' ? 'active-cash' : '' }}">Manual @if ($jumlah['manual'])>0<span class="badge badge-green">{{ $jumlah['manual'] }}</span>@endif</a>
                 <a href="{{ route('penjualan.index', ['sumber' => 'rekonstruksi']) }}" class="{{ $sumber === 'rekonstruksi' ? 'active-lunas' : '' }}">Rekonstruksi @if ($jumlah['rekonstruksi'])>0<span class="badge badge-blue">{{ $jumlah['rekonstruksi'] }}</span>@endif</a>
             </div>
+            @endif
             <div class="flex flex-wrap items-center gap-2">
+                @if (! $publik)
                 @include('partials.bulk-print', ['scope' => 'penjualan', 'action' => route('penjualan.print-batch')])
                 <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
                     data-bulk-delete-btn="penjualan"
@@ -85,8 +102,9 @@
                     title="Hapus semua item terpilih dari halaman ini">
                     <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
                 </button>
+                @endif
                 <form method="GET" class="flex items-center gap-2">
-                    @if ($sumber)<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+                    @if (! $publik && filled($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
                     <select name="entries" class="input w-auto" onchange="this.form.submit()">
                         @foreach ([10, 25, 50, 100] as $n)
                             <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
@@ -105,23 +123,28 @@
             <table class="tbl">
                 <thead>
                     <tr>
+                        @if (! $publik)
                         <th class="w-8"><input type="checkbox" id="bulk-all-penjualan" class="bulk-all shrink-0 rounded border-outline-variant text-primary focus:ring-primary" title="Pilih semua di halaman ini"></th>
+                        @endif
                         <th>No</th>
                         <th>Ref Transaksi</th>
                         <th>Tanggal</th>
                         <th class="text-right">Total</th>
-                        <th>Sumber</th>
+                        @if (! $publik)<th>Sumber</th>@endif
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($transaksis as $i => $t)
                         <tr data-id="{{ $t->id }}">
+                            @if (! $publik)
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="penjualan" value="{{ $t->id }}"></td>
+                            @endif
                             <td class="text-secondary">{{ $transaksis->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $t->ref_transaksi }}</td>
                             <td>{{ $t->tanggal_waktu->format('d/m/Y H:i') }}</td>
                             <td class="mono text-right">{{ rupiah($t->total) }}</td>
+                            @if (! $publik)
                             <td>
                                 @if ($t->sumber === 'rekonstruksi')
                                     <x-badge color="blue">Rekonstruksi</x-badge>
@@ -132,19 +155,22 @@
                                     <span class="badge badge-amber">diedit</span>
                                 @endif
                             </td>
+                            @endif
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
                                     <button type="button" class="btn-icon hover:bg-slate-100" title="Detail"
                                         onclick="document.getElementById('det-{{ $t->id }}').classList.toggle('hidden')">
                                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                                     </button>
+                                    @if (! $publik)
                                     <a href="{{ route('penjualan.edit', $t) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Edit nota">
                                         <span class="material-symbols-outlined text-[18px]">edit</span>
                                     </a>
-                                    <a href="{{ route('penjualan.print', $t) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Cetak Struk">
+                                    @endif
+                                    <a href="{{ $r('penjualan.print', $t) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Cetak Struk">
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
-                                    @if ($t->sumber !== 'draft')
+                                    @if (! $publik && $t->sumber !== 'draft')
                                         <form method="POST" action="{{ route('penjualan.destroy', $t) }}" data-confirm="Hapus penjualan {{ $t->ref_transaksi }}? Stok akan dikembalikan." data-delete-ajax>
                                             @csrf
                                             @method('DELETE')
@@ -157,7 +183,7 @@
                             </td>
                         </tr>
                         <tr id="det-{{ $t->id }}" class="hidden bg-slate-50">
-                            <td colspan="7">
+                            <td colspan="{{ $publik ? 5 : 7 }}">
                                 <table class="tbl">
                                     <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-right">Harga</th><th class="text-right">Subtotal</th></tr></thead>
                                     <tbody>
@@ -174,7 +200,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="py-10 text-center text-secondary">Belum ada penjualan aktif (manual / rekonstruksi).</td></tr>
+                        <tr><td colspan="{{ $publik ? 5 : 7 }}" class="py-10 text-center text-secondary">{{ $publik ? 'Belum ada penjualan.' : 'Belum ada penjualan aktif (manual / rekonstruksi).' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

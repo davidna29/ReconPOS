@@ -22,6 +22,7 @@ s sesuai PRD `docs/PRD-Generate-Transaksi-Otomatis.md`, dengan desain mengikuti 
 | **Generate Transaksi** | periode + target omset -> draft per hari -> review/edit -> **Simpan** (potong stok, tandai SN, label `rekonstruksi`). Kapasitas stok kurang -> warning 2 opsi. Hari libur & jam operasional dipatuhi. **Item Dikecualikan** (checklist + pencarian, default dari Pengaturan) | 6, 7, 9 |
 | Export | **Format A** siap import POS Bengkel (template konfigurabel, pre-validasi, pecah 5.000 baris/file, sheet PETUNJUK) & **Format B** laporan internal + ringkasan; histori & tanda 'sudah diupload ke POS' | 4.2, 8 |
 | Pengaturan Toko | info toko, margin global, jam/hari operasional, parameter generate, ambang stok, **Template Export POS**, **ubah password admin** | 4.5, 4.2 |
+| **Mode Publik (tanpa login, read-only)** | akses `/publik` tanpa login: Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan — semua read-only, tanpa Supplier/Generate/Export/Pengaturan, tanpa edit/template/bulk & tanpa label sumber | tambahan |
 
 ---
 
@@ -50,7 +51,17 @@ Buka `http://localhost:8000` lalu login:
 
 ### Menjalankan test
 
-    php artisan test        # 38 test, 124+ assertions (SQLite :memory:)
+    php artisan test        # 130 test, 600+ assertions (SQLite :memory:)
+
+### Mode Publik (tanpa login, read-only)
+
+Buka `http://localhost:8000/publik` **tanpa login** — versi tampilan (read-only) seluruh modul terpilih:
+
+- Tampil: **Dashboard, Data Barang** (+ detail, kartu stok, cetak barcode), **Tracking Stok**, **Pembelian** (Hutang Belum Lunas / Lunas-Cash / detail + cetak invoice), **Penjualan** (daftar transaksi + cetak struk).
+- Semua halaman **read-only**: tanpa tombol tambah/edit/hapus/import/opname/bayar, tanpa bulk print & bulk delete.
+- Menu **Data Supplier, Generate Transaksi, Export, Pengaturan tidak tersedia** di publik → akses langsung `/publik/supplier` dst. = **404**.
+- Label sumber (Manual/Rekonstruksi), kartu omset/target, dan tab filter sumber **disembunyikan** di publik.
+- Halaman publik diberi `<meta name="robots" content="noindex, nofollow">`; sidebar menampilkan tautan **Login** untuk kembali ke mode admin.
 
 ---
 
@@ -113,10 +124,11 @@ Buka `http://localhost:8000` lalu login:
         ExportPosService    # Format A konfigurabel + chunking + pre-validasi; Format B (8)
         ExcelImportService  # import master barang & pembelian (all-or-nothing) (4.3c, 5.3)
     app/Http/Controllers/ # Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Pengaturan
+                          Publik/   # mode publik tanpa login (read-only): Dashboard, Barang, Pembelian, Penjualan, StokTracking
     routes/web.php        # semua route, throttle login
     resources/views/      # Blade + design system Tailwind v4 (token dari DESIGN.md)
     database/migrations|seeders
-    tests/Feature/        # 38 test end-to-end
+    tests/Feature/        # 130 test end-to-end (termasuk PublikTest)
 
 **Algoritma Generate (PRD 6):** sisa target = target - transaksi tersimpan di periode -> timeline ketersediaan
 stok per hari (running balance, konsumsi simulasi carry-forward) -> cek kapasitas (warning) -> alokasi harian

@@ -3,6 +3,8 @@
 @section('title', 'Tracking Stok')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Tracking Stok</h2>
@@ -24,7 +26,7 @@
 
     <!-- Filter Bulan -->
     <div class="card">
-        <form method="GET" action="{{ route('stok-tracking.index') }}" class="flex flex-wrap items-center gap-3 p-3">
+        <form method="GET" action="{{ $r('stok-tracking.index') }}" class="flex flex-wrap items-center gap-3 p-3">
             <span class="text-body-sm font-medium text-secondary">Filter Bulan Pembelian:</span>
             @foreach ($availableMonths as $m)
                 <label class="flex items-center gap-1.5 rounded-lg border border-outline-variant px-3 py-1.5 text-body-sm">
@@ -37,7 +39,7 @@
             <button class="btn btn-primary btn-sm">
                 <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
             </button>
-            <a href="{{ route('stok-tracking.index') }}" class="btn btn-secondary btn-sm">Reset</a>
+            <a href="{{ $r('stok-tracking.index') }}" class="btn btn-secondary btn-sm">Reset</a>
         </form>
     </div>
 

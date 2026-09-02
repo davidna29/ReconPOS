@@ -3,6 +3,8 @@
 @section('title', 'Data Hutang Belum Lunas')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     @php($label = 'Data Hutang Belum Lunas')
     @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
@@ -14,6 +16,7 @@
 
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
+            @if (! $publik)
             @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
                 <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
                     data-bulk-delete-btn="hutang"
@@ -21,6 +24,7 @@
                     title="Hapus semua invoice terpilih">
                     <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-hutang">0</span>)
                 </button>
+            @endif
             <form method="GET" class="flex items-center gap-2">
                 <select name="entries" class="input w-auto" onchange="this.form.submit()">
                     @foreach ([10, 25, 50, 100] as $n)
@@ -39,7 +43,9 @@
             <table class="tbl">
                 <thead>
                     <tr>
+                        @if (! $publik)
                         <th class="w-8"><input type="checkbox" id="bulk-all-hutang" class="bulk-all shrink-0 rounded border-outline-variant text-primary focus:ring-primary" title="Pilih semua di halaman ini"></th>
+                        @endif
                         <th>No</th>
                         <th>Invoice</th>
                         <th>Tanggal Transaksi</th>
@@ -52,7 +58,9 @@
                 <tbody>
                     @forelse ($invoices as $i => $inv)
                         <tr data-id="{{ $inv->id }}" @class(['row-overdue' => $inv->jatuh_tempo && $inv->jatuh_tempo->isPast()])>
+                            @if (! $publik)
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="hutang" value="{{ $inv->id }}"></td>
+                            @endif
                             <td class="text-secondary">{{ $invoices->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
                             <td>{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
@@ -68,9 +76,10 @@
                             <td class="mono text-right font-bold text-hutang-amber">{{ rupiah($inv->sisa_hutang) }}</td>
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
-                                    <a href="{{ route('pembelian.show', $inv) }}" class="btn-icon text-special-teal hover:bg-teal-50" title="Detail">
+                                    <a href="{{ $r('pembelian.show', $inv) }}" class="btn-icon text-special-teal hover:bg-teal-50" title="Detail">
                                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                                     </a>
+                                    @if (! $publik)
                                     <button type="button" class="btn-icon text-lunas-green hover:bg-green-50" title="Bayar/Lunasi"
                                         onclick="document.getElementById('bayar-{{ $inv->id }}').classList.toggle('hidden')">
                                         <span class="material-symbols-outlined text-[18px]">payments</span>
@@ -78,9 +87,11 @@
                                     <a href="{{ route('pembelian.edit', $inv) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Edit">
                                         <span class="material-symbols-outlined text-[18px]">edit</span>
                                     </a>
-                                    <a href="{{ route('pembelian.print', $inv) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Print">
+                                    @endif
+                                    <a href="{{ $r('pembelian.print', $inv) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Print">
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
+                                    @if (! $publik)
                                     <form method="POST" action="{{ route('pembelian.destroy', $inv) }}" data-confirm="Hapus invoice {{ $inv->no_invoice }}? Efek stok & histori akan dibatalkan." data-delete-ajax>
                                         @csrf
                                         @method('DELETE')
@@ -88,9 +99,11 @@
                                             <span class="material-symbols-outlined text-[18px]">delete</span>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
+                        @if (! $publik)
                         <tr id="bayar-{{ $inv->id }}" class="hidden bg-slate-50">
                             <td colspan="8">
                                 <form method="POST" action="{{ route('pembelian.bayar', $inv) }}" class="flex flex-wrap items-end gap-3 p-3">
@@ -111,8 +124,9 @@
                                 </form>
                             </td>
                         </tr>
+                        @endif
                     @empty
-                        <tr><td colspan="8" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
+                        <tr><td colspan="{{ $publik ? 7 : 8 }}" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
                     @endforelse
                 </tbody>
             </table>

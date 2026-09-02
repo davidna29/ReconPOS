@@ -37,7 +37,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   - `PenjualanService` — penjualan manual + commit draft rekonstruksi + **edit nota (rekonsiliasi stok/SN, set diedit_at)**.
   - `GenerateService` — algoritma rekonstruksi (lihat §5).
   - `ExportPosService` / `ExcelImportService` — export Format A/B & import xlsx.
-- `Http/Controllers/` — Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Pengaturan, **StokTracking** (tracking stok FIFO). Route: `routes/web.php` (semua auth; login throttle 5/menit; CSRF default; session lifetime 120 menit). Semua hapus transaksi & batch via **AJAX** (tanpa redirect) — controller return JSON saat `$request->expectsJson()`, tetap redirect utk non-JS.
+- `Http/Controllers/` — Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Pengaturan, **StokTracking** (tracking stok FIFO), dan **Publik/** (mode publik tanpa login, read-only — lihat §9). Route: `routes/web.php` (semua auth; login throttle 5/menit; CSRF default; session lifetime 120 menit). Semua hapus transaksi & batch via **AJAX** (tanpa redirect) — controller return JSON saat `$request->expectsJson()`, tetap redirect utk non-JS.
 
 ## 4. Konvensi Data
 
@@ -101,10 +101,32 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 ## 8. Status Fitur (per Agustus–Sept 2026)
 
-**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, barang terbaru), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode), Supplier, **Tracking Stok** (stock aging FIFO, ringkasan total + filter bulan), Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**, **AJAX delete + bulk delete**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print**, **AJAX delete + bulk delete**, **kartu omset + sisa target + filter periode**), Generate (draft→review→simpan, undo batch, hapus batch draft/dibatalkan di Riwayat, rekonstruksi bisa dihapus langsung), Export A/B + histori (tombol hapus per item, filter tanggal yang benar), Pengaturan (NPWP, parameter generate, ubah password admin, fix libur_dates), **Dark mode toggle** (gelap/terang).
+**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, barang terbaru), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode), Supplier, **Tracking Stok** (stock aging FIFO, ringkasan total + filter bulan), Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**, **AJAX delete + bulk delete**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print**, **AJAX delete + bulk delete**, **kartu omset + sisa target + filter periode**), Generate (draft→review→simpan, undo batch, hapus batch draft/dibatalkan di Riwayat, rekonstruksi bisa dihapus langsung), Export A/B + histori (tombol hapus per item, filter tanggal yang benar), Pengaturan (NPWP, parameter generate, ubah password admin, fix libur_dates), **Dark mode toggle** (gelap/terang), **Mode Publik tanpa login** (read-only di `/publik`, §9).
 
-**Belum/tunda:** tombol "Cetak/Kembali" di view print sengaja dihapus; penggantian footer lama menjadi "*Harga sudah termasuk PPN." sudah diterapkan di penjualan & pembelian print.
+**Belum/tunda:** tombol "Cetak/Kembali" di view print sengaja dihapus; penggantian footer lama menjadi "*Harga sudah termasuk PPN." sudah diterapkan di penjualan & pembelian print; untuk mode publik: **PIN akses opsional** bila data dianggap terlalu terbuka & **tautan "Lihat Mode Publik"** dari sidebar admin (belum dikerjakan).
 
 **Bulk print (cetak terpilih):** di halaman Penjualan, Data Hutang Belum Lunas, dan Data Pembelian (Lunas/Cash) ada kolom ceklis per baris + tombol "Cetak Terpilih (N)" di toolbar. Submit POST route print-batch (penjualan.print-batch / pembelian.print-batch) dengan ids[]; server memvalidasi (min 1 id, integer; id tak dikenal dibuang diam-diam; penjualan hanya status=tersimpan; tanpa id valid → flash error) lalu membuka satu halaman cetak berisi semua dokumen terpilih (class .print-page, break-inside: avoid via @media print; tiap nota diberi padding vertikal 24px atas-bawah agar tidak menempel — berlaku di kedua mode page break). Halaman cetak punya toggle **"Halaman baru per nota"** (partial partials.bulk-print-toggle; default aktif, tanpa JS tetap page break per nota karena .pb-off mematikan page-break-after via CSS; kontrol non-print di pojok kanan atas, disembunyikan saat print via @media print). Markup dokumen dipakai bersama via partial penjualan.partials.struk & pembelian.partials.invoice; tab baru via target="_blank" (gestur klik → lolos popup-blocker), cetak dengan Ctrl+P.
 
 **Keputusan penting:** navigasi Pembelian via tab bar di dalam halaman (bukan submenu sidebar); item "Penjualan Manual" diganti "Penjualan" (satu laman); **hapus nota/barang/batch via AJAX** (tanpa redirect — row langsung hilang, fallback redirect utk non-JS); **dark mode**: toggle di sidebar (body/.dark pada <html>, localStorage 'theme', default prefers-color-scheme, CSS overrides variabel @theme, cetak selalu terang); edit nota rekonstruksi mengunci undo batch tapi nota tsb boleh dihapus langsung (guard rekonstruksi dihapus); **sidebar**: desktop minimize (rail ikon 64px, localStorage via body.sidebar-minimized), mobile drawer tanpa backdrop-blur (sidebar z-40 di atas overlay z-30).
+
+## 9. Mode Publik (tanpa login, read-only)
+
+**Tujuan:** versi tampilan tanpa autentikasi — seluruh menu read-only (mis. layar display/kiosk atau akses tamu). User hanya melihat data, tidak ada aksi mutasi apa pun.
+
+- **Route:** grup `Route::prefix('publik')->name('publik.')->group(...)` di `routes/web.php`, **tanpa middleware auth** (hanya grup `web`). Nama route = `publik.` + nama admin yg sama persis (mis. `publik.barang.kartuStok`, `publik.pembelian.invoice-hutang`) supaya pola closure `$r` generik.
+- **Cakupan:** Dashboard (/publik), Data Barang (index/show/kartu-stok/barcode), Tracking Stok, Pembelian (hutang/lunas/show/print), Penjualan (index/print). **Tidak ada route** untuk Supplier, Generate, Export, Pengaturan → akses langsung `/publik/supplier` dst. = **404** (bukan login, bukan halaman kosong).
+- **Controller:** `app/Http/Controllers/Publik/*` — read-only; menyalin query controller admin dan me-render **view admin yang sama** dengan variabel tambahan `'publik' => true`. Tanpa method create/store/update/destroy/import/bayar/bulk.
+- **Pola view (guard `$publik`):** tiap `@section('content')` yang terdampak dimulai dengan
+  `@php($publik = $publik ?? false)` dan `@php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))`.
+  - Tombol/link mutasi admin (tambah/edit/hapus/import/template/opname/stok-awal/bayar/bulk print/bulk delete/CTA dashboard) dibungkus `@if(! $publik) ... @endif` (tetap `route()` polos).
+  - Link lintas-mode (index/show/print/kartuStok/barcode/tab pembelian/filter stok-tracking) memakai `$r(...)` → di admin = `route('...')`, di publik = `route('publik....')`.
+  - Layout `layouts/app.blade.php`: sidebar hanya 5 menu + link **Login** (bukan Logout), chip header "Mode Publik", subjudul brand "Mode Publik — Lihat Saja", `<meta name="robots" content="noindex, nofollow">`.
+- **Aturan konten publik:** label sumber (Manual/Rekonstruksi) & badge "diedit" **disembunyikan** (dashboard + penjualan); Penjualan publik = **hanya daftar transaksi** (tanpa kartu omset/target, tanpa tab sumber, tanpa kolom Sumber, tanpa edit — detail expand & cetak struk tetap ada); dashboard tanpa kartu "Aksi Cepat", tanpa CTA "Bayar Sekarang/Order Sekarang", tanpa baris "Sumber Transaksi"; pencarian/show-entries/paginasi tetap aktif.
+- **Jebakan yang sudah dikenal:**
+  - `auth()->user()` bisa null saat guest → layout memakai null-safe `auth()->user()?->name` dan cabang `@if(! $publik)`.
+  - Menambahkan route publik baru → nama Wajib mengikuti nama admin (`publik.` + nama yg sama) agar `$r` bekerja.
+  - Di test, `assertSee('title="..."')` butuh argumen kedua `false` (escaping HTML default).
+  - Kolom ceklis & kolom Sumber disembunyikan → `colspan` baris detail/empty dibuat dinamis (`{{ $publik ? 5 : 7 }}`).
+- **Tidak menyentuh CSS/JS** (murni Blade+PHP) → tanpa `npm run build`; serangan ke route mutasi tetap tertahan middleware auth (guest di-redirect ke /login).
+- **Ide tambahan (belum dikerjakan):** PIN akses opsional utk mode publik; tautan "Lihat Mode Publik" dari sidebar admin; halaman landing publik terpisah.
+

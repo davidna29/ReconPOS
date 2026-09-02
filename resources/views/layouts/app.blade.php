@@ -1,3 +1,4 @@
+@php($publik = $publik ?? false)
 <!DOCTYPE html>
 <html lang="id">
 
@@ -5,6 +6,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @if ($publik)<meta name="robots" content="noindex, nofollow">@endif
     <title>@yield('title', 'Dashboard') — Mechanic Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,7 +35,7 @@
             </div>
             <div class="sidebar-brand-text">
                 <h1 class="text-headline-sm font-black text-primary">Mechanic Hub</h1>
-                <p class="text-body-sm text-secondary">Super Kasir Mode</p>
+                <p class="text-body-sm text-secondary">{{ $publik ? 'Mode Publik — Lihat Saja' : 'Super Kasir Mode' }}</p>
             </div>
             <button id="theme-toggle" type="button" class="btn-icon ml-auto" title="Toggle gelap/terang">
                 <span class="material-symbols-outlined text-[20px] dark-icon hidden">light_mode</span>
@@ -43,69 +45,84 @@
 
         <ul class="flex flex-1 flex-col gap-1 overflow-y-auto">
             <li>
-                <a class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
+                <a class="nav-link {{ request()->routeIs('dashboard', 'publik.dashboard') ? 'nav-link-active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
                     <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
                     <span class="nav-label">Dashboard</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('barang.*') ? 'nav-link-active' : '' }}" href="{{ route('barang.index') }}" title="Data Barang">
+                <a class="nav-link {{ request()->routeIs('barang.*', 'publik.barang.*') ? 'nav-link-active' : '' }}" href="{{ route('barang.index') }}" title="Data Barang">
                     <span class="material-symbols-outlined">inventory_2</span>
                     <span class="nav-label">Data Barang</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('stok-tracking.*') ? 'nav-link-active' : '' }}" href="{{ route('stok-tracking.index') }}" title="Tracking Stok">
+                <a class="nav-link {{ request()->routeIs('stok-tracking.*', 'publik.stok-tracking.*') ? 'nav-link-active' : '' }}" href="{{ route('stok-tracking.index') }}" title="Tracking Stok">
                     <span class="material-symbols-outlined">history</span>
                     <span class="nav-label">Tracking Stok</span>
                 </a>
             </li>
+            @if (! $publik)
             <li>
                 <a class="nav-link {{ request()->routeIs('supplier.*') ? 'nav-link-active' : '' }}" href="{{ route('supplier.index') }}" title="Data Supplier">
                     <span class="material-symbols-outlined">local_shipping</span>
                     <span class="nav-label">Data Supplier</span>
                 </a>
             </li>
+            @endif
             <li>
-                <a class="nav-link {{ request()->routeIs('pembelian.*') ? 'nav-link-active' : '' }}" href="{{ route('pembelian.invoice-hutang') }}" title="Pembelian">
+                <a class="nav-link {{ request()->routeIs('pembelian.*', 'publik.pembelian.*') ? 'nav-link-active' : '' }}" href="{{ route('pembelian.invoice-hutang') }}" title="Pembelian">
                     <span class="material-symbols-outlined">shopping_cart</span>
                     <span class="nav-label">Pembelian</span>
                 </a>
             </li>
             <li>
-                <a class="nav-link {{ request()->routeIs('penjualan.*') ? 'nav-link-active' : '' }}" href="{{ route('penjualan.index') }}" title="Penjualan">
+                <a class="nav-link {{ request()->routeIs('penjualan.*', 'publik.penjualan.*') ? 'nav-link-active' : '' }}" href="{{ route('penjualan.index') }}" title="Penjualan">
                     <span class="material-symbols-outlined">point_of_sale</span>
                     <span class="nav-label">Penjualan</span>
                 </a>
             </li>
+            @if (! $publik)
             <li>
                 <a class="nav-link {{ request()->routeIs('generate.*') ? 'nav-link-active' : '' }}" href="{{ route('generate.index') }}" title="Generate Transaksi">
                     <span class="material-symbols-outlined">auto_awesome</span>
                     <span class="nav-label">Generate Transaksi</span>
                 </a>
             </li>
+            @endif
+            @if (! $publik)
             <li>
                 <a class="nav-link {{ request()->routeIs('export.*') ? 'nav-link-active' : '' }}" href="{{ route('export.index') }}" title="Export">
                     <span class="material-symbols-outlined">file_download</span>
                     <span class="nav-label">Export</span>
                 </a>
             </li>
+            @endif
+            @if (! $publik)
             <li>
                 <a class="nav-link {{ request()->routeIs('pengaturan.*') ? 'nav-link-active' : '' }}" href="{{ route('pengaturan.index') }}" title="Pengaturan">
                     <span class="material-symbols-outlined">settings</span>
                     <span class="nav-label">Pengaturan</span>
                 </a>
             </li>
+            @endif
         </ul>
 
         <div class="mt-auto px-2 pb-4">
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="nav-link w-full text-left hover:text-danger-red" title="Logout">
-                    <span class="material-symbols-outlined">logout</span>
-                    <span class="nav-label">Logout</span>
-                </button>
-            </form>
+            @if ($publik)
+                <a href="{{ route('login') }}" class="nav-link w-full text-left hover:text-primary" title="Login admin">
+                    <span class="material-symbols-outlined">login</span>
+                    <span class="nav-label">Login</span>
+                </a>
+            @else
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="nav-link w-full text-left hover:text-danger-red" title="Logout">
+                        <span class="material-symbols-outlined">logout</span>
+                        <span class="nav-label">Logout</span>
+                    </button>
+                </form>
+            @endif
         </div>
     </nav>
 
@@ -123,12 +140,21 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <span class="hidden rounded-full bg-secondary-container px-3 py-1 text-label-caps font-bold text-on-secondary-container sm:block">
-                    Admin
-                </span>
-                <div class="ml-2 flex h-8 w-8 items-center justify-center rounded-full border border-outline-variant bg-primary text-label-caps font-bold text-on-primary">
-                    {{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}
-                </div>
+                @if ($publik)
+                    <span class="hidden rounded-full bg-secondary-container px-3 py-1 text-label-caps font-bold text-on-secondary-container sm:block">
+                        Mode Publik
+                    </span>
+                    <div class="ml-2 flex h-8 w-8 items-center justify-center rounded-full border border-outline-variant bg-primary text-on-primary" title="Tanpa login (hanya lihat)">
+                        <span class="material-symbols-outlined text-[18px]">public</span>
+                    </div>
+                @else
+                    <span class="hidden rounded-full bg-secondary-container px-3 py-1 text-label-caps font-bold text-on-secondary-container sm:block">
+                        Admin
+                    </span>
+                    <div class="ml-2 flex h-8 w-8 items-center justify-center rounded-full border border-outline-variant bg-primary text-label-caps font-bold text-on-primary">
+                        {{ strtoupper(substr(auth()->user()?->name ?? 'A', 0, 1)) }}
+                    </div>
+                @endif
             </div>
         </header>
 

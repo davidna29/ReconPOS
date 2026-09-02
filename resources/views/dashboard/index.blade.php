@@ -3,6 +3,8 @@
 @section('title', 'Dashboard')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h2 class="text-headline-lg text-on-surface">Overview</h2>
@@ -10,7 +12,7 @@
         </div>
 
         <!-- Pemilih periode kartu omset (bulan / tahun / rentang bebas) -->
-        <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-end gap-2">
+        <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-wrap items-end gap-2">
             <div>
                 <label class="label mb-0.5">Bulan</label>
                 <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
@@ -30,7 +32,7 @@
             <button class="btn btn-primary btn-sm">
                 <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
             </button>
-            <a href="{{ route('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
+            <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
         </form>
     </div>
 
@@ -79,6 +81,7 @@
 
     <div class="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div class="flex flex-col gap-6 lg:col-span-2">
+            @if (! $publik)
             <!-- Quick Actions -->
             <div class="card p-6">
                 <h3 class="mb-4 text-headline-sm text-on-surface">Aksi Cepat</h3>
@@ -103,6 +106,7 @@
                     </a>
                 </div>
             </div>
+            @endif
 
             <!-- Penjualan Terakhir -->
             <div class="card overflow-hidden">
@@ -111,7 +115,7 @@
                         <span class="material-symbols-outlined text-cash-blue">point_of_sale</span>
                         Penjualan Terakhir
                     </h3>
-                    <a href="{{ route('penjualan.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('penjualan.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="tbl">
@@ -121,7 +125,9 @@
                                 <th class="px-3 py-2">Tanggal</th>
                                 <th class="px-3 py-2">Pelanggan</th>
                                 <th class="px-3 py-2 text-right">Total</th>
+                                @if (! $publik)
                                 <th class="px-3 py-2 text-center">Sumber</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -131,6 +137,7 @@
                                     <td>{{ $t['tanggal']->format('d/m/Y H:i') }}</td>
                                     <td class="font-medium">{{ $t['pihak'] }}</td>
                                     <td class="mono text-right">{{ rupiah($t['total']) }}</td>
+                                    @if (! $publik)
                                     <td class="text-center">
                                         @if ($t['sumber'] === 'rekonstruksi')
                                             <x-badge color="blue">Rekonstruksi</x-badge>
@@ -138,10 +145,11 @@
                                             <x-badge color="green">Manual</x-badge>
                                         @endif
                                     </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="py-8 text-center text-secondary">Belum ada penjualan.</td>
+                                    <td colspan="{{ $publik ? 4 : 5 }}" class="py-8 text-center text-secondary">Belum ada penjualan.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -156,7 +164,7 @@
                         <span class="material-symbols-outlined text-hutang-amber">shopping_cart</span>
                         Pembelian Terakhir
                     </h3>
-                    <a href="{{ route('pembelian.invoice-hutang') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('pembelian.invoice-hutang') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="tbl">
@@ -209,7 +217,9 @@
                             <div>
                                 <h4 class="text-body-sm font-semibold text-danger-red">Tagihan Jatuh Tempo {{ $inv->jatuh_tempo->isPast() ? 'Terlewat' : 'Segera' }}</h4>
                                 <p class="mt-1 text-table-data text-slate-700">{{ $inv->supplier?->nama }} — sisa {{ rupiah($inv->sisa_hutang) }} ({{ $inv->no_invoice }})</p>
-                                <a href="{{ route('pembelian.show', $inv) }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Bayar Sekarang →</a>
+                                @if (! $publik)
+                                <a href="{{ $r('pembelian.show', $inv) }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Bayar Sekarang →</a>
+                                @endif
                             </div>
                         </div>
                     @empty
@@ -222,7 +232,9 @@
                             <div>
                                 <h4 class="text-body-sm font-semibold text-hutang-amber">Stok {{ $b->stock <= 0 ? 'Habis' : 'Menipis' }}: {{ $b->nama }}</h4>
                                 <p class="mt-1 text-table-data text-slate-700">Sisa stok: {{ $b->stock }} {{ $b->satuan }}.</p>
+                                @if (! $publik)
                                 <a href="{{ route('pembelian.create') }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Order Sekarang →</a>
+                                @endif
                             </div>
                         </div>
                     @empty
@@ -240,11 +252,11 @@
                         <span class="material-symbols-outlined text-special-teal">inventory_2</span>
                         Barang Terbaru (SKU & Stok)
                     </h3>
-                    <a href="{{ route('barang.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('barang.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
                 <div class="divide-y divide-slate-100">
                     @forelse ($barangTerbaru as $b)
-                        <a href="{{ route('barang.show', $b) }}" class="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
+                        <a href="{{ $r('barang.show', $b) }}" class="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
                             <div class="min-w-0 flex-1">
                                 <div class="mono text-mono-data text-secondary">{{ $b->kode_barang }}</div>
                                 <div class="truncate text-body-sm text-on-surface">{{ $b->nama }}</div>
@@ -269,10 +281,12 @@
                             <span class="h-1.5 w-1.5 rounded-full bg-lunas-green"></span> Super Kasir
                         </span>
                     </div>
+                    @if (! $publik)
                     <div class="flex items-center justify-between">
                         <span class="text-body-sm text-secondary">Sumber Transaksi</span>
                         <span class="mono text-mono-data text-on-surface">manual + rekonstruksi</span>
                     </div>
+                    @endif
                     <div class="h-px w-full bg-outline-variant"></div>
                     <div>
                         <span class="mb-1 block text-label-caps font-bold text-secondary">Kesiapan Stok (kartu stok sinkron)</span>

@@ -3,6 +3,8 @@
 @section('title', $barang->nama)
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="flex items-end justify-between">
         <div>
             <h2 class="text-headline-lg text-on-surface">{{ $barang->nama }}</h2>
@@ -11,9 +13,11 @@
                 <span class="badge badge-slate">{{ $barang->status }}</span>
             </p>
         </div>
+        @if (! $publik)
         <a href="{{ route('barang.edit', $barang) }}" class="btn btn-primary">
             <span class="material-symbols-outlined text-[18px]">edit</span> Edit
         </a>
+        @endif
     </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -37,10 +41,10 @@
         </div>
 
         <div class="flex flex-col gap-4">
-            <a href="{{ route('barang.kartuStok', $barang) }}" class="btn btn-amber">
+            <a href="{{ $r('barang.kartuStok', $barang) }}" class="btn btn-amber">
                 <span class="material-symbols-outlined text-[18px]">history</span> Buka Kartu Stok (Riwayat Mutasi)
             </a>
-            <a href="{{ route('barang.barcode', $barang) }}" class="btn btn-secondary">
+            <a href="{{ $r('barang.barcode', $barang) }}" class="btn btn-secondary">
                 <span class="material-symbols-outlined text-[18px]">qr_code_2</span> Cetak Label Barcode
             </a>
         </div>

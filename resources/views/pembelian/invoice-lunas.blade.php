@@ -3,6 +3,8 @@
 @section('title', 'Data Pembelian (Lunas/Cash)')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     @include('pembelian.partials.nav-tabs')
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -13,6 +15,7 @@
 
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
+            @if (! $publik)
             @include('partials.bulk-print', ['scope' => 'lunas', 'action' => route('pembelian.print-batch')])
                 <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
                     data-bulk-delete-btn="lunas"
@@ -20,6 +23,7 @@
                     title="Hapus semua invoice terpilih">
                     <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-lunas">0</span>)
                 </button>
+            @endif
             <form method="GET" class="flex items-center gap-2">
                 <select name="entries" class="input w-auto" onchange="this.form.submit()">
                     @foreach ([10, 25, 50, 100] as $n)
@@ -37,7 +41,9 @@
             <table class="tbl">
                 <thead>
                     <tr>
+                        @if (! $publik)
                         <th class="w-8"><input type="checkbox" id="bulk-all-lunas" class="bulk-all shrink-0 rounded border-outline-variant text-primary focus:ring-primary" title="Pilih semua di halaman ini"></th>
+                        @endif
                         <th>No</th>
                         <th>Invoice</th>
                         <th>Tanggal</th>
@@ -52,7 +58,9 @@
                     @forelse ($invoices as $i => $inv)
                         @php($kembali = $inv->jenis === 'cash' ? max(0, $inv->bayar_atau_dp - $inv->total_setelah_diskon) : 0)
                         <tr data-id="{{ $inv->id }}">
+                            @if (! $publik)
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="lunas" value="{{ $inv->id }}"></td>
+                            @endif
                             <td class="text-secondary">{{ $invoices->firstItem() + $i }}</td>
                             <td class="mono font-semibold text-primary">{{ $inv->no_invoice }}
                                 @if ($inv->sumber === 'import_excel')<x-badge color="slate" class="ml-1">import</x-badge>@endif
@@ -64,15 +72,18 @@
                             <td class="mono text-right text-lunas-green">{{ $kembali > 0 ? rupiah($kembali) : '-' }}</td>
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
-                                    <a href="{{ route('pembelian.show', $inv) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Detail">
+                                    <a href="{{ $r('pembelian.show', $inv) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Detail">
                                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                                     </a>
+                                    @if (! $publik)
                                     <a href="{{ route('pembelian.edit', $inv) }}" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Edit">
                                         <span class="material-symbols-outlined text-[18px]">edit</span>
                                     </a>
-                                    <a href="{{ route('pembelian.print', $inv) }}" target="_blank" class="btn-icon text-lunas-green hover:bg-green-50" title="Print">
+                                    @endif
+                                    <a href="{{ $r('pembelian.print', $inv) }}" target="_blank" class="btn-icon text-lunas-green hover:bg-green-50" title="Print">
                                         <span class="material-symbols-outlined text-[18px]">print</span>
                                     </a>
+                                    @if (! $publik)
                                     <form method="POST" action="{{ route('pembelian.destroy', $inv) }}" data-confirm="Hapus invoice {{ $inv->no_invoice }}? Efek stok & histori akan dibatalkan." data-delete-ajax>
                                         @csrf
                                         @method('DELETE')
@@ -80,11 +91,12 @@
                                             <span class="material-symbols-outlined text-[18px]">delete</span>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
+                        <tr><td colspan="{{ $publik ? 8 : 9 }}" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
                     @endforelse
                 </tbody>
             </table>

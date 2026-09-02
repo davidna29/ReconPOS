@@ -3,6 +3,8 @@
 @section('title', 'Data Barang')
 
 @section('content')
+    @php($publik = $publik ?? false)
+    @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="flex items-end justify-between">
         <div>
             <h2 class="text-headline-lg text-on-surface">Data Barang</h2>
@@ -10,6 +12,7 @@
         </div>
     </div>
 
+    @if (! $publik)
     @include('partials.table-toolbar', ['actions' => '
         <a href="' . route('barang.create') . '" class="btn btn-primary">
             <span class="material-symbols-outlined text-[18px]">add</span> Tambah Data
@@ -21,7 +24,11 @@
             <span class="material-symbols-outlined text-[16px]">price_change</span> Template Update Harga
         </a>
     '])
+    @else
+    @include('partials.table-toolbar')
+    @endif
 
+    @if (! $publik)
     <div class="card flex items-center gap-4 p-4">
         <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-1 flex-wrap items-center gap-2">
             @csrf
@@ -41,6 +48,7 @@
             <span class="text-[11px] text-secondary">hanya berlaku utk SKU mode Kunci Manual</span>
         </form>
     </div>
+    @endif
 
     <div class="card overflow-hidden">
         <div class="overflow-x-auto">
@@ -78,18 +86,21 @@
                             <td><span class="badge badge-slate">{{ $b->status }}</span></td>
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
-                                    <a href="{{ route('barang.show', $b) }}" class="btn-icon text-lunas-green hover:bg-green-50" title="Lihat Detail">
+                                    <a href="{{ $r('barang.show', $b) }}" class="btn-icon text-lunas-green hover:bg-green-50" title="Lihat Detail">
                                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                                     </a>
+                                    @if (! $publik)
                                     <a href="{{ route('barang.edit', $b) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Edit">
                                         <span class="material-symbols-outlined text-[18px]">edit</span>
                                     </a>
-                                    <a href="{{ route('barang.kartuStok', $b) }}" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Riwayat / Kartu Stok">
+                                    @endif
+                                    <a href="{{ $r('barang.kartuStok', $b) }}" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Riwayat / Kartu Stok">
                                         <span class="material-symbols-outlined text-[18px]">history</span>
                                     </a>
-                                    <a href="{{ route('barang.barcode', $b) }}" class="btn-icon text-special-teal hover:bg-teal-50" title="Cetak Barcode">
+                                    <a href="{{ $r('barang.barcode', $b) }}" class="btn-icon text-special-teal hover:bg-teal-50" title="Cetak Barcode">
                                         <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
                                     </a>
+                                    @if (! $publik)
                                     <form method="POST" action="{{ route('barang.destroy', $b) }}" data-confirm="Hapus barang {{ $b->kode_barang }}? (hanya jika belum dipakai transaksi)">
                                         @csrf
                                         @method('DELETE')
@@ -97,12 +108,13 @@
                                             <span class="material-symbols-outlined text-[18px]">delete</span>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="py-10 text-center text-secondary">Belum ada barang. Klik "+ Tambah Data" atau upload template Excel.</td>
+                            <td colspan="8" class="py-10 text-center text-secondary">{{ $publik ? 'Belum ada barang.' : 'Belum ada barang. Klik "+ Tambah Data" atau upload template Excel.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

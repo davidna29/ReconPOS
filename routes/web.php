@@ -10,6 +10,11 @@ use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\PenjualanController;
 use App\Http\Controllers\StokTrackingController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\Publik\BarangController as PublikBarangController;
+use App\Http\Controllers\Publik\DashboardController as PublikDashboardController;
+use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
+use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
+use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -111,4 +116,30 @@ Route::middleware('auth')->group(function () {
     Route::post('/pengaturan/password', [PengaturanController::class, 'updatePassword'])->name('pengaturan.password');
     Route::post('/pengaturan/template', [PengaturanController::class, 'updateTemplate'])->name('pengaturan.template');
     Route::post('/pengaturan/template/reset', [PengaturanController::class, 'resetTemplate'])->name('pengaturan.template.reset');
+});
+
+// ============================================================================
+// MODE PUBLIK (tanpa login) — read-only.
+// Menu yang TAMPIL: Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan.
+// Menu yang DITUTUP: Data Supplier, Generate Transaksi, Export, Pengaturan
+//   (tidak ada route -> 404). Semua aksi mutasi TIDAK didaftarkan di sini.
+// View admin dipakai ulang dengan flag $publik = true (guard @if(! $publik)).
+// ============================================================================
+Route::prefix('publik')->name('publik.')->group(function () {
+    Route::get('/', [PublikDashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/barang', [PublikBarangController::class, 'index'])->name('barang.index');
+    Route::get('/barang/{barang}', [PublikBarangController::class, 'show'])->name('barang.show');
+    Route::get('/barang/{barang}/kartu-stok', [PublikBarangController::class, 'kartuStok'])->name('barang.kartuStok');
+    Route::get('/barang/{barang}/barcode', [PublikBarangController::class, 'cetakBarcode'])->name('barang.barcode');
+
+    Route::get('/stok-tracking', [PublikStokTrackingController::class, 'index'])->name('stok-tracking.index');
+
+    Route::get('/pembelian/hutang', [PublikPembelianController::class, 'hutang'])->name('pembelian.invoice-hutang');
+    Route::get('/pembelian/lunas', [PublikPembelianController::class, 'lunas'])->name('pembelian.invoice-lunas');
+    Route::get('/pembelian/{invoice}', [PublikPembelianController::class, 'show'])->name('pembelian.show');
+    Route::get('/pembelian/{invoice}/print', [PublikPembelianController::class, 'print'])->name('pembelian.print');
+
+    Route::get('/penjualan', [PublikPenjualanController::class, 'index'])->name('penjualan.index');
+    Route::get('/penjualan/{transaksiPenjualan}/print', [PublikPenjualanController::class, 'print'])->name('penjualan.print');
 });
