@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BatchGenerate;
 use App\Models\Barang;
 use App\Models\KartuStok;
 use App\Models\TransaksiPenjualan;
@@ -20,6 +21,23 @@ class PenjualanController extends Controller
 
     public function index(Request $request)
     {
+        // ---- Periode untuk kartu omset (sama dgn dashboard) ----
+        [$awal, $akhir, $labelPeriode] = $this->periodeDariRequest($request);
+
+        $omsetPeriode = (int) TransaksiPenjualan::where('status', 'tersimpan')
+            ->whereBetween('tanggal_waktu', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()])
+            ->sum('total');
+
+        // Cari target dari batch_generate terakhir yang periode-nya overlap
+        $batch = BatchGenerate::where('status', 'tersimpan')
+            ->where('periode_mulai', '<=', $akhir)
+            ->where('periode_selesai', '>=', $awal)
+            ->latest('periode_mulai')
+            ->first();
+        $targetOmset = $batch?->target_omset;
+        $sisaTarget = $targetOmset !== null ? max(0, $targetOmset - $omsetPeriode) : null;
+
+        // ---- Tabel transaksi ----
         $query = TransaksiPenjualan::with(['batchGenerate', 'items.barang'])
             ->where('status', 'tersimpan');
 
@@ -41,7 +59,47 @@ class PenjualanController extends Controller
             'rekonstruksi' => TransaksiPenjualan::where('status', 'tersimpan')->where('sumber', 'rekonstruksi')->count(),
         ];
 
-        return view('penjualan.index', compact('transaksis', 'jumlah', 'sumber'));
+        return view('penjualan.index', compact(
+            'transaksis', 'jumlah', 'sumber',
+            'awal', 'akhir', 'labelPeriode', 'omsetPeriode',
+            'targetOmset', 'sisaTarget',
+        ));
+    }
+
+    /**
+     * Resolve periode dari query string (sama dgn DashboardController).
+     */
+    private function periodeDariRequest(Request $request): array
+    {
+        $awal = now()->copy()->startOfMonth();
+        $akhir = now()->copy()->endOfMonth();
+        $label = 'Bulan Berjalan — ' . bulan_id(now());
+
+        if ($bulan = (string) $request->query('bulan')) {
+            if (preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+                $awal = \Carbon\Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
+                $akhir = $awal->copy()->endOfMonth();
+                $label = bulan_id($awal);
+            }
+        } elseif ($tahun = (int) $request->query('tahun')) {
+            if ($tahun >= 2000 && $tahun <= 2099) {
+                $awal = \Carbon\Carbon::create($tahun, 1, 1)->startOfDay();
+                $akhir = \Carbon\Carbon::create($tahun, 12, 31)->endOfDay();
+                $label = 'Tahun ' . $tahun;
+            }
+        } elseif ($request->query('from') || $request->query('to')) {
+            $from = $request->query('from');
+            $to = $request->query('to');
+            $parsedFrom = $from && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? \Carbon\Carbon::parse($from) : null;
+            $parsedTo = $to && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? \Carbon\Carbon::parse($to) : null;
+            if ($parsedFrom && $parsedTo && $parsedFrom->lte($parsedTo)) {
+                $awal = $parsedFrom;
+                $akhir = $parsedTo;
+                $label = $parsedFrom->format('d/m/Y') . ' – ' . $parsedTo->format('d/m/Y');
+            }
+        }
+
+        return [$awal, $akhir, $label];
     }
 
     public function create()

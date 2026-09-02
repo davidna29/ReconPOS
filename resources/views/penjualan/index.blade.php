@@ -18,6 +18,58 @@
         </div>
     </div>
 
+    <!-- Filter Periode + Kartu Omset -->
+    <form method="GET" action="{{ route('penjualan.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
+        @if ($sumber)<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+        <div>
+            <label class="label mb-0.5">Bulan</label>
+            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
+        </div>
+        <div>
+            <label class="label mb-0.5">Tahun</label>
+            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
+        </div>
+        <div>
+            <label class="label mb-0.5">Dari</label>
+            <input type="date" name="from" value="{{ request('from') }}" class="input">
+        </div>
+        <div>
+            <label class="label mb-0.5">Sampai</label>
+            <input type="date" name="to" value="{{ request('to') }}" class="input">
+        </div>
+        <button class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
+        </button>
+        <a href="{{ route('penjualan.index') }}{{ $sumber ? '?sumber='.$sumber : '' }}" class="btn btn-secondary btn-sm">Reset</a>
+    </form>
+
+    <div class="relative mb-4 flex h-32 flex-col justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div class="absolute -bottom-4 -right-4 opacity-5">
+            <span class="material-symbols-outlined text-8xl">payments</span>
+        </div>
+        <div>
+            <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Omset — {{ $labelPeriode }}</h3>
+            <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetPeriode) }}</div>
+        </div>
+        <div class="flex items-center gap-3 text-body-sm">
+            <span class="text-lunas-green">
+                <span class="material-symbols-outlined text-[16px]">trending_up</span>
+                {{ $awal->format('d/m/Y') }} – {{ $akhir->format('d/m/Y') }}
+            </span>
+            @if ($targetOmset !== null)
+                <span class="text-secondary">Target: {{ rupiah($targetOmset) }}</span>
+                <span class="font-semibold {{ $sisaTarget > 0 ? 'text-hutang-amber' : 'text-lunas-green' }}">
+                    {{ $sisaTarget > 0 ? 'Sisa: ' . rupiah($sisaTarget) : '✓ Tercapai' }}
+                </span>
+                @if ($targetOmset > 0)
+                    <span class="text-secondary">{{ round(($omsetPeriode / $targetOmset) * 100) }}%</span>
+                @endif
+            @else
+                <span class="text-secondary">manual + rekonstruksi (tersimpan)</span>
+            @endif
+        </div>
+    </div>
+
     <div class="card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant p-3">
             <div class="segmented">

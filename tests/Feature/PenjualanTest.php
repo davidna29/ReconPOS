@@ -277,4 +277,58 @@ class PenjualanTest extends TestCase
             ->assertSee('bulk-delete-btn', false)
             ->assertSee('data-delete-ajax', false);
     }
+
+    public function test_penjualan_index_omset_periode_default(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-OM1', 10, 50000, 2, 60000); // total 120.000
+        $this->beliDanJual('P-OM2', 10, 50000, 3, 70000); // total 210.000
+
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee('Total Omset')
+            ->assertSee(rupiah(330000)) // 120.000 + 210.000
+            ->assertSee('Bulan Berjalan')
+            ->assertSee('filter_alt', false); // tombol filter
+    }
+
+    public function test_penjualan_index_filter_periode_bulan(): void
+    {
+        $this->authUser();
+        // buat penjualan di bulan Juni
+        $this->beliDanJual('P-FIL', 10, 50000, 1, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->first();
+        $trx->update(['tanggal_waktu' => '2026-06-15 10:00:00']);
+
+        $this->get(route('penjualan.index', ['bulan' => '2026-06']))
+            ->assertOk()
+            ->assertSee('Jun 2026')
+            ->assertSee(rupiah(60000));
+
+        // Desember kosong (tidak ada transaksi)
+        $this->get(route('penjualan.index', ['bulan' => '2026-12']))
+            ->assertOk()
+            ->assertSee('Des 2026')
+            ->assertSee(rupiah(0));
+    }
+
+    public function test_penjualan_index_sisa_target(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-TGT', 10, 50000, 5, 60000); // total 300.000
+
+        // buat batch_generate dengan target 500.000 untuk bulan berjalan
+        \App\Models\BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 500000,
+            'status' => 'tersimpan',
+            'total_generate' => 300000,
+        ]);
+
+        $this->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertSee('Target: ' . rupiah(500000))
+            ->assertSee('Sisa: ' . rupiah(200000)); // 500.000 - 300.000
+    }
 }
