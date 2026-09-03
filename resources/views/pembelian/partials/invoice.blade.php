@@ -39,9 +39,12 @@
         <tr><td colspan="6" class="right">Subtotal</td><td class="mono right">{{ uang($invoice->subtotal) }}</td></tr>
         <tr><td colspan="6" class="right">Diskon</td><td class="mono right">- {{ uang($invoice->diskon_total) }}</td></tr>
         <tr class="total-row"><td colspan="6" class="right">Total Setelah Diskon</td><td class="mono right">{{ uang($invoice->total_setelah_diskon) }}</td></tr>
+        @if ((int) $invoice->ppn > 0)
+            <tr><td colspan="6" class="right">PPN</td><td class="mono right">{{ uang($invoice->ppn) }}</td></tr>
+        @endif
         @if ($invoice->jenis === 'cash')
             <tr><td colspan="6" class="right">Bayar</td><td class="mono right">{{ uang($invoice->bayar_atau_dp) }}</td></tr>
-            <tr><td colspan="6" class="right">Kembali</td><td class="mono right">{{ uang(max(0, $invoice->bayar_atau_dp - $invoice->total_setelah_diskon)) }}</td></tr>
+            <tr><td colspan="6" class="right">Kembali</td><td class="mono right">{{ uang(max(0, $invoice->bayar_atau_dp - ($invoice->total_setelah_diskon + (int) $invoice->ppn))) }}</td></tr>
         @else
             <tr><td colspan="6" class="right">DP</td><td class="mono right">{{ uang($invoice->bayar_atau_dp) }}</td></tr>
             <tr><td colspan="6" class="right">Sisa Hutang</td><td class="mono right">{{ uang($invoice->sisa_hutang) }}</td></tr>

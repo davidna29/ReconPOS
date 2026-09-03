@@ -69,9 +69,12 @@
                 <div class="flex w-full max-w-sm justify-between text-body-sm text-secondary"><span>Subtotal</span><span class="mono">{{ rupiah($invoice->subtotal) }}</span></div>
                 <div class="flex w-full max-w-sm justify-between text-body-sm text-secondary"><span>Diskon / Potongan</span><span class="mono">- {{ rupiah($invoice->diskon_total) }}</span></div>
                 <div class="flex w-full max-w-sm justify-between text-body-md font-bold"><span>Total Setelah Diskon</span><span class="mono text-primary">{{ rupiah($invoice->total_setelah_diskon) }}</span></div>
+                @if ((int) $invoice->ppn > 0)
+                    <div class="flex w-full max-w-sm justify-between text-body-sm text-secondary"><span>PPN</span><span class="mono">{{ rupiah($invoice->ppn) }}</span></div>
+                @endif
                 @if ($invoice->jenis === 'cash')
                     <div class="flex w-full max-w-sm justify-between text-body-sm text-secondary"><span>Bayar</span><span class="mono">{{ rupiah($invoice->bayar_atau_dp) }}</span></div>
-                    <div class="flex w-full max-w-sm justify-between text-body-sm text-lunas-green"><span>Kembali</span><span class="mono">{{ rupiah(max(0, $invoice->bayar_atau_dp - $invoice->total_setelah_diskon)) }}</span></div>
+                    <div class="flex w-full max-w-sm justify-between text-body-sm text-lunas-green"><span>Kembali</span><span class="mono">{{ rupiah(max(0, $invoice->bayar_atau_dp - ($invoice->total_setelah_diskon + (int) $invoice->ppn))) }}</span></div>
                 @else
                     <div class="flex w-full max-w-sm justify-between text-body-sm text-secondary"><span>DP</span><span class="mono">{{ rupiah($invoice->bayar_atau_dp) }}</span></div>
                     <div class="flex w-full max-w-sm justify-between text-body-sm text-hutang-amber"><span>Sisa Hutang</span><span class="mono">{{ rupiah($invoice->sisa_hutang) }}</span></div>

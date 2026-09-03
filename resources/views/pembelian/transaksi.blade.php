@@ -155,6 +155,16 @@
                             <span class="mono text-body-md font-bold text-primary" id="sum-total">Rp 0</span>
                         </div>
 
+                        <div>
+                            <label class="label">PPN (Rp)</label>
+                            <input type="number" name="ppn" id="ppn" min="0" value="{{ old('ppn', $invoice?->ppn ?? 0) }}" class="input mono text-right">
+                            <span class="hint">Nilai manual dari e-Faktur supplier — hanya dijumlahkan, tanpa tarif/persen.</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-body-sm text-secondary">Total + PPN</span>
+                            <span class="mono text-body-md font-bold text-on-surface" id="sum-total-ppn">Rp 0</span>
+                        </div>
+
                         <!-- Tab Cash -->
                         <div id="panel-cash" class="flex flex-col gap-3 {{ $jenisAwal === 'cash' ? '' : 'hidden' }}">
                             <div>
@@ -289,9 +299,12 @@
 
         function hitungRingkasan(subtotal, reRenderTabel = true) {
             const diskon = num(document.getElementById('diskon-total').value);
-            const total = Math.max(0, subtotal - diskon);
+            const ppn = num(document.getElementById('ppn')?.value || '0');
+            const total = Math.max(0, subtotal - diskon + ppn); // Total + PPN manual
             document.getElementById('sum-subtotal').textContent = fmtRp(subtotal);
             document.getElementById('sum-total').textContent = fmtRp(total);
+            const ppnEl = document.getElementById('sum-total-ppn');
+            if (ppnEl) ppnEl.textContent = fmtRp(subtotal - diskon + ppn);
             document.getElementById('summary-kosong').style.display = baris.length ? 'none' : 'block';
 
             const bayar = num(document.getElementById('bayar-cash').value);
@@ -310,7 +323,7 @@
             }
         }
 
-        ['diskon-total', 'bayar-cash', 'dp-hutang'].forEach(id => {
+        ['diskon-total', 'ppn', 'bayar-cash', 'dp-hutang'].forEach(id => {
             const el = document.getElementById(id);
             if (el) ['input', 'change'].forEach(evt => el.addEventListener(evt, () => hitungRingkasan(sumBaris(), false)));
         });

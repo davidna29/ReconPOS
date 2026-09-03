@@ -251,6 +251,7 @@ class PembelianController extends Controller
             'tanggal_transaksi' => ['required', 'date'],
             'jenis' => ['required', 'in:cash,hutang'],
             'diskon_total' => ['nullable', 'integer', 'min:0'],
+            'ppn' => ['nullable', 'integer', 'min:0'],
             'bayar_atau_dp' => ['nullable', 'integer', 'min:0'],
             'jatuh_tempo' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
@@ -267,6 +268,7 @@ class PembelianController extends Controller
             'tanggal_transaksi' => Carbon::parse($validated['tanggal_transaksi'])->format('Y-m-d H:i'),
             'jenis' => $validated['jenis'],
             'diskon_total' => (int) ($validated['diskon_total'] ?? 0),
+            'ppn' => (int) ($validated['ppn'] ?? 0),
             'bayar_atau_dp' => (int) ($validated['bayar_atau_dp'] ?? 0),
             'jatuh_tempo' => $validated['jatuh_tempo'] ?? null,
             'items' => array_map(fn ($it) => [

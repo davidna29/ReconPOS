@@ -433,4 +433,112 @@ class PembelianTest extends TestCase
         $this->assertDatabaseMissing('invoice_pembelian', ['id' => $a->id]);
         $this->assertDatabaseMissing('invoice_pembelian', ['id' => $c->id]);
     }
+
+    public function test_form_transaksi_memuat_input_ppn(): void
+    {
+        $this->authUser();
+
+        $this->get(route('pembelian.create'))
+            ->assertOk()
+            ->assertSee('PPN (Rp)');
+    }
+
+    public function test_hutang_dengan_ppn_sisa_termasuk_ppn(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-PPN1');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => 55000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+
+        $this->assertSame(55000, (int) $inv->ppn);
+        $this->assertSame(100000, (int) $inv->total_setelah_diskon);
+        // Sisa Hutang = (Subtotal - Diskon) + PPN - DP = 100000 + 55000 - 0
+        $this->assertSame(155000, (int) $inv->sisa_hutang);
+        $this->assertSame('belum_lunas', $inv->status);
+    }
+
+    public function test_cash_dengan_ppn_bayar_harus_cover_total_plus_ppn(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-PPN2');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+
+        // bayar 100000 < total 100000 + ppn 11000 → ditolak
+        try {
+            $svc->simpan([
+                'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+                'jenis' => 'cash', 'bayar_atau_dp' => 100000, 'ppn' => 11000,
+                'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+            ]);
+            $this->fail('Cash dgn bayar < total+PPN harus ditolak.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('PPN', $e->getMessage());
+        }
+
+        // bayar 111000 = total 100000 + ppn 11000 → lunas
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 111000, 'ppn' => 11000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(11000, (int) $inv->ppn);
+        $this->assertSame(0, (int) $inv->sisa_hutang);
+        $this->assertSame('lunas', $inv->status);
+    }
+
+    public function test_edit_invoice_memperbarui_ppn_dan_sisa(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-PPN3');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => 5000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(105000, (int) $inv->sisa_hutang);
+
+        $svc->edit($inv, [
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 10000, 'ppn' => 8000, 'diskon_total' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 3, 'diskon_item' => 0]],
+        ]);
+
+        $fresh = $inv->fresh();
+        $this->assertSame(8000, (int) $fresh->ppn);
+        $this->assertSame(150000, (int) $fresh->total_setelah_diskon);
+        // sisa = 150000 + 8000 - 10000
+        $this->assertSame(148000, (int) $fresh->sisa_hutang);
+    }
+
+    public function test_detail_dan_print_menampilkan_ppn_hanya_jika_diisi(): void
+    {
+        $this->authUser();
+        $b = $this->barang('BLT-700');
+        $s = $this->supplier();
+
+        // ppn > 0 → baris PPN tampil (show: 1x; print: baris + footer = 2x)
+        $invP = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => 75000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(1, substr_count($this->get(route('pembelian.show', $invP))->getContent(), 'PPN'));
+        $this->assertSame(2, substr_count($this->get(route('pembelian.print', $invP))->getContent(), 'PPN'));
+
+        // ppn = 0 → PPN disembunyikan (show: 0x; print hanya footer = 1x)
+        $invZ = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000, 'ppn' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(0, substr_count($this->get(route('pembelian.show', $invZ))->getContent(), 'PPN'));
+        $this->assertSame(1, substr_count($this->get(route('pembelian.print', $invZ))->getContent(), 'PPN'));
+    }
 }

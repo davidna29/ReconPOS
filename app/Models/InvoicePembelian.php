@@ -10,7 +10,7 @@ class InvoicePembelian extends Model
 
     protected $fillable = [
         'no_invoice', 'supplier_id', 'tanggal_transaksi', 'jenis',
-        'diskon_total', 'subtotal', 'total_setelah_diskon',
+        'diskon_total', 'ppn', 'subtotal', 'total_setelah_diskon',
         'bayar_atau_dp', 'jatuh_tempo', 'sisa_hutang', 'status', 'sumber',
     ];
 
@@ -19,6 +19,7 @@ class InvoicePembelian extends Model
         return [
             'tanggal_transaksi' => 'datetime',
             'jatuh_tempo' => 'date',
+            'ppn' => 'integer',
         ];
     }
 

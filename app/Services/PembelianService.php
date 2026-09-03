@@ -98,14 +98,20 @@ class PembelianService
             }
             $total = $subtotal - $diskonTotal;
 
+            // PPN manual (Rp) dari e-Faktur supplier — hanya dijumlahkan, tanpa rumus tarif (PRD perluasan)
+            $ppn = (int) ($data['ppn'] ?? 0);
+
             $bayarDp = (int) ($data['bayar_atau_dp'] ?? 0);
             $isHutang = $jenis === 'hutang';
 
-            if (! $isHutang && $bayarDp < $total) {
-                throw new InvalidArgumentException('Pembayaran Cash minimal harus sama dengan total (' . uang($total) . ').');
+            // Sisa Hutang = (Subtotal - Diskon) + PPN - DP
+            $totalBayar = $total + $ppn;
+
+            if (! $isHutang && $bayarDp < $totalBayar) {
+                throw new InvalidArgumentException('Pembayaran Cash minimal harus sama dengan total + PPN (' . uang($totalBayar) . ').');
             }
 
-            $sisa = $isHutang ? max(0, $total - $bayarDp) : 0;
+            $sisa = $isHutang ? max(0, $totalBayar - $bayarDp) : 0;
             $status = ($isHutang && $sisa > 0) ? 'belum_lunas' : 'lunas';
             $jatuhTempo = null;
             if ($isHutang) {
@@ -120,6 +126,7 @@ class PembelianService
                 'tanggal_transaksi' => $tgl,
                 'jenis' => $jenis,
                 'diskon_total' => $diskonTotal,
+                'ppn' => $ppn,
                 'subtotal' => $subtotal,
                 'total_setelah_diskon' => $total,
                 'bayar_atau_dp' => $bayarDp,
@@ -286,12 +293,15 @@ class PembelianService
             throw new InvalidArgumentException('Diskon tidak boleh melebihi subtotal.');
         }
         $total = $subtotal - $diskonTotal;
+        $ppn = (int) ($data['ppn'] ?? $invoice->ppn ?? 0);
         $bayarDp = (int) ($data['bayar_atau_dp'] ?? $invoice->bayar_atau_dp);
         $isHutang = $jenis === 'hutang';
-        if (! $isHutang && $bayarDp < $total) {
-            throw new InvalidArgumentException('Pembayaran Cash minimal harus sama dengan total (' . uang($total) . ').');
+        // Sisa Hutang = (Subtotal - Diskon) + PPN - DP
+        $totalBayar = $total + $ppn;
+        if (! $isHutang && $bayarDp < $totalBayar) {
+            throw new InvalidArgumentException('Pembayaran Cash minimal harus sama dengan total + PPN (' . uang($totalBayar) . ').');
         }
-        $sisa = $isHutang ? max(0, $total - $bayarDp) : 0;
+        $sisa = $isHutang ? max(0, $totalBayar - $bayarDp) : 0;
         $status = ($isHutang && $sisa > 0) ? 'belum_lunas' : 'lunas';
         $jatuhTempo = $isHutang
             ? (! empty($data['jatuh_tempo']) ? Carbon::parse($data['jatuh_tempo']) : $this->defaultJatuhTempo($tgl))
@@ -302,6 +312,7 @@ class PembelianService
             'tanggal_transaksi' => $tgl,
             'jenis' => $jenis,
             'diskon_total' => $diskonTotal,
+            'ppn' => $ppn,
             'subtotal' => $subtotal,
             'total_setelah_diskon' => $total,
             'bayar_atau_dp' => $bayarDp,
