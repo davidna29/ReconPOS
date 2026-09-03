@@ -157,7 +157,10 @@ class PembelianService
                     null,
                     'Pembelian ' . $noInvoice,
                 );
-                $this->harga->catatPembelian($d['barang'], $d['harga_beli'], $tgl, $invoice->id);
+                // Harga beli EFEKTIF utk HPP/histori/margin = neto + alokasi PPN proporsional
+                // per nilai baris (PPN total dari e-Faktur). Item & subtotal invoice tetap neto.
+                $hargaBeliHistori = $this->hargaBeliEfektif($d['harga_beli'], $d['qty'], $d['sub'], $subtotal, $ppn);
+                $this->harga->catatPembelian($d['barang'], $hargaBeliHistori, $tgl, $invoice->id);
 
                 if ($d['barang']->isSn()) {
                     $this->daftarkanSn($d['barang'], $d['qty'], $invoice->id, (string) $d['no_sn']);
@@ -166,6 +169,21 @@ class PembelianService
 
             return $invoice->load(['items', 'supplier']);
         });
+    }
+
+    /**
+     * Harga beli efektif per unit utk histori harga / HPP / margin:
+     * neto + alokasi PPN total secara proporsional berdasarkan nilai baris (sub = neto×qty - diskon_item).
+     * Item invoice & subtotal tetap memakai harga NETO; PPN tetap ditambahkan sekali di Sisa/Cash.
+     */
+    private function hargaBeliEfektif(int $hargaNeto, int $qty, int $sub, int $subtotal, int $ppn): int
+    {
+        if ($ppn <= 0 || $subtotal <= 0 || $qty <= 0) {
+            return $hargaNeto;
+        }
+        $alokasi = (int) round($ppn * $sub / $subtotal);
+
+        return $hargaNeto + (int) round($alokasi / max(1, $qty));
     }
 
     /** Daftarkan nomor SN dari pembelian barang ber-SN (PRD 4.2 / 5.1). */
@@ -340,7 +358,8 @@ class PembelianService
                 null,
                 'Pembelian ' . $invoice->no_invoice,
             );
-            $this->harga->catatPembelian($d['barang'], $d['hargaBeli'], $tgl, $invoice->id);
+            $hargaBeliHistori = $this->hargaBeliEfektif($d['hargaBeli'], $d['qty'], $d['sub'], $subtotal, $ppn);
+            $this->harga->catatPembelian($d['barang'], $hargaBeliHistori, $tgl, $invoice->id);
             if ($d['barang']->isSn()) {
                 $this->daftarkanSn($d['barang'], $d['qty'], $invoice->id, (string) $d['no_sn']);
             }

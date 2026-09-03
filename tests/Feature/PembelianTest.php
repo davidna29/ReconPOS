@@ -541,4 +541,51 @@ class PembelianTest extends TestCase
         $this->assertSame(0, substr_count($this->get(route('pembelian.show', $invZ))->getContent(), 'PPN'));
         $this->assertSame(1, substr_count($this->get(route('pembelian.print', $invZ))->getContent(), 'PPN'));
     }
+
+    public function test_harga_beli_histori_termasuk_alokasi_ppn(): void
+    {
+        // PPN total dialokasikan proporsional per nilai baris lalu ditambahkan ke harga beli
+        // (histori/harga_beli_terakhir/margin = HPP termasuk PPN). Item & subtotal invoice tetap neto.
+        $this->authUser();
+        $a = $this->barang('B-EF1');
+        $b = $this->barang('B-EF2');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => 13000,
+            'items' => [
+                ['barang_id' => $a->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0], // sub 100000
+                ['barang_id' => $b->id, 'harga_beli' => 30000, 'qty' => 1, 'diskon_item' => 0], // sub 30000
+            ],
+        ]);
+
+        // alokasi A = round(13000*100000/130000) = 10000 → efektif 50000 + 10000/2 = 55000
+        // alokasi B = round(13000*30000/130000)  = 3000  → efektif 30000 + 3000    = 33000
+        $this->assertSame(55000, (int) $a->fresh()->harga_beli_terakhir);
+        $this->assertSame(33000, (int) $b->fresh()->harga_beli_terakhir);
+        $this->assertSame(55000, (int) $a->historiHarga()->latest('tanggal_berlaku')->first()->harga_beli);
+        $this->assertSame(33000, (int) $b->historiHarga()->latest('tanggal_berlaku')->first()->harga_beli);
+
+        // invoice tetap neto; PPN terpisah & dijumlahkan sekali
+        $this->assertSame(130000, (int) $inv->subtotal);
+        $this->assertSame(13000, (int) $inv->ppn);
+        $this->assertSame(143000, (int) $inv->sisa_hutang);
+
+        // margin otomatis (default 20%) dihitung dari HPP termasuk PPN
+        $this->assertSame(66000, (int) $a->fresh()->harga_jual);
+        $this->assertSame(39600, (int) $b->fresh()->harga_jual);
+    }
+
+    public function test_harga_beli_tanpa_ppn_tetap_neto(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-EFN');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000, 'ppn' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(50000, (int) $b->fresh()->harga_beli_terakhir);
+    }
 }
