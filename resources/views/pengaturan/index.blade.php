@@ -48,15 +48,6 @@
                     <label class="label">Margin Default (%) <span class="text-danger-red">*</span></label>
                     <input type="number" name="margin_default" min="0" max="1000" value="{{ $settings->margin_default }}" class="input">
                     <span class="hint">harga_jual = harga_beli × (1 + margin%). SKU dengan margin_override memakai nilai sendiri (PRD 4.1).</span>
-                    <form method="POST" action="{{ route('pengaturan.terapkan-margin') }}" class="mt-2"
-                        onsubmit="return confirm('Terapkan margin {{ $settings->margin_default }}% ke SEMUA SKU mode otomatis (tanpa override)? Histori harga lama tetap.");">
-                        @csrf
-                        <button class="btn btn-secondary btn-sm">
-                            <span class="material-symbols-outlined text-[16px]">calculate</span>
-                            Terapkan ke Semua SKU Otomatis ({{ $settings->margin_default }}%)
-                        </button>
-                    </form>
-                    <span class="hint">Mengubah angka margin saja TIDAK mengubah harga jual SKU yang sudah ada — klik tombol ini utk menerapkan margin baru ke SKU mode otomatis. SKU manual_terkunci & ber-override tidak terpengaruh.</span>
                 </div>
             </div>
 
@@ -151,6 +142,22 @@
             </button>
         </div>
     </form>
+
+    <!-- Terapkan Margin ke Semua SKU (form TERPISAH — jangan pernah diletakkan di dalam form utama) -->
+    <div class="card-pad">
+        <div class="mb-3">
+            <h3 class="text-headline-sm">Terapkan Margin ke Semua SKU Otomatis</h3>
+            <p class="text-body-sm text-secondary">Setelah mengubah Margin Default & menekan <strong>Simpan Semua Pengaturan</strong>, klik tombol ini utk menghitung ulang harga jual semua SKU mode otomatis yang tidak punya override (histori harga lama tetap). SKU manual_terkunci & ber-override tidak disentuh.</p>
+        </div>
+        <form method="POST" action="{{ route('pengaturan.terapkan-margin') }}"
+            onsubmit="return confirm('Terapkan margin {{ $settings->margin_default }}% ke SEMUA SKU mode otomatis (tanpa override)? Histori harga lama tetap.');">
+            @csrf
+            <button class="btn btn-secondary">
+                <span class="material-symbols-outlined text-[18px]">calculate</span>
+                Terapkan ke Semua SKU Otomatis ({{ $settings->margin_default }}%)
+            </button>
+        </form>
+    </div>
 
     <!-- Keamanan: Ubah Password Admin -->
     <div class="card-pad">

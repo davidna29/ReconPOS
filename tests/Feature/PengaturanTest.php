@@ -146,4 +146,21 @@ class PengaturanTest extends TestCase
             ->assertSee('name="password_lama"', false)
             ->assertSee('name="password_confirmation"', false);
     }
+
+    public function test_form_terapkan_margin_berada_di_luar_form_utama(): void
+    {
+        // Regresi: form 'pengaturan.terapkan-margin' HARUS berada DI LUAR form utama 'pengaturan.update'
+        // (form bersarang di HTML tidak valid — browser mengabaikan form dalam, tombol nyasar submit form utama).
+        $this->authUser();
+        $html = $this->get(route('pengaturan.index'))->assertOk()->getContent();
+
+        $u = strpos($html, route('pengaturan.update'));
+        $close = strpos($html, '</form>', $u !== false ? $u : 0);
+        $t = strpos($html, route('pengaturan.terapkan-margin'));
+
+        $this->assertNotFalse($u, 'Harus ada form utama pengaturan.update.');
+        $this->assertNotFalse($close, 'Harus ada penutup form utama.');
+        $this->assertNotFalse($t, 'Harus ada form terapkan-margin.');
+        $this->assertGreaterThan($close, $t, 'Form terapkan margin harus DI LUAR form utama (sebelumnya bersarang, tombol tidak berfungsi).');
+    }
 }
