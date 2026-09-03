@@ -391,6 +391,35 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame(125000, (int) $inv->total_setelah_diskon); // (100000 + 30000) - 5000
         $this->assertSame(180000, (int) $inv->sisa_hutang);     // 125000 + 55000 - 0
     }
+
+    public function test_upload_pembelian_dua_grup_cash_dan_hutang_tidak_tertukar(): void
+    {
+        // Regresi reference-leak: dua grup (CASH lalu HUTANG) — metadata grup ke-2 TIDAK boleh ikut
+        // tertimpa metadata grup pertama (HUTANG→CASH, supplier salah, PPN salah).
+        Supplier::create(['nama' => 'PT. PRIMA JAYA TYRE MART', 'kontak' => '1']);
+        Supplier::create(['nama' => 'PT. TRIJAYA PERKASA ABADI', 'kontak' => '2']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-G1', 'nama' => 'Ban G1', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-G2', 'nama' => 'Ban G2', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'G1', 'B' => '2026-06-30 12:59', 'C' => 'PT. PRIMA JAYA TYRE MART', 'D' => 'CASH', 'G' => 'B-G1', 'H' => 2, 'I' => 100000, 'J' => 0, 'K' => 0, 'L' => 1000],
+            ['A' => 'G2', 'B' => '2026-06-27 16:14', 'C' => 'PT. TRIJAYA PERKASA ABADI', 'D' => 'HUTANG', 'G' => 'B-G2', 'H' => 1, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => 2000],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(2, $hasil['dibuat']);
+
+        $inv1 = InvoicePembelian::where('no_invoice', 'G1')->firstOrFail();
+        $this->assertSame('cash', $inv1->jenis);
+        $this->assertSame('PT. PRIMA JAYA TYRE MART', $inv1->supplier->nama);
+        $this->assertSame(1000, (int) $inv1->ppn);
+        $this->assertSame(201000, (int) $inv1->bayar_atau_dp); // bayar pas = 200000 + 1000
+
+        $inv2 = InvoicePembelian::where('no_invoice', 'G2')->firstOrFail();
+        $this->assertSame('hutang', $inv2->jenis);
+        $this->assertSame('PT. TRIJAYA PERKASA ABADI', $inv2->supplier->nama);
+        $this->assertSame(2000, (int) $inv2->ppn);
+        $this->assertSame(52000, (int) $inv2->sisa_hutang); // 50000 + 2000 - 0
+    }
     public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
     {
         $this->setupSupplier();

@@ -614,6 +614,11 @@ class ExcelImportService
             }
         }
 
+        // LEPAS referensi $m di sini! Tanpa unset, $m masih referensi ke metadata grup terakhir;
+        // assignment $m = ... berikutnya (loops absurd/apply) akan MENIMPA metadata grup tsb via referensi
+        // (bug: grup ke-2 bisa ikut berubah jadi metadata grup ke-1, misal HUTANG/TRIJAYA → CASH/PRIMA).
+        unset($m);
+
         // BAYAR_DP tidak masuk akal (lebih besar dari nilai wajar) — dilewati utk bayar pas otomatis
         foreach ($groups as $ref => $g) {
             $m = $g['metadata'];
