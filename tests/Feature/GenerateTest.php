@@ -9,6 +9,7 @@ use App\Models\TokoSetting;
 use App\Models\TransaksiPenjualan;
 use App\Models\User;
 use App\Services\GenerateService;
+use App\Services\HargaService;
 use App\Services\PembelianService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -387,6 +388,44 @@ class GenerateTest extends TestCase
             }
             // default maks_sku_per_nota = 1 → tiap nota hanya 1 jenis barang
             $this->assertSame(1, count($skuDalamNota), 'Nota harus berisi 1 SKU saja (default): ' . $trx->ref_transaksi);
+        }
+    }
+
+    public function test_generate_menggunakan_harga_jual_master_bukan_histori(): void
+    {
+        // Histori mencatat margin pembelian (20% -> 48.000), tapi master di-update oleh
+        // tombol 'Terapkan Margin' (5% -> 42.000). Generate HARUS memakai master.
+        $bulan = Carbon::now()->startOfMonth();
+        $s = Supplier::create(['nama' => 'SM', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'G-MAST', 'nama' => 'Master', 'sn_atau_non_sn' => 'NON_SN']);
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => $bulan->copy()->setDay(3)->setTime(9, 0)->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 400000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 40000, 'qty' => 10, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(48000, (int) $b->historiHarga()->latest('tanggal_berlaku')->first()->harga_jual_efektif); // histori lama 20%
+
+        TokoSetting::utama()->update(['margin_default' => 5]);
+        app(HargaService::class)->terapkanMarginDefaultKeSemua(5);
+        $this->assertSame(42000, (int) $b->fresh()->harga_jual); // master baru 5%
+
+        $res = app(GenerateService::class)->generate(
+            $bulan->copy(), $bulan->copy()->endOfMonth(), 400000,
+            ['variasi_min' => 0, 'variasi_max' => 0], false,
+        );
+        $this->assertSame('ok', $res['status']);
+
+        $trx = $res['batch']->transaksiPenjualan()->with('items')->get()
+            ->first(fn ($t) => $t->items->contains(fn ($it) => $it->barang_id === $b->id));
+        $this->assertNotNull($trx, 'Harus ada nota memuat SKU master.');
+        foreach ($trx->items as $it) {
+            if ($it->barang_id !== $b->id) {
+                continue;
+            }
+            // interval master-based (floor beli 40rb s.d. master 42rb; penyesuaian akhir boleh tuning)
+            $this->assertGreaterThanOrEqual(40000, (int) $it->harga_jual);
+            $this->assertLessThan(45000, (int) $it->harga_jual, 'Harga harus berbasis master baru (≈42rb), bukan histori 48rb.');
         }
     }
 

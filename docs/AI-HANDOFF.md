@@ -67,6 +67,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - Timeline ketersediaan per hari (konservatif: barang masuk hari H baru bisa dijual H+1); **kapasitas = peak availability × harga** (bukan jumlah per-hari).
 - Kapasitas < sisa target → **warning 2 opsi** (lanjut semaksimal / batal).
 - Distribusi harian proporsional bobot stok masuk; unit-pool fill (SN qty=1 + NO_SN unik; non-SN NO_SN kosong; variasi harga −10%..0%, tidak pernah < harga beli; jam operasional & hari libur dipatuhi).
+- **Basis harga generate = `barang.harga_jual` (MASTER)** — harga jual efektif dari histori_harga TIDAK dipakai utk basis generate (tombol "Terapkan Margin" di Pengaturan yang meng-update master langsung memengaruhi draft generate; kapasitas & peek juga master); variasi & floor ≥ harga beli (`harga_beli_terakhir`, termasuk alokasi PPN) tetap. Histori tetap utk audit/export modul lain.
 - **`maks_qty_item_per_nota`** (default 3) membatasi unit 1 SKU dalam 1 nota (mis. 4 = 1 nota bisa 1-4 ban); **`maks_sku_per_nota`** (default 1) membatasi **jumlah jenis barang berbeda per nota** — default 1 = tiap nota hanya berisi 1 SKU (barang non-SN yang sama digabung jadi 1 baris dgn qty ≤ cap; SKU SN tetap 1 baris qty=1 + NO_SN unik), disarankan utk toko ban (1 nota = 1-4 ban dari 1 SKU). `penyesuaianAkhir` menambah qty item juga dibatasi cap yg sama. Parameter diatur di Pengaturan → Parameter Generate (dan bisa di-override per generate).
 - Ref nota unik global (`refBebas` — baris "dibatalkan" tetap menempati ref).
 - Sinkron per request (< 5 detik; ramah shared hosting). Draft tersimpan di DB → review/edit → **Simpan** (potong stok, tandai SN, label rekonstruksi).
@@ -87,7 +88,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 ## 6. Jebakan Teknis yang Diketahui
 
 - **PhpSpreadsheet v5**: validasi memakai `PhpOffice\PhpSpreadsheet\Cell\DataValidation` (+ `setSqref` lalu `setDataValidation`); `setShowDropDown(false)` = panah tampil (konvensi terbalik); `setColumnWidth` tidak ada → pakai `getColumnDimension()->setWidth()`.
-- Cache statis `HargaService::$cacheHarga` bocor antar-test → reset di setUp.
+- Cache statis `HargaService::$cacheHarga` bocor antar-test → reset di setUp. **`GenerateService::hargaBarang` memakai cache INSTANCE `$hargaCacheBarang` + reset di awal `generate()`** (JANGAN `static` — id barang bertabrakan antar-test/proses).
 - Instance model bisa **stale** setelah reversal stok → `->fresh()` sebelum mutasi.
 - String PHP dgn backslash utk formula Excel (mis. "$A$1") mudah error escaping; tulis hati-hati.
 - **Selector kelas dgn slash** (mis. `.bg-red-50/70`) di CSS tulis-tangan: slash WAJIB diescape (`.\bg-red-50\/70`) atau dihindari — Lightning CSS (Vite) memperingatkan & browser bisa membuang aturan. Kalau utilitas dipakai lewat `@apply` (mis. `bg-red-50/70` di `.row-overdue`), override dark mode targetkan **kelas hasil mount** (`.dark .tbl tbody tr.row-overdue`), bukan nama utilitas.

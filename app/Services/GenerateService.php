@@ -23,6 +23,9 @@ use InvalidArgumentException;
  */
 class GenerateService
 {
+    /** Cache harga per barang selama satu proses generate (bukan static — hindari bocor antar proses/test). */
+    private array $hargaCacheBarang = [];
+
     public function __construct(
         private PenjualanService $penjualan,
         private HargaService $harga,
@@ -47,6 +50,9 @@ class GenerateService
         if ($targetOmset <= 0) {
             throw new InvalidArgumentException('Target omset harus lebih dari 0.');
         }
+
+        // cache harga instance — bersihkan per proses generate (hindari harga basi antar-run/test)
+        $this->hargaCacheBarang = [];
 
         $settings = TokoSetting::utama();
         $def = $settings->parameterGenerate();
@@ -229,9 +235,9 @@ class GenerateService
                     $peakAvail = $timeline[$barang->id][$key];
                 }
             }
-            // kapasitas periode = total unit TERJUAL-maksimum (peak avail) x harga efektif
+            // kapasitas periode = total unit TERJUAL-maksimum (peak avail) x harga jual MASTER
             if ($peakAvail > 0) {
-                $kapasitas += $peakAvail * $this->harga->hargaJualEfektifPada($barang, $selesai->copy());
+                $kapasitas += $peakAvail * (int) $barang->harga_jual;
             }
         }
 
@@ -620,19 +626,20 @@ class GenerateService
         return $jual;
     }
 
+    /**
+     * Harga jual & harga beli basis utk generate — memakai MASTER (barang.harga_jual &
+     * harga_beli_terakhir), BUKAN histori_harga. Dengan ini tombol "Terapkan Margin" di
+     * Pengaturan (yang meng-update master) langsung memengaruhi hasil generate.
+     * Variasi & aturan "tidak pernah < harga beli" tetap diterapkan di variasiHarga().
+     */
     private function hargaBarang(int $barangId, ?Carbon $day = null): array
     {
-        static $cache = [];
-        $key = $barangId . '|' . ($day ? $day->toDateString() : '');
-        if (isset($cache[$key])) {
-            return $cache[$key];
+        if (isset($this->hargaCacheBarang[$barangId])) {
+            return $this->hargaCacheBarang[$barangId];
         }
         $barang = Barang::find($barangId);
-        if (! $barang) {
-            return [0, 0];
-        }
-        $res = $day ? $this->harga->hargaEfektifPada($barang, $day->copy()->endOfDay()) : [(int) $barang->harga_jual, (int) $barang->harga_beli_terakhir];
-        $cache[$key] = $res;
+        $res = $barang ? [(int) $barang->harga_jual, (int) $barang->harga_beli_terakhir] : [0, 0];
+        $this->hargaCacheBarang[$barangId] = $res;
 
         return $res;
     }
