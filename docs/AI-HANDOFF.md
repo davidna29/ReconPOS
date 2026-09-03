@@ -94,6 +94,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - Timezone app `Asia/Jakarta`; `date` shell bisa beda dgn `now()` Laravel saat scripting.
 - Tambah status baru → pastikan semua query laporan tetap filter `tersimpan`.
 - **Urutan FK migration (MySQL vs SQLite)**: FK yang menunjuk ke tabel yang dibuat oleh migration dgn timestamp *belakangan* GAGAL di MySQL/MariaDB (error 1005 "Foreign key constraint is incorrectly formed") tapi lolos diam-diam di SQLite dev (FK tak di-enforce). Contoh historis: histori_harga, referensi_sn, kartu_stok menunjuk ke invoice_pembelian & transaksi_penjualan. **Aturan**: definisikan kolom FK *tanpa constraint* di migration asli (cukup foreignId(...)->nullable()), lalu tambahkan constraint-nya di *migration terpisah* setelah kedua tabel ada (lihat 2026_09_06_000001..000004: Schema::table(...) + $table->foreign(...) + ->nullOnDelete()). SQLite mendukung Schema::table()->foreign()/dropForeign via strategi rebuild tabel, jadi migrate:fresh lokal tetap hijau — tapi wajib diverifikasi di MySQL sebelum deploy.
+- **FK `kartu_stok` (2026_10_02_000001)**: `invoice_pembelian_id` & `transaksi_penjualan_id` diubah dari `nullOnDelete` → **`restrictOnDelete`** — invoice/penjualan yang masih punya baris kartu_stok TIDAK bisa dihapus di luar alur aplikasi (mencegah stok yatim); alur hapus aplikasi selalu `batalEfekPembelian/batalEfekPenjualan` dulu (hapus baris kartu), jadi tetap aman.
 
 ## 7. Checklist Menambah Fitur
 
