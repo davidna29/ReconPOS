@@ -227,7 +227,8 @@ class ExcelImportService
             '6) JATUH_TEMPO: hanya untuk HUTANG, boleh dikosongkan (otomatis = akhir bulan ke-3).',
             '7) DISKON:',
             '   - DISKON_ITEM  : nominal Rp potongan per baris (isi 0 kalau tidak ada).',
-            '   - DISKON_TOTAL : nominal Rp potongan sekali per invoice, isi di salah satu baris grup REF tsb.',
+            '   - DISKON_TOTAL : nominal Rp potongan sekali per invoice, isi di SALAH SATU baris grup REF',
+            '     (nilai pertama yang terisi dipakai — tidak perlu diulang di setiap baris).',
             '8) Contoh pengisian 1 baris (baris 2 = data pertama):',
             '   REF_PEMBELIAN | TANGGAL_WAKTU   | SUPPLIER pilihan dropdown   | JENIS | BAYAR_DP | KODE_BARANG | QTY | HARGA_BELI | DISKON_ITEM | DISKON_TOTAL | PPN',
             '   PB-001        | 2026-09-05 09:30 | PT. Bintang Sparepart       | CASH  | 140000    | BLT-001      | 2   | 45000      | 0           | 0           | 0',
@@ -245,7 +246,9 @@ class ExcelImportService
             '    disesuaikan otomatis) — bukan membuat invoice ganda. Perubahan qty di bawah qty yang sudah',
             '    terjual akan ditolak demi menjaga stok.',
             '14) PPN (Rp): kolom OPSIONAL utk PPN manual dari e-Faktur supplier — kosongkan = 0; hanya dijumlahkan',
-            '    ke Sisa Hutang/Cash (tanpa tarif). Untuk CASH, kosongkan BAYAR_DP agar bayar pas termasuk PPN.',
+            '    ke Sisa Hutang/Cash (tanpa tarif). PPN di e-Faktur adalah nilai TOTAL per invoice: cukup isi SEKALI',
+            '    di salah satu baris grup REF (nilai pertama yang terisi dipakai) — TIDAK perlu dipecah per SKU.',
+            '    Untuk CASH, kosongkan BAYAR_DP agar bayar pas termasuk PPN.',
         ];
         foreach ($garis as $i => $teks) {
             $petunjuk->setCellValue('A' . ($i + 1), $teks);
@@ -468,6 +471,46 @@ class ExcelImportService
     }
 
     /**
+     * Isi metadata grup REF dengan aturan "nilai pertama yang terisi" (PRD 5.3):
+     * baris pertama grup menginisialisasi; baris berikutnya hanya mengisi field yang masih kosong.
+     * Dipakai utk PPN / DISKON_TOTAL / BAYAR_DP / JATUH_TEMPO — cukup diisi sekali utk 1 invoice.
+     */
+    private function isiMetadataGroup(array &$groups, string $ref, $parsed, string $supplier, string $jenis, array $r, int $ppn): void
+    {
+        $bayar = (int) round((float) ($r['BAYAR_DP'] ?? 0));
+        $jatuh = trim((string) ($r['JATUH_TEMPO'] ?? ''));
+        $diskon = (int) round((float) ($r['DISKON_TOTAL'] ?? 0));
+
+        if (! isset($groups[$ref]['metadata'])) {
+            $groups[$ref]['metadata'] = [
+                'tanggal' => $parsed,
+                'supplier' => strtoupper($supplier),
+                'jenis' => $jenis,
+                'bayar_dp' => $bayar,
+                'jatuh_tempo' => $jatuh,
+                'diskon_total' => $diskon,
+                'ppn' => $ppn,
+            ];
+
+            return;
+        }
+
+        $m = &$groups[$ref]['metadata'];
+        if ((int) $m['bayar_dp'] === 0 && $bayar > 0) {
+            $m['bayar_dp'] = $bayar;
+        }
+        if ($m['jatuh_tempo'] === '' && $jatuh !== '') {
+            $m['jatuh_tempo'] = $jatuh;
+        }
+        if ((int) $m['diskon_total'] === 0 && $diskon > 0) {
+            $m['diskon_total'] = $diskon;
+        }
+        if ((int) $m['ppn'] === 0 && $ppn > 0) {
+            $m['ppn'] = $ppn;
+        }
+    }
+
+    /**
      * Import transaksi pembelian (PRD 5.3). All-or-nothing per seluruh file.
      */
     public function importPembelian(string $path): array
@@ -530,15 +573,10 @@ class ExcelImportService
                 continue;
             }
 
-            $groups[$ref]['metadata'] = [
-                'tanggal' => $parsed,
-                'supplier' => strtoupper($supplier),
-                'jenis' => $jenis,
-                'bayar_dp' => (int) round((float) ($r['BAYAR_DP'] ?? 0)),
-                'jatuh_tempo' => trim((string) ($r['JATUH_TEMPO'] ?? '')),
-                'diskon_total' => (int) round((float) ($r['DISKON_TOTAL'] ?? 0)),
-                'ppn' => $ppn,
-            ];
+            // Metadata invoice = NILAI PERTAMA YANG TERISI per grup REF (bukan baris terakhir).
+            // Ini supaya PPN/DISKON_TOTAL/BAYAR_DP/JATUH_TEMPO cukup diisi SEKALI di salah satu baris
+            // (mis. total PPN e-Faktur utk seluruh invoice) — TIDAK perlu dipecah per SKU.
+            $this->isiMetadataGroup($groups, $ref, $parsed, $supplier, $jenis, $r, $ppn);
             $groups[$ref]['items'][] = [
                 'no' => $no,
                 'kode' => $kode,

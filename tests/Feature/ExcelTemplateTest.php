@@ -371,6 +371,26 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame('lunas', $inv->status);
         $this->assertSame(2, (int) $b->fresh()->stock);
     }
+
+    public function test_upload_pembelian_ppn_total_cukup_di_satu_baris_grup_multiskus(): void
+    {
+        // e-Faktur: PPN total per invoice. Grup REF dgn 2 SKU — PPN & DISKON_TOTAL hanya diisi di baris PERTAMA.
+        Supplier::create(['nama' => 'PT G', 'kontak' => '1']);
+        $b1 = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-MSK1', 'nama' => 'Ban 1', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        $b2 = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-MSK2', 'nama' => 'Ban 2', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'G-MULTI', 'B' => '2026-09-23 10:00', 'C' => 'PT G', 'D' => 'HUTANG', 'G' => 'B-MSK1', 'H' => 2, 'I' => 50000, 'J' => 0, 'K' => 5000, 'L' => 55000], // baris 1: PPN total + diskon total
+            ['A' => 'G-MULTI', 'B' => '2026-09-23 10:00', 'C' => 'PT G', 'D' => 'HUTANG', 'G' => 'B-MSK2', 'H' => 1, 'I' => 30000, 'J' => 0, 'K' => 0],       // baris 2: kosong (PPN & diskon total tidak diulang)
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(55000, (int) $inv->ppn);              // nilai pertama yang terisi dipakai
+        $this->assertSame(5000, (int) $inv->diskon_total);      // tidak tertimpa baris kosong
+        $this->assertSame(125000, (int) $inv->total_setelah_diskon); // (100000 + 30000) - 5000
+        $this->assertSame(180000, (int) $inv->sisa_hutang);     // 125000 + 55000 - 0
+    }
     public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
     {
         $this->setupSupplier();
