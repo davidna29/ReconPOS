@@ -271,7 +271,7 @@ class ExcelTemplateTest extends TestCase
         $stokSebelum = (int) $b->fresh()->stock;
 
         $f = $this->buatFilePembelian([
-            ['A' => 'MAN-1', 'B' => '2026-09-23 10:00', 'C' => 'PT C', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-CFL', 'H' => 4, 'I' => 45000, 'J' => 0, 'K' => 0],
+            ['A' => 'MAN-1', 'B' => '2026-09-23 10:00', 'C' => 'PT C', 'D' => 'CASH', 'E' => 200000, 'G' => 'B-CFL', 'H' => 4, 'I' => 45000, 'J' => 0, 'K' => 0],
         ]);
         try {
             app(ExcelImportService::class)->importPembelian($f);
@@ -283,6 +283,58 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame($stokSebelum, (int) $b->fresh()->stock);
     }
 
+    public function test_upload_pembelian_cash_bayar_dp_kosong_bayar_pas(): void
+    {
+        Supplier::create(['nama' => 'PT B', 'kontak' => '1']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-DP', 'nama' => 'Ban DP', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        // CASH, BAYAR_DP dikosongkan (sel kosong) → bayar pas = total (PRD 5.3)
+        $f = $this->buatFilePembelian([
+            ['A' => 'C-1', 'B' => '2026-09-23 10:00', 'C' => 'PT B', 'D' => 'CASH', 'G' => 'B-DP', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(90000, (int) $inv->bayar_atau_dp); // bayar pas = total
+        $this->assertSame('lunas', $inv->status);
+        $this->assertSame(2, (int) Barang::where('kode_barang', 'B-DP')->first()->stock);
+    }
+
+    public function test_upload_pembelian_cash_bayar_dp_parsial_ditolak(): void
+    {
+        Supplier::create(['nama' => 'PT C', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-DPP', 'nama' => 'Ban DPP', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        // CASH dengan BAYAR_DP diisi sebagian (< total) → file ditolak all-or-nothing
+        $f = $this->buatFilePembelian([
+            ['A' => 'C-2', 'B' => '2026-09-23 10:00', 'C' => 'PT C', 'D' => 'CASH', 'E' => 50000, 'G' => 'B-DPP', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        try {
+            app(ExcelImportService::class)->importPembelian($f);
+            $this->fail('Harus ImportFileException utk BAYAR_DP parsial pd CASH.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('kurang dari total', implode(' | ', $e->getErrors()));
+        }
+        $this->assertSame(0, InvoicePembelian::count());
+        $this->assertSame(0, (int) $b->fresh()->stock);
+    }
+
+    public function test_upload_pembelian_hutang_dp_kosong_belum_lunas(): void
+    {
+        Supplier::create(['nama' => 'PT D', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-DPH', 'nama' => 'Ban DPH', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        // HUTANG, DP kosong → sah; invoice belum lunas, sisa = total
+        $f = $this->buatFilePembelian([
+            ['A' => 'H-1', 'B' => '2026-09-23 10:00', 'C' => 'PT D', 'D' => 'HUTANG', 'F' => '2026-12-31', 'G' => 'B-DPH', 'H' => 5, 'I' => 20000, 'J' => 0, 'K' => 0],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame('belum_lunas', $inv->status);
+        $this->assertSame(0, (int) $inv->bayar_atau_dp);
+        $this->assertSame(100000, (int) $inv->sisa_hutang);
+    }
     public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
     {
         $this->setupSupplier();

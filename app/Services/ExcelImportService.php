@@ -540,15 +540,45 @@ class ExcelImportService
             ];
         }
 
-        // BAYAR_DP tidak masuk akal (lebih besar dari nilai wajar)
+        // ---- Aturan BAYAR_DP per grup (PRD 5.3): CASH boleh kosong = "bayar pas" ----
+        // total = Σ(harga_beli × qty − diskon_item) − diskon_total (rumus sama dgn simpan)
+        $autoBayarPas = [];
+        foreach ($groups as $ref => $g) {
+            $total = 0;
+            foreach ($g['items'] as $it) {
+                $total += ($it['harga_beli'] * $it['qty']) - $it['diskon_item'];
+            }
+            $total -= $g['metadata']['diskon_total'];
+            if ($total < 0) {
+                $errors[] = 'REF_PEMBELIAN "' . $ref . '": total negatif setelah diskon.';
+            }
+
+            $m = &$groups[$ref]['metadata'];
+            if (strtoupper($m['jenis']) === 'CASH') {
+                if ($m['bayar_dp'] <= 0) {
+                    // sel BAYAR_DP kosong → bayar pas = total (PRD 5.3)
+                    $m['bayar_dp'] = max(0, $total);
+                    $autoBayarPas[$ref] = true;
+                } elseif ($m['bayar_dp'] < $total) {
+                    $errors[] = 'REF_PEMBELIAN "' . $ref . '": Pembayaran Cash (' . uang($m['bayar_dp'])
+                        . ') kurang dari total (' . uang($total) . ') — isi pas atau kosongkan BAYAR_DP utk bayar pas.';
+                }
+            }
+        }
+
+        // BAYAR_DP tidak masuk akal (lebih besar dari nilai wajar) — dilewati utk bayar pas otomatis
         foreach ($groups as $ref => $g) {
             $m = $g['metadata'];
+            if (isset($autoBayarPas[$ref])) {
+                continue; // nilai otomatis = total (bisa memang besar & wajar)
+            }
             if ($m['bayar_dp'] >= 1_000_000_000) {
                 foreach ($g['items'] as $it) {
                     $errors[] = 'Baris ' . $it['no'] . ': BAYAR_DP tidak masuk akal (' . $m['bayar_dp'] . ').';
                 }
             }
         }
+
 
         if (count($errors) > 0) {
             throw new ImportFileException(array_slice($errors, 0, 50));
