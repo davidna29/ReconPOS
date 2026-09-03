@@ -110,4 +110,56 @@ if (count($driftedAll) === 0) {
     }
 }
 
+
+echo "========== 4) BARANG DGN STOK > 0 — SUMBER KARTU & PENYUMBANG ==========\n";
+// Stok tersisa setelah invoice dihapus: apa sumbernya (masuk_pembelian/invoice masih ada? stok_awal? opname?)
+$berstok = Barang::where('tipe_item', 'barang')->where('stock', '>', 0)->orderBy('kode_barang')->get();
+if ($berstok->isEmpty()) {
+    echo "Tidak ada barang dengan stok > 0.\n";
+} else {
+    foreach ($berstok as $b) {
+        $rows = KartuStok::where('barang_id', $b->id)->orderBy('tanggal')->get();
+        $masuk = $rows->whereIn('jenis', $masukJenis)->values();
+        $stokAwal = $masuk->where('jenis', 'stok_awal')->sum('qty');
+        $opname = $masuk->where('jenis', 'opname')->sum('qty');
+        $beli = $masuk->where('jenis', 'masuk_pembelian');
+        $qtyBeli = (int) $beli->sum('qty');
+        $invIds = $beli->pluck('invoice_pembelian_id')->filter()->unique()->values();
+        $invAda = InvoicePembelian::whereIn('id', $invIds)->count();
+
+        echo "SKU {$b->kode_barang} ({$b->nama}) — stock={$b->stock} | beli={$qtyBeli} (dari invoice: {$invAda}/{$invIds->count()} masih ada) | stok_awal={$stokAwal} | opname={$opname}\n";
+        if ($invIds->count()) {
+            foreach (InvoicePembelian::whereIn('id', $invIds)->get() as $inv) {
+                $it = \App\Models\InvoicePembelianItem::where('invoice_pembelian_id', $inv->id)->where('barang_id', $b->id)->get();
+                echo "   - INV {$inv->no_invoice} ({$inv->tanggal_transaksi->format('d/m/Y')}, {$inv->status}, sumber={$inv->sumber}) qty={$it->sum('qty')}\n";
+            }
+        }
+    }
+}
+
+echo "\n========== 5) INVOICE YANG TIDAK BISA DIHAPUS (histori pembayaran) ==========\n";
+$blocked = InvoicePembelian::whereHas('pembayaranHutang')->orderBy('no_invoice')->get();
+if ($blocked->isEmpty()) {
+    echo "Tidak ada invoice hutang berhistori pembayaran.\n";
+} else {
+    foreach ($blocked as $inv) {
+        echo "- {$inv->no_invoice} ({$inv->tanggal_transaksi->format('d/m/Y')}, sisa {$inv->sisa_hutang}) — HAPUS DIBLOKIR sampai histori pembayaran dihapus\n";
+    }
+    echo "Catatan: invoice ini menyumbang stok yg tidak bisa dihapus lewat tombol hapus biasa.\n";
+}
+
+echo "\n========== 6) ESTIMASI STOK BERSIH (tanpa baris masuk yatim / NULL-invoice) ==========\n";
+// Baris masuk_pembelian yg invoice_pembelian_id-nya NULL TIDAK ter-reverse saat hapus invoice.
+// Stok bersih = stock saat ini - qty masuk yatim (baris tsb tidak punya invoice yg bisa dibatalkan).
+$yatim = 0;
+foreach (Barang::where('tipe_item', 'barang')->get() as $b) {
+    $rows = KartuStok::where('barang_id', $b->id)->get();
+    $orphan = (int) $rows->where('jenis', 'masuk_pembelian')->whereNull('invoice_pembelian_id')->sum('qty');
+    $normal = (int) $rows->sum('qty') - $orphan;
+    if ($orphan > 0) {
+        $yatim += $orphan;
+        echo "SKU {$b->kode_barang}: stock={$b->stock} | stok setelah bersih yatim ≈ {$normal} (yatim {-{$orphan}})\n";
+    }
+}
+if ($yatim === 0) { echo "Tidak ada baris masuk yatim (NULL-invoice).\n"; }
 echo "\nSelesai. Koreksi stok (bila perlu) dibahas terpisah — tool ini tidak mengubah data.\n";
