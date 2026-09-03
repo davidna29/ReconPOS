@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Barang;
 use App\Models\TokoSetting;
+use App\Models\User;
 use App\Services\HargaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -124,5 +125,49 @@ class HargaTest extends TestCase
 
         $this->assertSame(48000, (int) $barang->historiHarga()->first()->harga_jual_efektif);
         $this->assertSame(0, (int) $barang->fresh()->harga_jual); // master tetap 0 hingga diisi user
+    }
+
+    public function test_terapkan_margin_default_ke_semua_sku_otomatis(): void
+    {
+        $harga = app(HargaService::class);
+        // SKU otomatis tanpa override — HARUS ikut margin baru
+        $a = Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'B-M1', 'nama' => 'Auto',
+            'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis',
+            'harga_beli_terakhir' => 100000, 'harga_jual' => 120000, // dari margin 20%
+        ]);
+        // SKU otomatis dgn override — TIDAK boleh berubah
+        $b = Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'B-M2', 'nama' => 'Override',
+            'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis', 'margin_override' => 10,
+            'harga_beli_terakhir' => 100000, 'harga_jual' => 110000,
+        ]);
+        // SKU manual_terkunci — TIDAK boleh berubah
+        $c = Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'B-M3', 'nama' => 'Manual',
+            'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'manual_terkunci',
+            'harga_beli_terakhir' => 100000, 'harga_jual' => 999999,
+        ]);
+
+        $diupdate = $harga->terapkanMarginDefaultKeSemua(5);
+        $this->assertSame(1, $diupdate);
+        $this->assertSame(105000, (int) $a->fresh()->harga_jual);
+        $this->assertSame(110000, (int) $b->fresh()->harga_jual);
+        $this->assertSame(999999, (int) $c->fresh()->harga_jual);
+    }
+
+    public function test_web_terapkan_margin_default_ke_semua(): void
+    {
+        $this->actingAs(User::create(['name' => 'A', 'email' => 'm@a.id', 'password' => 'x']));
+        TokoSetting::utama()->update(['margin_default' => 5]);
+        Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'B-W1', 'nama' => 'Web',
+            'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis',
+            'harga_beli_terakhir' => 100000, 'harga_jual' => 160000,
+        ]);
+
+        $this->post(route('pengaturan.terapkan-margin'))
+            ->assertSessionHas('success');
+        $this->assertSame(105000, (int) Barang::where('kode_barang', 'B-W1')->first()->harga_jual);
     }
 }

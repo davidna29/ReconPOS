@@ -6,6 +6,7 @@ use App\Models\Barang;
 use App\Models\HistoriHarga;
 use App\Models\TokoSetting;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Logika harga beli, margin & harga jual (PRD 4.1).
@@ -118,4 +119,33 @@ class HargaService
         }
         $barang->save();
     }
+
+/**
+ * Terapkan margin default (baru) ke SEMUA SKU mode otomatis tanpa override per-SKU.
+ * Hanya memperbarui kolom master `harga_jual` (histori_harga tetap mencatat margin
+ * saat transaksi lama — auditable). SKU manual_terkunci & yang punya override TIDAK diubah.
+ *
+ * @return int jumlah SKU yang diperbarui
+ */
+public function terapkanMarginDefaultKeSemua(int $marginDefault): int
+{
+    $diupdate = 0;
+
+    DB::transaction(function () use ($marginDefault, &$diupdate) {
+        Barang::where('tipe_item', 'barang')
+            ->where('mode_harga_jual', 'otomatis')
+            ->whereNull('margin_override')
+            ->where('harga_beli_terakhir', '>', 0)
+            ->orderBy('id')
+            ->chunkById(100, function ($barangs) use ($marginDefault, &$diupdate) {
+                foreach ($barangs as $b) {
+                    $b->harga_jual = $this->hitungHargaJual((int) $b->harga_beli_terakhir, $marginDefault);
+                    $b->save();
+                    $diupdate++;
+                }
+            });
+    });
+
+    return $diupdate;
+}
 }

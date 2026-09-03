@@ -84,6 +84,17 @@ class PengaturanController extends Controller
         return redirect()->route('pengaturan.index')->with('success', 'Pengaturan toko berhasil disimpan.');
     }
 
+    /** Terapkan margin default yang sedang aktif ke semua SKU mode otomatis (tanpa override). */
+    public function terapkanMargin()
+    {
+        $settings = TokoSetting::utama();
+        $margin = (int) $settings->margin_default;
+        $count = app(\App\Services\HargaService::class)->terapkanMarginDefaultKeSemua($margin);
+
+        return redirect()->route('pengaturan.index')
+            ->with('success', "Margin {$margin}% diterapkan ke {$count} SKU otomatis (histori harga lama tetap).");
+    }
+
     /** Ubah password admin (keamanan akun — 1 akun tanpa registrasi publik). */
     public function updatePassword(Request $request)
     {

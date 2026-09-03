@@ -113,6 +113,7 @@ Route::middleware('auth')->group(function () {
     // ---- Pengaturan (PRD 4.5) ----
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan', [PengaturanController::class, 'update'])->name('pengaturan.update');
+    Route::post('/pengaturan/terapkan-margin', [PengaturanController::class, 'terapkanMargin'])->name('pengaturan.terapkan-margin');
     Route::post('/pengaturan/password', [PengaturanController::class, 'updatePassword'])->name('pengaturan.password');
     Route::post('/pengaturan/template', [PengaturanController::class, 'updateTemplate'])->name('pengaturan.template');
     Route::post('/pengaturan/template/reset', [PengaturanController::class, 'resetTemplate'])->name('pengaturan.template.reset');
