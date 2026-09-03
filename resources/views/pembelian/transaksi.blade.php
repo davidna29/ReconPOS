@@ -55,7 +55,7 @@
             <input type="file" name="file" accept=".xlsx" class="input w-auto" required>
             <button class="btn btn-amber btn-sm"><span class="material-symbols-outlined text-[16px]">upload</span> Import</button>
         </form>
-        <span class="text-[11px] text-secondary">Format: REF_PEMBELIAN, TANGGAL_WAKTU, SUPPLIER, JENIS_TRANSAKSI, BAYAR_DP, JATUH_TEMPO, KODE_BARANG, QTY, HARGA_BELI, DISKON_ITEM, DISKON_TOTAL.</span>
+        <span class="text-[11px] text-secondary">Format: REF_PEMBELIAN, TANGGAL_WAKTU, SUPPLIER, JENIS_TRANSAKSI, BAYAR_DP, JATUH_TEMPO, KODE_BARANG, QTY, HARGA_BELI, DISKON_ITEM, DISKON_TOTAL, PPN.</span>
     </div>
 
     <form method="POST" action="{{ $invoice ? route('pembelian.update', $invoice) : route('pembelian.store') }}" id="form-pembelian">

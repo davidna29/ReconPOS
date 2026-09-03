@@ -141,7 +141,7 @@ class ExcelImportService
      */
     public function templatePembelian(): string
     {
-        $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL'];
+        $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL', 'PPN'];
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -229,8 +229,8 @@ class ExcelImportService
             '   - DISKON_ITEM  : nominal Rp potongan per baris (isi 0 kalau tidak ada).',
             '   - DISKON_TOTAL : nominal Rp potongan sekali per invoice, isi di salah satu baris grup REF tsb.',
             '8) Contoh pengisian 1 baris (baris 2 = data pertama):',
-            '   REF_PEMBELIAN | TANGGAL_WAKTU   | SUPPLIER pilihan dropdown   | JENIS | BAYAR_DP | KODE_BARANG | QTY | HARGA_BELI | DISKON_ITEM | DISKON_TOTAL',
-            '   PB-001        | 2026-09-05 09:30 | PT. Bintang Sparepart       | CASH  | 140000    | BLT-001      | 2   | 45000      | 0           | 0',
+            '   REF_PEMBELIAN | TANGGAL_WAKTU   | SUPPLIER pilihan dropdown   | JENIS | BAYAR_DP | KODE_BARANG | QTY | HARGA_BELI | DISKON_ITEM | DISKON_TOTAL | PPN',
+            '   PB-001        | 2026-09-05 09:30 | PT. Bintang Sparepart       | CASH  | 140000    | BLT-001      | 2   | 45000      | 0           | 0           | 0',
             '9) Cara upload: menu Pembelian -> "Upload Transaksi Excel" -> pilih file -> Upload.',
             '10) ATURAN ALL-OR-NOTHING: kalau ada 1 baris kesalahan, SELURUH file dibatalkan',
             '    (tidak ada data yang tersimpan). Pesan error menyebut nomor baris (baris 2 = data pertama).',
@@ -244,6 +244,8 @@ class ExcelImportService
             '13) UPLOAD ULANG dengan REF_PEMBELIAN yang sama akan MEMPERBARUI invoice tsb (stok & histori',
             '    disesuaikan otomatis) — bukan membuat invoice ganda. Perubahan qty di bawah qty yang sudah',
             '    terjual akan ditolak demi menjaga stok.',
+            '14) PPN (Rp): kolom OPSIONAL utk PPN manual dari e-Faktur supplier — kosongkan = 0; hanya dijumlahkan',
+            '    ke Sisa Hutang/Cash (tanpa tarif). Untuk CASH, kosongkan BAYAR_DP agar bayar pas termasuk PPN.',
         ];
         foreach ($garis as $i => $teks) {
             $petunjuk->setCellValue('A' . ($i + 1), $teks);
@@ -491,6 +493,7 @@ class ExcelImportService
             $kode = strtoupper(trim((string) $r['KODE_BARANG']));
             $qty = (int) round((float) ($r['QTY'] ?? 0));
             $hargaBeli = (int) round((float) ($r['HARGA_BELI'] ?? 0));
+            $ppn = (int) round((float) ($r['PPN'] ?? 0));
 
             if ($ref === '') {
                 $errors[] = 'Baris ' . $no . ': REF_PEMBELIAN wajib diisi (pengelompokan invoice).';
@@ -522,6 +525,10 @@ class ExcelImportService
                 $errors[] = 'Baris ' . $no . ': QTY dan HARGA_BELI wajib lebih dari 0.';
                 continue;
             }
+            if ($ppn < 0) {
+                $errors[] = 'Baris ' . $no . ': PPN tidak boleh negatif.';
+                continue;
+            }
 
             $groups[$ref]['metadata'] = [
                 'tanggal' => $parsed,
@@ -530,6 +537,7 @@ class ExcelImportService
                 'bayar_dp' => (int) round((float) ($r['BAYAR_DP'] ?? 0)),
                 'jatuh_tempo' => trim((string) ($r['JATUH_TEMPO'] ?? '')),
                 'diskon_total' => (int) round((float) ($r['DISKON_TOTAL'] ?? 0)),
+                'ppn' => $ppn,
             ];
             $groups[$ref]['items'][] = [
                 'no' => $no,
@@ -555,13 +563,15 @@ class ExcelImportService
 
             $m = &$groups[$ref]['metadata'];
             if (strtoupper($m['jenis']) === 'CASH') {
+                // bayar pas / cek parsial harus mencakup PPN (Sisa = total + PPN - DP)
+                $totalBayar = $total + (int) ($m['ppn'] ?? 0);
                 if ($m['bayar_dp'] <= 0) {
-                    // sel BAYAR_DP kosong → bayar pas = total (PRD 5.3)
-                    $m['bayar_dp'] = max(0, $total);
+                    // sel BAYAR_DP kosong → bayar pas = total + PPN (PRD 5.3)
+                    $m['bayar_dp'] = max(0, $totalBayar);
                     $autoBayarPas[$ref] = true;
-                } elseif ($m['bayar_dp'] < $total) {
+                } elseif ($m['bayar_dp'] < $totalBayar) {
                     $errors[] = 'REF_PEMBELIAN "' . $ref . '": Pembayaran Cash (' . uang($m['bayar_dp'])
-                        . ') kurang dari total (' . uang($total) . ') — isi pas atau kosongkan BAYAR_DP utk bayar pas.';
+                        . ') kurang dari total + PPN (' . uang($totalBayar) . ') — isi pas atau kosongkan BAYAR_DP utk bayar pas.';
                 }
             }
         }
@@ -624,6 +634,7 @@ class ExcelImportService
                     'tanggal_transaksi' => $m['tanggal']->format('Y-m-d H:i'),
                     'jenis' => strtolower($m['jenis']),
                     'diskon_total' => $m['diskon_total'],
+                    'ppn' => (int) ($m['ppn'] ?? 0),
                     'bayar_atau_dp' => $m['bayar_dp'],
                     'jatuh_tempo' => $m['jatuh_tempo'] !== '' ? $m['jatuh_tempo'] : null,
                     'items' => $items,

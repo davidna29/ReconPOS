@@ -195,7 +195,7 @@ class ExcelTemplateTest extends TestCase
     /** Buat file xlsx import pembelian dari baris asso [kolom alfabet => nilai]; baris pertama data = row 2. */
     private function buatFilePembelian(array $rows): string
     {
-        $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL'];
+        $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL', 'PPN'];
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         foreach ($headers as $i => $h) {
@@ -334,6 +334,42 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame('belum_lunas', $inv->status);
         $this->assertSame(0, (int) $inv->bayar_atau_dp);
         $this->assertSame(100000, (int) $inv->sisa_hutang);
+    }
+
+    public function test_upload_pembelian_ppn_ikut_import(): void
+    {
+        Supplier::create(['nama' => 'PT E', 'kontak' => '1']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PPNI', 'nama' => 'Ban PPNI', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        // HUTANG dgn PPN 55000 → sisa = total + ppn - dp
+        $f = $this->buatFilePembelian([
+            ['A' => 'H-PPN', 'B' => '2026-09-23 10:00', 'C' => 'PT E', 'D' => 'HUTANG', 'F' => '2026-12-31', 'G' => 'B-PPNI', 'H' => 2, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => 55000],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(55000, (int) $inv->ppn);
+        $this->assertSame(100000, (int) $inv->total_setelah_diskon);
+        $this->assertSame(155000, (int) $inv->sisa_hutang); // 100000 + 55000 - 0
+        $this->assertSame('belum_lunas', $inv->status);
+    }
+
+    public function test_upload_pembelian_cash_dp_kosong_dengan_ppn_bayar_pas(): void
+    {
+        Supplier::create(['nama' => 'PT F', 'kontak' => '1']);
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PPNC', 'nama' => 'Ban PPNC', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        // CASH, BAYAR_DP kosong, PPN 11000 → bayar pas = total 100000 + ppn 11000 = 111000 → lunas
+        $f = $this->buatFilePembelian([
+            ['A' => 'C-PPN', 'B' => '2026-09-23 10:00', 'C' => 'PT F', 'D' => 'CASH', 'G' => 'B-PPNC', 'H' => 2, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => 11000],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(11000, (int) $inv->ppn);
+        $this->assertSame(111000, (int) $inv->bayar_atau_dp); // bayar pas termasuk PPN
+        $this->assertSame('lunas', $inv->status);
+        $this->assertSame(2, (int) $b->fresh()->stock);
     }
     public function test_template_pembelian_punya_dropdown_supplier_dan_petunjuk(): void
     {
