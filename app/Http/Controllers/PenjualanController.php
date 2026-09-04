@@ -38,8 +38,13 @@ class PenjualanController extends Controller
         $sisaTarget = $targetOmset !== null ? max(0, $targetOmset - $omsetPeriode) : null;
 
         // ---- Tabel transaksi ----
+        // Kartu selalu pakai $awal/$akhir default Bulan Berjalan, tapi tabel hanya terfilter
+        // bila ada query periode eksplisit (tanpa filter = Semua, agar data lama seperti Juni tetap terlihat)
         $query = TransaksiPenjualan::with(['batchGenerate', 'items.barang'])
             ->where('status', 'tersimpan');
+        if ($request->hasAny(['bulan', 'tahun', 'from', 'to'])) {
+            $query->whereBetween('tanggal_waktu', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+        }
 
         $sumber = $request->get('sumber');
         if (in_array($sumber, ['manual', 'rekonstruksi'], true)) {

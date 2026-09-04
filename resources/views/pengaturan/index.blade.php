@@ -261,6 +261,60 @@
             Sumber data valid: ref_transaksi, tanggal_waktu, customer_id, jenis_transaksi, tipe_pembayaran, jatuh_tempo, kode_barang, qty, harga_jual, no_sn — selain itu dipakai nilai_default.
         </p>
     </div>
+
+    <!-- Status Lingkungan Excel (diagnosa upload/import — read-only, di luar semua form) -->
+    <div class="card-pad">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h3 class="text-headline-sm">Status Lingkungan Excel</h3>
+                <p class="text-body-sm text-secondary">
+                    Diagnosa cepat utk masalah upload/import Excel. Di shared hosting, ekstensi web PHP-FPM bisa beda dengan SSH CLI —
+                    kalau <span class="mono">simplexml/dom/xmlreader</span> tidak aktif, <strong>download & export jalan tapi upload 500</strong>.
+                </p>
+            </div>
+            @if (count($excelEnv['ekstensi']) === 0)
+                <span class="rounded-lg bg-green-50 px-3 py-1 text-body-sm font-medium text-lunas-green">✓ Semua ekstensi Excel siap</span>
+            @else
+                <span class="rounded-lg bg-red-50 px-3 py-1 text-body-sm font-medium text-danger-red">⚠ {{ count($excelEnv['ekstensi']) }} ekstensi belum aktif</span>
+            @endif
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+                <p class="label mb-1">Ekstensi PHP wajib (baca & tulis .xlsx)</p>
+                <ul class="flex flex-col gap-1">
+                    @foreach (\App\Services\ExcelImportService::EKSTENSI_EXCEL as $ext => $ket)
+                        <li class="flex items-center gap-2 text-body-sm">
+                            @if (extension_loaded($ext))
+                                <span class="material-symbols-outlined text-[16px] text-lunas-green">check_circle</span>
+                                <span class="mono font-medium">{{ $ext }}</span>
+                                <span class="text-secondary">{{ $ket }}</span>
+                            @else
+                                <span class="material-symbols-outlined text-[16px] text-danger-red">error</span>
+                                <span class="mono font-medium text-danger-red">{{ $ext }}</span>
+                                <span class="text-danger-red">{{ $ket }} — aktifkan di hPanel → PHP Configuration</span>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+            <div>
+                <p class="label mb-1">Nilai PHP aktif (server ini)</p>
+                <ul class="flex flex-col gap-1">
+                    @foreach ($excelEnv['ini'] as $nama => $nilai)
+                        <li class="flex items-center gap-2 text-body-sm">
+                            <span class="mono font-medium w-48">{{ $nama }}</span>
+                            <span class="mono">{{ $nilai }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+                <p class="hint mt-2">
+                    File Excel yang terlalu besar (mis. &gt; {{ $excelEnv['ini']['upload_max_filesize'] }}) ditolak saat upload —
+                    naikkan <span class="mono">upload_max_filesize</span> &amp; <span class="mono">post_max_size</span> di hPanel bila perlu.
+                </p>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')

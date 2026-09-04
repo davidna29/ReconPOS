@@ -13,6 +13,38 @@
         </div>
     </div>
 
+    <form method="GET" action="{{ $r('pembelian.invoice-lunas') }}" class="flex flex-wrap items-end gap-2">
+        <div>
+            <label class="label mb-0.5">Bulan</label>
+            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
+        </div>
+        <div>
+            <label class="label mb-0.5">Tahun</label>
+            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
+        </div>
+        <div>
+            <label class="label mb-0.5">Dari</label>
+            <input type="date" name="from" value="{{ request('from') }}" class="input">
+        </div>
+        <div>
+            <label class="label mb-0.5">Sampai</label>
+            <input type="date" name="to" value="{{ request('to') }}" class="input">
+        </div>
+        <div>
+            <label class="label mb-0.5">Supplier</label>
+            <select name="supplier" class="input w-48">
+                <option value="">Semua supplier</option>
+                @foreach (($suppliers ?? collect()) as $s)
+                    <option value="{{ $s->id }}" @selected((string) request('supplier') === (string) $s->id)>{{ $s->nama }}</option>
+                @endforeach
+            </select>
+        </div>
+        <button class="btn btn-primary btn-sm">
+            <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
+        </button>
+        <a href="{{ $r('pembelian.invoice-lunas') }}" class="btn btn-secondary btn-sm">Reset</a>
+    </form>
+
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
             @if (! $publik)

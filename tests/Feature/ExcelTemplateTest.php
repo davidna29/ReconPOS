@@ -6,9 +6,12 @@ use App\Models\Barang;
 use App\Models\InvoicePembelian;
 use App\Models\KategoriBarang;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Services\ExcelImportService;
 use App\Services\PembelianService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx as XlsxReader;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -547,5 +550,60 @@ class ExcelTemplateTest extends TestCase
         } catch (\App\Exceptions\ImportFileException $e) {
             $this->assertStringContainsString('File kosong', $e->getMessage());
         }
+    }
+
+    // ----------------------------------------------------------------------
+    // Diagnosa lingkungan: pre-flight ekstensi PHP (regresi 500 saat import
+    // di shared hosting yg ekstensi XML-reader tidak aktif tapi export jalan)
+    // ----------------------------------------------------------------------
+
+    public function test_cek_ekstensi_excel_semua_tersedia(): void
+    {
+        // Lingkungan lokal/dev harus punya semua ekstensi (zip, xml, dom,
+        // simplexml, xmlreader, xmlwriter, fileinfo, mbstring, iconv, gd).
+        $kurang = app(ExcelImportService::class)->cekEkstensiExcel();
+        $this->assertSame([], $kurang);
+    }
+
+    public function test_cek_ekstensi_excel_mendeteksi_yang_hilang(): void
+    {
+        // $periksa memakai subset/ekstensi sintetis agar hasil deterministik
+        // (tidak mungkin menonaktifkan ekstensi sungguhan di dalam test).
+        $kurang = app(ExcelImportService::class)->cekEkstensiExcel([
+            'zip' => 'keterangan zip',
+            'ekstensi_palsu_xyz' => 'keterangan palsu',
+        ]);
+        $this->assertArrayHasKey('ekstensi_palsu_xyz', $kurang, 'Ekstensi yang tidak ada harus terdeteksi.');
+        $this->assertArrayNotHasKey('zip', $kurang, 'Ekstensi yang ada tidak boleh masuk daftar hilang.');
+    }
+
+    public function test_upload_pembelian_error_teknis_tidak_jadi_500(): void
+    {
+        // Regresi: dulu fatal di XlsxReader (mis. ekstensi simplexml/xmlreader
+        // belum aktif di server) menghasilkan halaman putih 500. Sekarang harus
+        // redirect + flash error ramah + tercatat di log — bukan 500.
+        $user = User::create(['name' => 'Admin', 'email' => 'excel@a.id', 'password' => 'pass1234']);
+        $this->actingAs($user);
+
+        // File asli xlsx agar validasi mimes:xlsx lolos (konten diperiksa via finfo).
+        $p = $this->buatFilePembelian([
+            ['A' => 'E-X', 'B' => '2026-09-23 10:00', 'C' => 'PT X', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-X', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        $file = UploadedFile::fake()->createWithContent('upload-pembelian.xlsx', (string) file_get_contents($p));
+
+        // Service dilempar Throwable (simulasi ekstensi hilang / file korup di server).
+        $mock = \Mockery::mock(ExcelImportService::class);
+        $mock->shouldReceive('importPembelian')->once()
+            ->andThrow(new \RuntimeException('Simulasi: ekstensi simplexml tidak aktif'));
+        $this->app->instance(ExcelImportService::class, $mock);
+        Log::shouldReceive('error')->once();
+
+        $response = $this->post(route('pembelian.template.import'), ['file' => $file]);
+
+        $response->assertStatus(302); // redirect, bukan 500
+        $response->assertSessionHas('error', function (string $pesan) {
+            return str_contains($pesan, 'Terjadi kesalahan membaca file Excel');
+        });
+        $this->assertSame(0, InvoicePembelian::count()); // tidak ada data berubah
     }
 }

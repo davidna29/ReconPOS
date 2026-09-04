@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\TemplateExportPosConfig;
 use App\Models\TokoSetting;
+use App\Services\ExcelImportService;
 use App\Services\ExportPosService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +18,20 @@ class PengaturanController extends Controller
         $mapping = TemplateExportPosConfig::aktif($settings->template_version);
         $barangs = \App\Models\Barang::where('tipe_item', 'barang')->orderBy('kode_barang')->get();
 
-        return view('pengaturan.index', compact('settings', 'mapping', 'barangs'));
+        // Diagnosa lingkungan utk upload/import Excel (read-only, tanpa dependensi baru):
+        // di shared hosting ekstensi web PHP-FPM bisa beda dgn CLI — export jalan tapi import 500.
+        $excelEnv = [
+            'ekstensi' => app(ExcelImportService::class)->cekEkstensiExcel(),
+            'ini' => [
+                'PHP Versi' => PHP_VERSION,
+                'upload_max_filesize' => ini_get('upload_max_filesize') ?: '-',
+                'post_max_size' => ini_get('post_max_size') ?: '-',
+                'memory_limit' => ini_get('memory_limit') ?: '-',
+                'max_execution_time' => ini_get('max_execution_time') ?: '-',
+            ],
+        ];
+
+        return view('pengaturan.index', compact('settings', 'mapping', 'barangs', 'excelEnv'));
     }
 
     /** Simpan seluruh seksi pengaturan toko (PRD 4.5). */

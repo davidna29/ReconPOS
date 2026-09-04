@@ -28,10 +28,11 @@
         @endif
     </div>
 
-    <!-- Filter Periode + Kartu Omset (hanya admin) -->
-    @if (! $publik)
-    <form method="GET" action="{{ route('penjualan.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
-        @if ($sumber)<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+    <!-- Filter Periode + Kartu Omset (admin & publik — read-only di publik) — sinkron dengan list -->
+    <form method="GET" action="{{ $r('penjualan.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
+        @if (! $publik && !empty($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+        @if (request('q') !== null && request('q') !== '')<input type="hidden" name="q" value="{{ request('q') }}">@endif
+        @if (request('entries'))<input type="hidden" name="entries" value="{{ request('entries') }}">@endif
         <div>
             <label class="label mb-0.5">Bulan</label>
             <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
@@ -51,11 +52,9 @@
         <button class="btn btn-primary btn-sm">
             <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
         </button>
-        <a href="{{ route('penjualan.index') }}{{ $sumber ? '?sumber='.$sumber : '' }}" class="btn btn-secondary btn-sm">Reset</a>
+        <a href="{{ $r('penjualan.index') }}" class="btn btn-secondary btn-sm">Reset</a>
     </form>
-    @endif
 
-    @if (! $publik)
     <div class="relative mb-4 flex h-32 flex-col justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
         <div class="absolute -bottom-4 -right-4 opacity-5">
             <span class="material-symbols-outlined text-8xl">payments</span>
@@ -82,7 +81,6 @@
             @endif
         </div>
     </div>
-    @endif
 
     <div class="card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant p-3">
@@ -105,6 +103,10 @@
                 @endif
                 <form method="GET" class="flex items-center gap-2">
                     @if (! $publik && filled($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+                    @if (request('bulan'))<input type="hidden" name="bulan" value="{{ request('bulan') }}">@endif
+                    @if (request('tahun'))<input type="hidden" name="tahun" value="{{ request('tahun') }}">@endif
+                    @if (request('from'))<input type="hidden" name="from" value="{{ request('from') }}">@endif
+                    @if (request('to'))<input type="hidden" name="to" value="{{ request('to') }}">@endif
                     <select name="entries" class="input w-auto" onchange="this.form.submit()">
                         @foreach ([10, 25, 50, 100] as $n)
                             <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>

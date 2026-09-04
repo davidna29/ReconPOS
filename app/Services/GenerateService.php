@@ -12,6 +12,7 @@ use App\Models\TransaksiPenjualanItem;
 use DateTimeImmutable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 /**
@@ -65,7 +66,7 @@ class GenerateService
 
         // 1. sisa target = target - transaksi tersimpan pada periode (manual + rekonstruksi)
         $existingTotal = (int) TransaksiPenjualan::where('status', 'tersimpan')
-            ->whereBetween('tanggal_waktu', [$mulai->startOfDay(), $selesai->endOfDay()])
+            ->whereBetween('tanggal_waktu', [$mulai->copy()->startOfDay(), $selesai->copy()->endOfDay()])
             ->sum('total');
         $sisaTarget = max(0, $targetOmset - $existingTotal);
 
@@ -79,11 +80,25 @@ class GenerateService
         }
 
         // 2. Timeline ketersediaan stok & kapasitas maksimum
-        [$timeline, $kapasitas, $closedDays] = $this->bangunTimeline(
+        [$timeline, $kapasitas, $closedDays, $diagnose] = $this->bangunTimeline(
             $mulai->copy()->startOfDay(),
             $selesai->copy()->endOfDay(),
             (array) ($params['excluded_item_ids'] ?? []),
         );
+
+        // Log diagnosa untuk produksi
+        Log::info('Generate diagnose', [
+            'periode' => $mulai->toDateString() . ' - ' . $selesai->toDateString(),
+            'target' => $targetOmset,
+            'existing' => $existingTotal,
+            'sisaTarget' => $sisaTarget,
+            'kapasitasPeak' => $diagnose['kapasitasPeak'],
+            'kapasitasFinal' => $diagnose['kapasitasFinal'],
+            'kapasitasDipakai' => $kapasitas,
+            'totalWeight' => $diagnose['totalWeight'],
+            'openDays' => $diagnose['openDays'],
+            'closedDays' => count($closedDays),
+        ]);
 
         // 3. Cek kapasitas: warning + 2 opsi (lanjut semaksimal / batal)
         if ($kapasitas < $sisaTarget && ! $force) {
@@ -138,6 +153,8 @@ class GenerateService
                 'existing_total' => $existingTotal,
                 'sisa_target' => $sisaTarget,
                 'kapasitas' => $kapasitas,
+                'kapasitasPeak' => $diagnose['kapasitasPeak'],
+                'kapasitasFinal' => $diagnose['kapasitasFinal'],
             ],
             'status' => 'draft',
             'total_generate' => $total,
@@ -182,9 +199,55 @@ class GenerateService
     }
 
     /**
+     * Diagnosa produksi: hitung timeline, kapasitas, weight tanpa generate.
+     * Berguna untuk artisan generate:diagnose atau debug.
+     */
+    public function diagnose(Carbon $mulai, Carbon $selesai, array $excluded = []): array
+    {
+        [$timeline, $kapasitas, $closedDays, $diag] = $this->bangunTimeline($mulai, $selesai, $excluded);
+        // hitung weights juga
+        $days = [];
+        for ($d = $mulai->copy(); $d->lte($selesai); $d->addDay()) {
+            $days[$d->toDateString()] = $d->copy();
+        }
+        $weights = [];
+        $totalWeight = 0;
+        foreach ($days as $key => $day) {
+            if (isset($closedDays[$key])) {
+                continue;
+            }
+            $w = (int) KartuStok::whereIn('barang_id', array_keys($timeline ?: [0]))
+                ->where('tanggal', '>=', $day->copy()->startOfDay())
+                ->where('tanggal', '<=', $day->copy()->endOfDay())
+                ->where('qty', '>', 0)
+                ->sum('qty');
+            $weights[$key] = $w;
+            $totalWeight += $w;
+        }
+        // fallback uniform jika totalWeight 0 tapi ada avail
+        $hasAvail = false;
+        foreach ($timeline as $perDay) {
+            foreach ($perDay as $q) {
+                if ($q > 0) {
+                    $hasAvail = true;
+                    break 2;
+                }
+            }
+        }
+        return array_merge($diag, [
+            'timeline' => $timeline,
+            'closedDays' => $closedDays,
+            'weights' => $weights,
+            'totalWeight' => $totalWeight,
+            'hasAvail' => $hasAvail,
+            'kapasitas' => $kapasitas,
+        ]);
+    }
+
+    /**
      * Bangun ketersediaan per hari + kapasitas maksimum.
      *
-     * @return array{0: array, 1: int, 2: array} [timeline, kapasitas, closedDays]
+     * @return array{0: array, 1: int, 2: array, 3: array} [timeline, kapasitas, closedDays, diagnose]
      *   timeline = [barang_id => [dayKey => int qty tersedia di awal hari]]
      */
     private function bangunTimeline(Carbon $mulai, Carbon $selesai, array $excluded): array
@@ -205,40 +268,71 @@ class GenerateService
         }
 
         $timeline = [];
-        $kapasitas = 0;
+        $kapasitasPeak = 0;
+        $kapasitasFinal = 0;
         $closedDays = [];
 
         $settings = TokoSetting::utama();
         $libur = $settings->hari_libur ?? ['dates' => [], 'weekly' => []];
 
+        // Preload barang map
+        $barangMap = $barangs->keyBy('id');
+
         foreach ($barangs as $barang) {
             $ev = $events->get($barang->id, collect());
-            $balance = 0;
             $masukPerHari = []; // qty masuk per hari
             $penjualanHari = []; // qty keluar per hari (nilai positif)
+            $initialBalance = 0;
 
             foreach ($ev as $row) {
                 $tgl = Carbon::parse($row->tanggal);
-                if ($row->qty > 0) {
-                    $masukPerHari[$tgl->toDateString()] = ($masukPerHari[$tgl->toDateString()] ?? 0) + $row->qty;
+                $key = $tgl->toDateString();
+                // Pisahkan stok sebelum periode sebagai initial
+                if ($tgl->lt($mulai)) {
+                    $initialBalance += (int) $row->qty;
                 } else {
-                    $penjualanHari[$tgl->toDateString()] = ($penjualanHari[$tgl->toDateString()] ?? 0) + abs($row->qty);
+                    if ($row->qty > 0) {
+                        $masukPerHari[$key] = ($masukPerHari[$key] ?? 0) + $row->qty;
+                    } else {
+                        $penjualanHari[$key] = ($penjualanHari[$key] ?? 0) + abs($row->qty);
+                    }
                 }
             }
 
+            $balance = $initialBalance;
             $peakAvail = 0;
             foreach ($days as $key => $day) {
                 // ketersediaan di awal hari = saldo sebelumnya - penjualan hari tsb (konservatif)
-                $timeline[$barang->id][$key] = $balance - ($penjualanHari[$key] ?? 0);
+                // penjualan hari tsb sudah terjadi (historis) sehingga mengurangi avail untuk generate
+                $availAwal = $balance - ($penjualanHari[$key] ?? 0);
+                // avail tidak boleh negatif (stok minus historis ditampilkan tapi tidak dipakai generate)
+                $availAwal = max(0, $availAwal);
+                $timeline[$barang->id][$key] = $availAwal;
                 $balance += ($masukPerHari[$key] ?? 0) - ($penjualanHari[$key] ?? 0);
-                if ($timeline[$barang->id][$key] > $peakAvail) {
-                    $peakAvail = $timeline[$barang->id][$key];
+                if ($availAwal > $peakAvail) {
+                    $peakAvail = $availAwal;
                 }
             }
-            // kapasitas periode = total unit TERJUAL-maksimum (peak avail) x harga jual MASTER
+            // kapasitas periode = peak avail x harga jual MASTER (konservatif: tidak termasuk masuk hari terakhir)
+            // dan final balance (sisa akhir) x harga — ambil yang lebih kecil sebagai kapasitas real (tidak jual stok hari terakhir)
             if ($peakAvail > 0) {
-                $kapasitas += $peakAvail * (int) $barang->harga_jual;
+                $kapasitasPeak += $peakAvail * (int) $barang->harga_jual;
             }
+            // final balance = stock tersisa di akhir periode (termasuk masuk hari terakhir, tapi konservatif peak lebih akurat)
+            $finalAvail = max(0, $balance - ($masukPerHari[$selesai->toDateString()] ?? 0));
+            // Jika ada masuk di hari terakhir, finalAvail sudah dikurangi di atas agar tidak jual stok H terakhir di hari itu
+            // Alternatif: gunakan $balance yang sudah termasuk semua, tapi peak sudah benar untuk kapasitas generate
+            if ($finalAvail > 0) {
+                $kapasitasFinal += $finalAvail * (int) $barang->harga_jual;
+            }
+        }
+
+        // Kapasitas dipakai = peak (yang tidak menjual stok H di hari H) — paling akurat untuk generate dalam periode
+        // Namun untuk diagnosa, simpan keduanya; pakai peak sebagai kapasitas utama
+        $kapasitas = $kapasitasPeak;
+        // Jika peak 0 tapi final >0 (kasus masuk hanya di hari terakhir), fallback ke final
+        if ($kapasitas === 0 && $kapasitasFinal > 0) {
+            $kapasitas = $kapasitasFinal;
         }
 
         // hari libur/tutup toko
@@ -248,7 +342,14 @@ class GenerateService
             }
         }
 
-        return [$timeline, $kapasitas, $closedDays];
+        $diagnose = [
+            'kapasitasPeak' => $kapasitasPeak,
+            'kapasitasFinal' => $kapasitasFinal,
+            'totalWeight' => 0, // diisi caller jika perlu
+            'openDays' => count($days) - count($closedDays),
+        ];
+
+        return [$timeline, $kapasitas, $closedDays, $diagnose];
     }
 
     private function isHariLibur(Carbon $day, array $libur): bool
@@ -295,18 +396,19 @@ class GenerateService
             $days[$d->toDateString()] = $d->copy();
         }
 
-        // bobot harian dari jumlah stok masuk (PRD 6 poin 4)
+        // bobot harian dari stok tersedia di awal hari (avail), bukan stok masuk hari itu.
+        // Alasan: stok masuk H baru bisa dipakai H+1 (konservatif), jadi bobot berat harus di hari
+        // dimana stok benar-benar tersedia untuk dijual, bukan hari masuknya.
         $weights = [];
         $totalWeight = 0;
         foreach ($days as $key => $day) {
             if (isset($closedDays[$key])) {
                 continue;
             }
-            $w = (int) KartuStok::whereIn('barang_id', array_keys($timeline))
-                ->where('tanggal', '>=', $day->copy()->startOfDay())
-                ->where('tanggal', '<=', $day->copy()->endOfDay())
-                ->where('qty', '>', 0)
-                ->sum('qty');
+            $w = 0;
+            foreach ($timeline as $perDay) {
+                $w += (int) ($perDay[$key] ?? 0);
+            }
             $weights[$key] = $w;
             $totalWeight += $w;
         }
@@ -323,6 +425,8 @@ class GenerateService
         $avail = [];
         $unitSisa = [];
         $daysItem = []; // hari yg valid utk tiap barang = hari dgn avail > 0
+        // Preload barang map untuk hindari N+1
+        $barangMap = Barang::whereIn('id', array_keys($timeline))->get()->keyBy('id');
         foreach ($timeline as $barangId => $perDay) {
             $peak = 0;
             $daysItem[$barangId] = [];
@@ -341,163 +445,259 @@ class GenerateService
         // SN tersedia global (1 nomor hanya 1x — aturan keras)
         $snPool = [];
         foreach ($timeline as $barangId => $_) {
-            $b = Barang::find($barangId);
+            $b = $barangMap->get($barangId);
             if ($b && $b->isSn()) {
                 $snPool[$barangId] = ReferensiSn::where('barang_id', $barangId)
                     ->where('status', 'tersedia')
                     ->orderBy('id')
                     ->pluck('no_sn')
                     ->all();
+                // Jika stok SN habis (pool kosong) tapi timeline bilang avail >0, anggap 0
+                if (count($snPool[$barangId]) === 0) {
+                    $unitSisa[$barangId] = 0;
+                } else {
+                    // Batasi unitSisa SN dengan jumlah SN tersedia
+                    $unitSisa[$barangId] = min($unitSisa[$barangId], count($snPool[$barangId]));
+                }
             }
+        }
+
+        // ---- Alokasi target per hari (proporsional bobot + jitter) ----
+        $openDays = array_keys($weights);
+        $dayTargets = [];
+        $remainingTarget = $target;
+        // jitter per hari
+        $jitteredWeights = [];
+        $jitterSum = 0;
+        foreach ($openDays as $key) {
+            $jitter = (rand(80, 120) / 100); // 0.8 - 1.2
+            $jw = $weights[$key] * $jitter;
+            $jitteredWeights[$key] = $jw;
+            $jitterSum += $jw;
+        }
+        $allocated = 0;
+        $lastKey = end($openDays);
+        foreach ($openDays as $key) {
+            if ($key === $lastKey) {
+                $dayTargets[$key] = $remainingTarget - $allocated;
+            } else {
+                $portion = $jitteredWeights[$key] / max(1, $jitterSum);
+                $dayTargets[$key] = (int) round($target * $portion);
+                $allocated += $dayTargets[$key];
+            }
+            // Pastikan tidak negatif
+            $dayTargets[$key] = max(0, $dayTargets[$key]);
+        }
+        // Normalisasi jika rounding menyebabkan sum != target (sudah ditangani via lastKey, tapi jaga)
+        $sumDayTargets = array_sum($dayTargets);
+        if ($sumDayTargets !== $target && $sumDayTargets > 0) {
+            $diff = $target - $sumDayTargets;
+            $dayTargets[$lastKey] = max(0, $dayTargets[$lastKey] + $diff);
         }
 
         $transaksi = [];
         $notaSeq = 0;
-        $sisa = max(0, $target);
-        $openDays = array_keys($weights);
 
         // Ketersediaan per hari = timeline hari itu - konsumsi simulasi s.d. hari itu (running balance)
         $simSold = [];              // total unit barang terjual simulasi (seluruh hari s.d. sekarang)
         $soldToday = [];            // soldToday[barang][day] — kuota hari itu yg sudah dipakai simulasi
 
-        // isi global: jual unit hingga sisa tercapai / stok habis
         $sales = []; // [dayKey][] = ['barang_id', 'qty', 'price', 'no_sn']
-        $guard = 0;
-        while ($sisa > 0 && $guard++ < 20000) {
-            // barang dengan unit tersisa
-            $candidates = [];
-            foreach ($unitSisa as $barangId => $u) {
-                if ($u > 0 && ! empty($daysItem[$barangId])) {
-                    $candidates[] = (int) $barangId;
-                }
-            }
-            if (count($candidates) === 0) {
-                break;
-            }
 
-            // pilih barang: dahulukan yang masih "terjangkau" sisa target,
-            // di akhir (sisa < semua harga) ambil barang termurah agar overshoot minimal.
-            $byid = [];
-            foreach ($candidates as $cand) {
-                $byid[$cand] = Barang::find($cand);
+        // ---- Generate per hari ----
+        $debugPerHari = [];
+        foreach ($openDays as $dayKey) {
+            $dayTarget = $dayTargets[$dayKey] ?? 0;
+            if ($dayTarget <= 0) {
+                continue;
             }
-            $affordable = [];
-            $cheapest = null;
-            $cheapestPrice = PHP_INT_MAX;
-            foreach ($byid as $cand => $bobj) {
-                if (! $bobj) {
-                    continue;
-                }
-                $peek = (int) $this->hargaV($cand, $days[end($daysItem[$cand])] ?? $days[array_key_first($days)]);
-                if ($peek <= $sisa) {
-                    $affordable[] = $cand;
-                }
-                if ($peek < $cheapestPrice) {
-                    $cheapestPrice = $peek;
-                    $cheapest = $cand;
-                }
-            }
-            foreach ($byid as $cand => $bobj) {
-                // SN berpeluang terpilih HANYA bila harganya terjangkau sisa target
-                // (atau mode semaksimal stok) — hindari 1 barang SN meledakkan target kecil.
-                if ($bobj && $bobj->isSn() && count($snPool[$cand] ?? []) > 0) {
-                    $peek = (int) $this->hargaV($cand, $days[end($daysItem[$cand])] ?? $days[array_key_first($days)]);
-                    if ($peek <= $sisa || $kapasitasKurang) {
-                        $affordable[] = $cand;
+            $sisaDay = $dayTarget;
+            $attempts = 0;
+            $maxAttemptsPerDay = 5000; // batas aman per hari
+            $awalCount = count($sales[$dayKey] ?? []);
+            while ($sisaDay > 0 && $attempts++ < $maxAttemptsPerDay) {
+                // barang dengan unit tersisa DAN punya avail hari ini
+                $candidates = [];
+                foreach ($unitSisa as $barangId => $u) {
+                    if ($u <= 0) {
+                        continue;
+                    }
+                    if (empty($daysItem[$barangId])) {
+                        continue;
+                    }
+                    $hariBatas = ($timeline[$barangId][$dayKey] ?? 0) - ($simSold[$barangId] ?? 0) - ($soldToday[$barangId][$dayKey] ?? 0);
+                    if ($hariBatas > 0) {
+                        $candidates[$barangId] = $hariBatas;
                     }
                 }
-            }
-            $pickFrom = count($affordable) > 0 ? array_values(array_unique($affordable)) : ($cheapest !== null ? [$cheapest] : []);
-            if (count($pickFrom) === 0) {
-                $unitSisa[$candidates[array_rand($candidates)]] = 0;
-                continue;
-            }
-            $totalU = 0;
-            $uMap = [];
-            foreach ($pickFrom as $cand) {
-                $uMap[$cand] = $unitSisa[$cand];
-                $totalU += $unitSisa[$cand];
-            }
-            $roll = rand(1, max(1, $totalU));
-            $bid = null;
-            foreach ($pickFrom as $cand) {
-                $roll -= $uMap[$cand];
-                if ($roll <= 0) {
-                    $bid = $cand;
-                    break;
+                if (count($candidates) === 0) {
+                    break; // stok hari ini habis
                 }
-            }
-            $bid ??= $pickFrom[array_rand($pickFrom)];
 
-            // pilih hari valid utk barang tsb (bobot = bobot stok masuk hari itu)
-            $validDays = array_values(array_intersect($daysItem[$bid], $openDays));
-            if (count($validDays) === 0) {
-                $unitSisa[$bid] = 0;
-                continue;
-            }
-            $dayWeights = [];
-            foreach ($validDays as $dk) {
-                $dayWeights[$dk] = max(1, $weights[$dk]);
-            }
-            $totalDw = array_sum($dayWeights);
-            $rollD = rand(1, $totalDw);
-            $dayKey = null;
-            foreach ($dayWeights as $dk => $dw) {
-                $rollD -= $dw;
-                if ($rollD <= 0) {
-                    $dayKey = $dk;
-                    break;
+                // Pilih barang: weighted by hariBatas (stok hari ini)
+                $totalHariBatas = array_sum($candidates);
+                $roll = rand(1, max(1, $totalHariBatas));
+                $bid = null;
+                foreach ($candidates as $cand => $hb) {
+                    $roll -= $hb;
+                    if ($roll <= 0) {
+                        $bid = $cand;
+                        break;
+                    }
                 }
-            }
-            $dayKey ??= $validDays[0];
+                $bid ??= array_key_first($candidates);
 
-            $b = Barang::find($bid);
-            if (! $b) {
-                $unitSisa[$bid] = 0;
-                continue;
-            }
-
-            [$hargaJual, $hargaBeli] = $this->hargaBarang($bid, $days[$dayKey]);
-            $price = $this->variasiHarga($hargaJual, $hargaBeli, $variasiMin, $variasiMax);
-
-            // qty untuk mengisi sisa (paling akhir 1 unit — adjust harga menyempurnakan)
-            // cap ganda: unit tersisa periode (peak) DAN sisa hari itu (running balance simulasi)
-            $hariBatas = ($timeline[$bid][$dayKey] ?? 0) - ($simSold[$bid] ?? 0) - ($soldToday[$bid][$dayKey] ?? 0);
-            $qty = 1;
-            if ($sisa >= $price) {
-                $qty = (int) floor($sisa / $price);
-            }
-            // cap qty per entri penjualan per item — dipecah lintas nota saat packaging (PRD realisme)
-            $qty = min($qty, $unitSisa[$bid], max(0, $hariBatas), $maksQtyPerNota);
-            if ($qty <= 0) {
-                // hari itu sudah habis kuota simulasi — lewati barang ini utk hari tsb
-                $soldToday[$bid][$dayKey] = PHP_INT_MAX;
-                $unitSisa[$bid] = $unitSisa[$bid] > 0 ? -1 : $unitSisa[$bid]; // blokir pilihan hari itu
-                continue;
-            }
-            $qty = max(1, $qty);
-
-            // barang ber-SN: qty wajib 1 + NO_SN unik
-            $noSn = null;
-            if ($b->isSn()) {
-                if (count($snPool[$bid] ?? []) === 0) {
+                $b = $barangMap->get($bid);
+                if (! $b) {
                     $unitSisa[$bid] = 0;
                     continue;
                 }
-                $qty = 1;
-                $noSn = array_pop($snPool[$bid]);
+
+                // Harga
+                [$hargaJual, $hargaBeli] = $this->hargaBarang($bid, $days[$dayKey]);
+                $price = $this->variasiHarga($hargaJual, $hargaBeli, $variasiMin, $variasiMax);
+
+                // Tentukan qty: acak 1..max yang terjangkau
+                $hariBatas = $candidates[$bid];
+                $maxQtyHari = min($hariBatas, $unitSisa[$bid], $maksQtyPerNota);
+                if ($b->isSn()) {
+                    if (count($snPool[$bid] ?? []) === 0) {
+                        $unitSisa[$bid] = 0;
+                        continue;
+                    }
+                    $maxQtyHari = 1;
+                }
+                if ($maxQtyHari <= 0) {
+                    $soldToday[$bid][$dayKey] = PHP_INT_MAX; // tandai hari habis untuk barang ini
+                    continue;
+                }
+
+                // Batasi qty agar tidak melebihi sisaDay terlalu jauh, tapi tetap acak
+                $affordableQty = $maxQtyHari;
+                if ($price > 0 && $sisaDay < $price * $maxQtyHari) {
+                    $affordableQty = max(1, min($maxQtyHari, (int) floor($sisaDay / $price) + rand(0, 1)));
+                    // Jika sisaDay < price, tetap 1 (overshoot diperbolehkan, nanti disesuaikan)
+                    if ($sisaDay < $price) {
+                        $affordableQty = 1;
+                    }
+                }
+                // Random qty 1..affordableQty untuk variasi
+                $qty = $affordableQty > 1 ? rand(1, $affordableQty) : 1;
+                // Pastikan tidak melebihi hariBatas
+                $qty = min($qty, $hariBatas, $unitSisa[$bid]);
+
+                if ($qty <= 0) {
+                    $soldToday[$bid][$dayKey] = PHP_INT_MAX;
+                    continue;
+                }
+
+                // SN handling
+                $noSn = null;
+                if ($b->isSn()) {
+                    $qty = 1;
+                    $noSn = array_pop($snPool[$bid]);
+                    if ($noSn === null) {
+                        $unitSisa[$bid] = 0;
+                        continue;
+                    }
+                }
+
+                $sales[$dayKey][] = [
+                    'barang_id' => $bid,
+                    'qty' => $qty,
+                    'price' => $price,
+                    'no_sn' => $noSn,
+                ];
+                $unitSisa[$bid] -= $qty;
+                $simSold[$bid] = ($simSold[$bid] ?? 0) + $qty;
+                $soldToday[$bid][$dayKey] = ($soldToday[$bid][$dayKey] ?? 0) + $qty;
+                $sisaDay -= $qty * $price;
+                // Jika sisaDay negatif (overshoot), tetap lanjut tapi akan dikoreksi penyesuaianAkhir
+                // Untuk hari ini, jika overshoot besar, break hari
+                if ($sisaDay <= - ($price * 2)) {
+                    break;
+                }
             }
 
-            $sales[$dayKey][] = [
-                'barang_id' => $bid,
-                'qty' => $qty,
-                'price' => $price,
-                'no_sn' => $noSn,
+            $debugPerHari[$dayKey] = [
+                'target' => $dayTarget,
+                'sisaDayAwal' => $sisaDay,
+                'generated' => count($sales[$dayKey] ?? []) - $awalCount,
+                'sisaDayAkhir' => $sisaDay,
             ];
-            $unitSisa[$bid] -= $qty;
-            $simSold[$bid] = ($simSold[$bid] ?? 0) + $qty;
-            $soldToday[$bid][$dayKey] = ($soldToday[$bid][$dayKey] ?? 0) + $qty;
-            $sisa -= $qty * $price;
+        }
+
+        Log::debug('Generate per-hari debug', ['dayTargets' => $dayTargets, 'debugPerHari' => $debugPerHari, 'weights' => $weights]);
+        // Jika masih ada sisa global yang besar (karena per-hari target tidak tercapai akibat stok hari habis),
+        // lakukan pengisian global tambahan untuk menutup sisa (memaksimalkan)
+        $totalSales = 0;
+        foreach ($sales as $daySales) {
+            foreach ($daySales as $s) {
+                $totalSales += $s['qty'] * $s['price'];
+            }
+        }
+        $sisaGlobal = $target - $totalSales;
+        if ($sisaGlobal > 0 && ! $kapasitasKurang) {
+            // Coba isi sisa global dengan loop tambahan (maksimal 5000 iterasi)
+            $guard = 0;
+            while ($sisaGlobal > 0 && $guard++ < 5000) {
+                $candidates = [];
+                foreach ($unitSisa as $bid => $u) {
+                    if ($u > 0) {
+                        // Cari hari dengan sisa avail terbesar untuk barang ini
+                        $bestDay = null;
+                        $bestAvail = 0;
+                        foreach ($openDays as $dk) {
+                            $hb = ($timeline[$bid][$dk] ?? 0) - ($simSold[$bid] ?? 0) - ($soldToday[$bid][$dk] ?? 0);
+                            if ($hb > $bestAvail) {
+                                $bestAvail = $hb;
+                                $bestDay = $dk;
+                            }
+                        }
+                        if ($bestDay !== null && $bestAvail > 0) {
+                            $candidates[$bid] = ['day' => $bestDay, 'avail' => $bestAvail];
+                        }
+                    }
+                }
+                if (empty($candidates)) {
+                    break;
+                }
+                // Pilih barang dengan avail terbesar
+                uasort($candidates, fn($a,$b) => $b['avail'] <=> $a['avail']);
+                $bid = array_key_first($candidates);
+                $dayKey = $candidates[$bid]['day'];
+                $b = $barangMap->get($bid);
+                if (!$b) {
+                    $unitSisa[$bid]=0;
+                    continue;
+                }
+                [$hargaJual, $hargaBeli] = $this->hargaBarang($bid, $days[$dayKey]);
+                $price = $this->variasiHarga($hargaJual, $hargaBeli, $variasiMin, $variasiMax);
+                $hariBatas = $candidates[$bid]['avail'];
+                $maxQty = min($hariBatas, $unitSisa[$bid], $maksQtyPerNota);
+                if ($b->isSn()) {
+                    if (empty($snPool[$bid])) {
+                        $unitSisa[$bid]=0;
+                        continue;
+                    }
+                    $maxQty=1;
+                }
+                if ($maxQty <=0) {
+                    $soldToday[$bid][$dayKey]=PHP_INT_MAX;
+                    continue;
+                }
+                $qty = $maxQty >1 ? rand(1, $maxQty) : 1;
+                $noSn = null;
+                if ($b->isSn()) {
+                    $noSn = array_pop($snPool[$bid]);
+                }
+                $sales[$dayKey][] = ['barang_id'=>$bid,'qty'=>$qty,'price'=>$price,'no_sn'=>$noSn];
+                $unitSisa[$bid]-=$qty;
+                $simSold[$bid]=($simSold[$bid]??0)+$qty;
+                $soldToday[$bid][$dayKey]=($soldToday[$bid][$dayKey]??0)+$qty;
+                $sisaGlobal -= $qty*$price;
+                if ($sisaGlobal < -($price*5)) break;
+            }
         }
 
         // Paketkan penjualan per hari menjadi nota (PRD 6; parametrik):
@@ -583,6 +783,44 @@ class GenerateService
                             $notas[$idx]['qty'][$barangId] = ($notas[$idx]['qty'][$barangId] ?? 0) + $qty;
                         }
                     }
+                }
+            }
+
+            // Enforce notaMin: jika notas < notaMin dan masih ada stok hari ini, pecah nota yang ada
+            // (mis. nota dengan qty 3 pecah jadi 2 nota qty 1+2) untuk mencapai minimal
+            if (count($notas) < $notaMin && count($notas) > 0) {
+                // Coba pecah nota terbesar
+                while (count($notas) < $notaMax && count($notas) < $notaMin) {
+                    // Cari nota dengan item qty >1 yang bisa dipecah
+                    $pecahIdx = null;
+                    foreach ($notas as $i => $n) {
+                        foreach ($n['items'] as $it) {
+                            if ($it['qty'] > 1 && $it['no_sn'] === null) {
+                                $pecahIdx = $i;
+                                break 2;
+                            }
+                        }
+                    }
+                    if ($pecahIdx === null) break;
+                    // Pecah 1 unit dari nota tersebut ke nota baru
+                    $itemIdx = null;
+                    foreach ($notas[$pecahIdx]['items'] as $j => $it) {
+                        if ($it['qty'] > 1 && $it['no_sn'] === null) {
+                            $itemIdx = $j;
+                            break;
+                        }
+                    }
+                    if ($itemIdx === null) break;
+                    $notas[$pecahIdx]['items'][$itemIdx]['qty'] -= 1;
+                    // Buat nota baru dengan 1 unit
+                    $newEntri = $notas[$pecahIdx]['items'][$itemIdx];
+                    $newEntri['qty'] = 1;
+                    // harga tetap
+                    $notas[] = [
+                        'items' => [$newEntri],
+                        'barang' => [$newEntri['barang_id'] => true],
+                        'qty' => [$newEntri['barang_id'] => 1],
+                    ];
                 }
             }
 
@@ -672,12 +910,20 @@ class GenerateService
         $sisaTotal = [];
         foreach ($avail as $barangId => $perDay) {
             $sisaTotal[$barangId] = count($perDay) > 0 ? (int) max($perDay) : 0;
+            // Kurangi yang sudah terpakai di transaksi
+            foreach ($transaksi as $t) {
+                foreach ($t['items'] as $it) {
+                    if ($it['barang_id'] == $barangId) {
+                        $sisaTotal[$barangId] = max(0, $sisaTotal[$barangId] - $it['qty']);
+                    }
+                }
+            }
         }
 
         $batasBawah = (int) floor($target * (1 - $toleransi / 100));
         $batasAtas = (int) ceil($target * (1 + $toleransi / 100));
 
-        for ($iter = 0; $iter < 120; $iter++) {
+        for ($iter = 0; $iter < 300; $iter++) {
             $total = (int) array_sum(array_column($transaksi, 'total'));
             if ($total >= $batasBawah && $total <= $batasAtas) {
                 break;
@@ -749,11 +995,18 @@ class GenerateService
                 }
 
                 if ($kebutuhan > 0) {
-                    // 3) nota top-up di hari yang masih punya stok tersisa
-                    $topUp = $this->buatNotaTopUp($sisaTotal, $avail, $kebutuhan, $notaSeq, $jamBuka, $jamTutup, $maksQtyPerNota);
-                    if ($topUp) {
-                        $transaksi[] = $topUp;
-                        $diproses = true;
+                    // 3) nota top-up — buat batch hingga kebutuhan terpenuhi (bukan 1 nota saja)
+                    $topUpCount = 0;
+                    while ($kebutuhan > 0 && $topUpCount < 20) {
+                        $topUp = $this->buatNotaTopUp($sisaTotal, $avail, $kebutuhan, $notaSeq, $jamBuka, $jamTutup, $maksQtyPerNota);
+                        if ($topUp) {
+                            $transaksi[] = $topUp;
+                            $kebutuhan -= $topUp['total'];
+                            $diproses = true;
+                            $topUpCount++;
+                        } else {
+                            break;
+                        }
                     }
                 }
 
@@ -817,13 +1070,22 @@ class GenerateService
 
                 if ($overshoot > 0) {
                     // 3) drop nota paling belakang — hanya bila hasilnya masih >= batas bawah
-                    if (count($transaksi) > 1) {
-                        $afterPop = $total - end($transaksi)['total'];
-                        if ($afterPop >= $batasBawah) {
+                    // Drop bisa beberapa nota jika overshoot besar
+                    while ($overshoot > 0 && count($transaksi) > 1) {
+                        $lastTotal = end($transaksi)['total'];
+                        $afterPop = $total - $lastTotal;
+                        // Hitung total setelah pop
+                        $totalAfterPop = $total - $lastTotal;
+                        if ($totalAfterPop >= $batasBawah) {
                             array_pop($transaksi);
+                            $total = $totalAfterPop;
+                            $overshoot = $total - $batasAtas;
                             $dikurangi = true;
+                        } else {
+                            break;
                         }
-                    } else {
+                    }
+                    if (!$dikurangi && count($transaksi) === 1) {
                         // nota tunggal: hapus item non-SN terakhir (pertahankan >= 1 item)
                         $t = &$transaksi[0];
                         if (count($t['items']) > 1) {

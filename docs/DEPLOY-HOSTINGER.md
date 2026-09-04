@@ -115,17 +115,24 @@ Catatan penting:
 
 1. hPanel -> **PHP** -> pilih website/domain Anda.
 2. Set **PHP version = 8.3** (atau 8.4 kalau tersedia; minimal 8.3).
-3. Di bagian ekstensi/extension, **aktifkan** yang dibutuhkan aplikasi ini:
+3. Di bagian ekstensi/extension, **aktifkan yang dibutuhkan aplikasi ini** (wajib SEMUA — ada yang khusus untuk **baca** dan ada yang khusus untuk **tulis** Excel):
 
     pdo_mysql   (koneksi MySQL)
     mbstring    (string/fungsi tanggal Indonesia)
-    zip         (menulis file Excel .xlsx via PhpSpreadsheet)
+    zip         (membuka kontainer .xlsx - ZipArchive; dipakai baca & tulis)
     gd          (gambar barcode PNG - picqer)
     xml, dom, simplexml, xmlreader, xmlwriter, libxml  (PhpSpreadsheet / Excel)
-    fileinfo    (validasi upload file, mis. import Excel)
+    fileinfo    (validasi upload file, mis. import Excel: mimes:xlsx)
     iconv, zlib, ctype, filter, openssl, session, tokenizer, hash  (Laravel/dasar)
     curl        (HTTP, jika dipakai)
     intl        (opsional - format tanggal/lokale yang lebih baik)
+
+   > **Wajib dipahami (ini penyebab "upload 500 tapi download/export jalan"):**
+   > PhpSpreadsheet **membaca** file .xlsx memakai `simplexml`, `dom`, `xml`, `xmlreader`
+   > (parsing XML OOXML); sedangkan **menulis** file .xlsx (download template & export
+   > Format A/B) hanya butuh `xmlwriter` + `zip`. Jadi kalau ekstensi XML-reader di atas
+   > tidak aktif: **download & export tetap jalan, tapi upload/import Excel gagal**
+   > (halaman putih/500). Aktifkan semuanya, simpan, lalu `php artisan optimize:clear`.
 
 4. Simpan. Hostinger akan meng-reload PHP otomatis.
 
@@ -204,13 +211,19 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 ## 10. Cache produksi
 
     php artisan storage:link          # opsional (aplikasi ini tidak wajib, karena file export tersimpan di storage private)
-    php artisan config:cache
-    php artisan route:cache
-    php artisan view:cache
 
-> Setiap kali Anda mengubah isi `.env` atau kode, jalankan ulang cache: `php artisan optimize:clear` lalu `php artisan config:cache route:cache view:cache`.
+> **Gunakan SATU binari PHP untuk semua perintah artisan.** Di Hostinger CLI default (`php`) sering berbeda versi dengan web PHP-nya (mis. CLI = 8.2, web = 8.4). Campur dua binari bisa membuat file cache menjadi tidak sinkron. Pakai binari yang sesuai versi web (biasanya `/opt/alt/phpXX/usr/bin/php`) dan jalankan berurutan dalam satu rangkaian:
+
+    /opt/alt/php84/usr/bin/php artisan optimize:clear
+    /opt/alt/php84/usr/bin/php artisan config:cache
+    /opt/alt/php84/usr/bin/php artisan route:cache
+    /opt/alt/php84/usr/bin/php artisan view:cache
+
+> Setiap kali Anda mengubah isi `.env` atau kode, jalankan ulang cache: `optimize:clear` lalu `config:cache` + `route:cache` + `view:cache` (jangan menjalankan beberapa sub-perintah sekaligus dalam satu baris `artisan config:cache route:cache` — artisan hanya menerima SATU perintah per pemanggilan).
 >
-> **Penting utk route BARU (mis. menambah fitur `/publik`)**: kalau `route:cache` tidak dijalankan ulang setelah upload kode baru, semua route baru akan **404 di hosting**. Jalankan `php artisan optimize:clear` dulu (menghapus file `bootstrap/cache/routes-*.php`), baru cache lagi.
+> **Penting utk route BARU (mis. menambah fitur `/publik`)**: kalau `route:cache` tidak dijalankan ulang setelah upload kode baru, semua route baru akan **404 di hosting**. `optimize:clear` wajib dijalankan dulu (menghapus file `bootstrap/cache/routes-*.php`), baru cache lagi.
+>
+> **Saat ragu / baru-baru error cache**: cukup jalankan `route:clear` (membuat Laravel membaca `routes/web.php` langsung tiap request) lalu `optimize`/cache satu-rangkaian.
 
 ## 11. SSL & HTTPS (wajib kalau pakai https)
 
@@ -241,6 +254,9 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 | halaman muat tetapi tampilan berantakan | aset belum dibuild | Jalankan `npm run build` di laptop, upload ulang folder `public/build`. |
 | Login selalu gagal | salah email/password atau seed belum jalan | `php artisan migrate --seed --force`; pastikan akun admin@gentot.local ada di tabel users. |
 | Error soal ekstensi (zip/gd/fileinfo) | ekstensi PHP nonaktif | Aktifkan di hPanel -> PHP (Langkah 6), lalu `php artisan optimize:clear` + reload. |
+| **Upload Excel pembelian → halaman putih/500, tapi Download Template & Export A/B jalan** | ekstensi **XML-reader** belum aktif di web PHP (CLI SSH bisa beda dgn FPM) — writer cukup `xmlwriter`+`zip`, reader butuh `simplexml`/`dom`/`xml`/`xmlreader` | hPanel -> PHP Configuration -> aktifkan `xml, dom, simplexml, xmlreader` (plus `xmlwriter, libxml, fileinfo, zip`), simpan. Cek juga `storage/logs/laravel.log` utk konfirmasi (cari "Call to undefined function simplexml_load_string" / 'Class "XMLReader" not found'). Diagnosa cepat: menu Pengaturan -> kartu "Status Lingkungan Excel". |
+| Upload file Excel ditolak tanpa masuk proses | batas upload kecil | Naikkan `upload_max_filesize` & `post_max_size` (mis. 32M) di hPanel -> PHP Configuration; aplikasi menolak file > 10 MB. |
+| **Login → 500 "Rate limiter [login] is not defined"** (baru saja deploy / `route:cache`) | File route cache tidak sinkron dari deploy/versi lama (sering krn build campur dua binari PHP CLI — mis. 8.2 & 8.4). **Bukan bug kode** — limiter `login` ada di `routes/web.php:23` | `/opt/alt/php84/usr/bin/php artisan route:clear`, lalu login lagi. Bila ingin cache lagi, ikuti perintah satu-rangkaian & satu binari PHP di §10. Kalau tetap: `php artisan optimize:clear`, cek `tail storage/logs/laravel.log`, ulangi build §10. |
 | Perubahan baru tidak muncul | cache lama | `php artisan optimize:clear` lalu `config:cache` + `view:cache` lagi. |
 | `php -v` di SSH beda dengan versi web | CLI memakai PHP lain | Pilih versi PHP di hPanel; kalau tetap beda, cari binary php8.3 (mis. `php8.3 artisan ...`) atau tanya Hostinger support. |
 

@@ -12,6 +12,23 @@
                 Total Draft <span class="font-bold text-primary">{{ rupiah($batch->total_generate) }}</span> ·
                 Selisih <span class="font-bold {{ ($batch->selisih ?? 0) > 0 ? 'text-danger-red' : 'text-lunas-green' }}">{{ ($batch->selisih ?? 0) >= 0 ? '+' : '' }}{{ uang($batch->selisih ?? 0) }}</span>
             </p>
+            @php
+                $param = $batch->parameter_json ?? [];
+                $kapPeak = $param['kapasitasPeak'] ?? $param['kapasitas'] ?? null;
+                $kapFinal = $param['kapasitasFinal'] ?? null;
+                $sisaTarget = $param['sisa_target'] ?? $batch->target_omset;
+                $hariBuka = \Carbon\Carbon::parse($batch->periode_mulai)->daysUntil($batch->periode_selesai)->count() + 1;
+            @endphp
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+                @if ($kapPeak !== null)
+                    <span class="rounded bg-slate-100 px-2 py-1">Kapasitas Peak: <span class="font-bold">{{ rupiah($kapPeak) }}</span></span>
+                @endif
+                @if ($kapFinal !== null && $kapFinal !== $kapPeak)
+                    <span class="rounded bg-slate-100 px-2 py-1">Kapasitas Akhir: <span class="font-bold">{{ rupiah($kapFinal) }}</span></span>
+                @endif
+                <span class="rounded bg-amber-50 px-2 py-1">Sisa Target: {{ rupiah($sisaTarget) }}</span>
+                <span class="rounded bg-green-50 px-2 py-1">Hari terisi: {{ $perHari->count() }} hari · {{ $batch->transaksiPenjualan->count() }} nota</span>
+            </div>
             @if ($batch->keterangan)
                 <p class="mt-1 text-body-sm text-danger-red">{{ $batch->keterangan }}</p>
             @endif

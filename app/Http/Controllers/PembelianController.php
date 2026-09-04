@@ -11,6 +11,7 @@ use App\Services\ExcelImportService;
 use App\Services\PembelianService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 class PembelianController extends Controller
@@ -66,36 +67,54 @@ class PembelianController extends Controller
         }
     }
 
-    /** Data Hutang Belum Lunas (PRD 5.2a). */
+    /** Data Hutang Belum Lunas (PRD 5.2a) — dengan filter periode (bulan/tahun/rentang) + supplier. */
     public function invoiceHutang(Request $request)
     {
         $query = InvoicePembelian::with('supplier')
             ->where('status', 'belum_lunas');
 
+        [$awal, $akhir] = $this->periodeDariRequest($request);
+        if ($awal && $akhir) {
+            $query->whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+        }
+        if ($sid = (int) $request->query('supplier')) {
+            $query->where('supplier_id', $sid);
+        }
+
         if ($s = trim((string) $request->get('q'))) {
             $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%")
                 ->orWhereHas('supplier', fn ($sq) => $sq->where('nama', 'like', "%{$s}%")));
         }
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
+        $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
 
-        return view('pembelian.invoice-hutang', compact('invoices'));
+        return view('pembelian.invoice-hutang', compact('invoices', 'suppliers'));
     }
 
-    /** Data Pembelian (Lunas/Cash) (PRD 5.2b). */
+    /** Data Pembelian (Lunas/Cash) (PRD 5.2b) — dengan filter periode + supplier. */
     public function invoiceLunas(Request $request)
     {
         $query = InvoicePembelian::with('supplier')
             ->where('status', 'lunas');
 
+        [$awal, $akhir] = $this->periodeDariRequest($request);
+        if ($awal && $akhir) {
+            $query->whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+        }
+        if ($sid = (int) $request->query('supplier')) {
+            $query->where('supplier_id', $sid);
+        }
+
         if ($s = trim((string) $request->get('q'))) {
             $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%")
                 ->orWhereHas('supplier', fn ($sq) => $sq->where('nama', 'like', "%{$s}%")));
         }
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
+        $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
 
-        return view('pembelian.invoice-lunas', compact('invoices'));
+        return view('pembelian.invoice-lunas', compact('invoices', 'suppliers'));
     }
 
     public function show(InvoicePembelian $invoice)
@@ -231,7 +250,7 @@ class PembelianController extends Controller
 
     public function import(Request $request)
     {
-        $request->validate(['file' => ['required', 'file', 'mimes:xlsx']]);
+        $request->validate(['file' => ['required', 'file', 'mimes:xlsx', 'max:10240']]);
 
         try {
             $hasil = $this->excel->importPembelian($request->file('file')->getRealPath());
@@ -240,7 +259,49 @@ class PembelianController extends Controller
                 ->with('success', 'Import pembelian selesai: ' . $hasil['dibuat'] . ' invoice baru, ' . $hasil['diupdate'] . ' invoice diperbarui.');
         } catch (ImportFileException $e) {
             return back()->withErrors(['file' => $e->getMessage() . (count($e->getErrors()) ? ' Contoh: ' . implode(' | ', array_slice($e->getErrors(), 0, 5)) : '')]);
+        } catch (\Throwable $e) {
+            // 500 putih dulu terjadi saat XlsxReader fatal di server yg ekstensi XML-reader belum aktif.
+            // Tangkap & catat agar user melihat pesan ramah, bukan halaman kosong.
+            Log::error('Import excel pembelian gagal di luar validasi', [
+                'file' => $request->file('file')?->getClientOriginalName(),
+                'ukuran' => $request->file('file')?->getSize(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->with('error', 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.');
         }
+    }
+
+    /**
+     * Resolve periode dari query string (bulan > tahun > rentang from/to).
+     * @return array{0: ?Carbon, 1: ?Carbon}
+     */
+    private function periodeDariRequest(Request $request): array
+    {
+        if ($bulan = (string) $request->query('bulan')) {
+            if (preg_match('/^\d{4}-\d{2}$/', $bulan) && Carbon::createFromFormat('Y-m', $bulan) !== false) {
+                $awal = Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
+                $akhir = $awal->copy()->endOfMonth();
+                return [$awal, $akhir];
+            }
+        }
+        if ($tahun = (int) $request->query('tahun')) {
+            if ($tahun >= 2000 && $tahun <= 2099) {
+                $awal = Carbon::create($tahun, 1, 1)->startOfDay();
+                $akhir = Carbon::create($tahun, 12, 31)->endOfDay();
+                return [$awal, $akhir];
+            }
+        }
+        $from = $request->query('from');
+        $to = $request->query('to');
+        $parsedFrom = $from && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) ? Carbon::parse($from) : null;
+        $parsedTo = $to && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) ? Carbon::parse($to) : null;
+        if ($parsedFrom && $parsedTo && $parsedFrom->lte($parsedTo)) {
+            return [$parsedFrom, $parsedTo];
+        }
+
+        return [null, null];
     }
 
     private function parseForm(Request $request, ?InvoicePembelian $invoice = null): array

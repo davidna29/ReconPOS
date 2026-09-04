@@ -178,13 +178,53 @@ class PublikTest extends TestCase
             ->assertDontSee('Manual')
             ->assertDontSee('Rekonstruksi')
             ->assertDontSee('diedit')
-            ->assertDontSee('Total Omset')
+            ->assertSee('Total Omset')
+            ->assertSee('Bulan')
+            ->assertSee('Terapkan')
             ->assertDontSee('Transaksi Penjualan Baru')
             ->assertDontSee('Generate Transaksi')
             ->assertDontSee('Hapus Terpilih')
             ->assertDontSee('Cetak Terpilih')
             ->assertDontSee('title="Edit nota"', false)
             ->assertDontSee('title="Hapus"', false);
+    }
+
+    public function test_publik_penjualan_kartu_omset_mengikuti_filter_periode(): void
+    {
+        $b = $this->barang('PB-PJ-FILTER');
+        // Transaksi di bulan berjalan
+        $this->transaksi('PUB-FILTER-NOW', 'manual', $b);
+        // Transaksi di bulan lalu (ubah tanggal)
+        $trxLalu = $this->transaksi('PUB-FILTER-LALU', 'manual', $b);
+        $trxLalu->update(['tanggal_waktu' => now()->subMonth()->startOfMonth()->addDays(5)]);
+
+        // Batch target overlap bulan berjalan
+        \App\Models\BatchGenerate::create([
+            'periode_mulai' => now()->startOfMonth()->toDateString(),
+            'periode_selesai' => now()->endOfMonth()->toDateString(),
+            'target_omset' => 10000000,
+            'status' => 'tersimpan',
+        ]);
+
+        // Default (bulan berjalan) harus lihat NOW, tidak lihat LALU, dan lihat Target
+        $this->get(route('publik.penjualan.index'))
+            ->assertOk()
+            ->assertSee('PUB-FILTER-NOW')
+            ->assertSee('Total Omset')
+            ->assertSee('Target:');
+
+        // Filter bulan lalu
+        $bulanLalu = now()->subMonth()->format('Y-m');
+        $this->get(route('publik.penjualan.index', ['bulan' => $bulanLalu]))
+            ->assertOk()
+            ->assertSee('PUB-FILTER-LALU');
+
+        // Filter rentang
+        $from = now()->subMonth()->startOfMonth()->format('Y-m-d');
+        $to = now()->subMonth()->endOfMonth()->format('Y-m-d');
+        $this->get(route('publik.penjualan.index', ['from' => $from, 'to' => $to]))
+            ->assertOk()
+            ->assertSee('PUB-FILTER-LALU');
     }
 
     public function test_publik_pembelian_hutang_readonly(): void

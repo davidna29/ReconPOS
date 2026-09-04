@@ -22,10 +22,68 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
  */
 class ExcelImportService
 {
+    /**
+     * Ekstensi PHP yang wajib ada agar PhpSpreadsheet bisa MEMBACA & MENULIS .xlsx.
+     * Penting utk shared hosting (Hostinger): web PHP-FPM bisa beda dgn CLI SSH —
+     * writer (download/export) cukup xmlwriter+zip, tapi reader (import) butuh
+     * simplexml/dom/xmlreader. Kalau ekstensi reader hilang: export jalan, import 500.
+     */
+    public const EKSTENSI_EXCEL = [
+        'zip' => 'membuka kontainer .xlsx (ZipArchive)',
+        'xml' => 'parsing XML OOXML',
+        'dom' => 'parsing XML OOXML (DOMDocument)',
+        'simplexml' => 'parsing XML OOXML (SimpleXML)',
+        'xmlreader' => 'membaca sheet XML (XMLReader)',
+        'xmlwriter' => 'menulis XML saat generate file (XMLWriter)',
+        'libxml' => 'infrastruktur XML (libxml)',
+        'fileinfo' => 'validasi tipe file upload (mimes:xlsx)',
+        'mbstring' => 'fungsi string multibyte (validasi REF_PEMBELIAN)',
+        'iconv' => 'konversi charset (PhpSpreadsheet/StringHelper)',
+        'gd' => 'render barcode (picqer)',
+    ];
+
     public function __construct(
         private PembelianService $pembelian,
         private StockService $stock,
     ) {}
+
+    /**
+     * Pre-flight lingkungan Excel. Mengembalikan daftar ekstensi yang HILANG
+     * (ext => keterangan); kosong = semua siap. $periksa boleh diisi manual
+     * (mis. di test) utk memeriksa subset/ekstensi sintetis secara deterministik.
+     */
+    public function cekEkstensiExcel(?array $periksa = null): array
+    {
+        $kurang = [];
+        foreach ($periksa ?? self::EKSTENSI_EXCEL as $ext => $keterangan) {
+            if (! extension_loaded($ext)) {
+                $kurang[$ext] = $keterangan;
+            }
+        }
+
+        return $kurang;
+    }
+
+    /**
+     * Lempar ImportFileException dgn pesan jelas bila ada ekstensi Excel yang hilang —
+     * mencegah 500 putih (mis. "Call to undefined function simplexml_load_string")
+     * saat XlsxReader dipanggil di server yg ekstensi readernya belum diaktifkan.
+     */
+    private function pastikanEkstensiExcel(): void
+    {
+        $kurang = $this->cekEkstensiExcel();
+        if (count($kurang) > 0) {
+            $daftar = collect($kurang)
+                ->map(fn ($ket, $ext) => $ext . ' (' . $ket . ')')
+                ->implode(', ');
+
+            throw new ImportFileException(
+                [],
+                'Server belum mengaktifkan ekstensi PHP yang dibutuhkan utk Excel: ' . $daftar
+                . '. Aktifkan ekstensi tsb di hPanel → PHP Configuration (xml, dom, simplexml, xmlreader, xmlwriter, libxml, zip, fileinfo, mbstring, iconv, gd), lalu coba lagi.'
+            );
+        }
+    }
 
     /**
      * Download template master barang (PRD 4.3c) — ALREADY prefilled dengan seluruh
@@ -34,6 +92,7 @@ class ExcelImportService
      */
     public function templateBarang(): string
     {
+        $this->pastikanEkstensiExcel();
         $barangs = Barang::with('kategori')
             ->where('tipe_item', 'barang')
             ->orderBy('kode_barang')
@@ -141,6 +200,8 @@ class ExcelImportService
      */
     public function templatePembelian(): string
     {
+        $this->pastikanEkstensiExcel();
+
         $headers = ['REF_PEMBELIAN', 'TANGGAL_WAKTU', 'SUPPLIER', 'JENIS_TRANSAKSI', 'BAYAR_DP', 'JATUH_TEMPO', 'KODE_BARANG', 'QTY', 'HARGA_BELI', 'DISKON_ITEM', 'DISKON_TOTAL', 'PPN'];
 
         $spreadsheet = new Spreadsheet();
@@ -259,6 +320,8 @@ class ExcelImportService
     /** Download template update harga (PRD 4.3a). */
     public function templateUpdateHarga(): string
     {
+        $this->pastikanEkstensiExcel();
+
         $headers = ['KODE_BARANG', 'HARGA_JUAL'];
 
         return $this->tulisTemplate('template-update-harga', $headers, [['BLT-001', '75000']]);
@@ -344,6 +407,8 @@ class ExcelImportService
      */
     public function importBarang(string $path): array
     {
+        $this->pastikanEkstensiExcel();
+
         $rows = $this->bacaSheet($path);
         if (count($rows) === 0) {
             throw new ImportFileException([], 'File kosong — tidak ada baris data.');
@@ -515,6 +580,8 @@ class ExcelImportService
      */
     public function importPembelian(string $path): array
     {
+        $this->pastikanEkstensiExcel();
+
         $rows = $this->bacaSheet($path);
         if (count($rows) === 0) {
             throw new ImportFileException([], 'File kosong — tidak ada baris data.');
@@ -718,6 +785,8 @@ class ExcelImportService
      */
     public function importUpdateHarga(string $path): array
     {
+        $this->pastikanEkstensiExcel();
+
         $rows = $this->bacaSheet($path);
         if (count($rows) === 0) {
             throw new ImportFileException([], 'File kosong — tidak ada baris data.');
