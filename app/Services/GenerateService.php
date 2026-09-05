@@ -391,6 +391,12 @@ class GenerateService
         array $closedDays,
         bool $kapasitasKurang,
     ): array {
+        // Clamp 1..100 untuk target besar (validasi sudah max 100, ini pertahanan)
+        $notaMin = max(1, min($notaMin, 100));
+        $notaMax = max(1, min($notaMax, 100));
+        if ($notaMin > $notaMax) {
+            [$notaMin, $notaMax] = [$notaMax, $notaMin];
+        }
         $days = [];
         for ($d = $mulai->copy(); $d->lte($selesai); $d->addDay()) {
             $days[$d->toDateString()] = $d->copy();

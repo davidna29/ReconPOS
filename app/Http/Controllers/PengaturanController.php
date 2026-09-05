@@ -47,8 +47,8 @@ class PengaturanController extends Controller
             'jam_tutup' => ['nullable', 'date_format:H:i'],
             'ambang_stok_menipis' => ['nullable', 'integer', 'min:0'],
             // parameter generate
-            'nota_min' => ['nullable', 'integer', 'min:1', 'max:30'],
-            'nota_max' => ['nullable', 'integer', 'min:1', 'max:30'],
+            'nota_min' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'nota_max' => ['nullable', 'integer', 'min:1', 'max:100'],
             'toleransi_persen' => ['nullable', 'integer', 'min:0', 'max:20'],
             'variasi_min' => ['nullable', 'integer', 'min:-50', 'max:0'],
             'variasi_max' => ['nullable', 'integer', 'min:-50', 'max:50'],

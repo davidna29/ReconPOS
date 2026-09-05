@@ -55,11 +55,11 @@
 
             <div>
                 <label class="label">Jumlah Nota / Hari (min)</label>
-                <input type="number" name="nota_min" min="1" max="30" value="{{ old('nota_min', $params['nota_min']) }}" class="input">
+                <input type="number" name="nota_min" min="1" max="100" value="{{ old('nota_min', $params['nota_min']) }}" class="input">
             </div>
             <div>
                 <label class="label">Jumlah Nota / Hari (max)</label>
-                <input type="number" name="nota_max" min="1" max="30" value="{{ old('nota_max', $params['nota_max']) }}" class="input">
+                <input type="number" name="nota_max" min="1" max="100" value="{{ old('nota_max', $params['nota_max']) }}" class="input">
             </div>
             <div>
                 <label class="label">Toleransi (%)</label>
