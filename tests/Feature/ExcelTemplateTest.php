@@ -291,14 +291,16 @@ class ExcelTemplateTest extends TestCase
         Supplier::create(['nama' => 'PT B', 'kontak' => '1']);
         Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-DP', 'nama' => 'Ban DP', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
 
-        // CASH, BAYAR_DP dikosongkan (sel kosong) → bayar pas = total (PRD 5.3)
+        // CASH, BAYAR_DP dikosongkan (sel kosong) + PPN kosong semua → auto 11%:
+        // DPP 90000 → PPN 9900 → bayar pas = 99900 (PRD 5.3 + PPN otomatis)
         $f = $this->buatFilePembelian([
             ['A' => 'C-1', 'B' => '2026-09-23 10:00', 'C' => 'PT B', 'D' => 'CASH', 'G' => 'B-DP', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
         ]);
         $hasil = app(ExcelImportService::class)->importPembelian($f);
         $this->assertSame(1, $hasil['dibuat']);
         $inv = InvoicePembelian::firstOrFail();
-        $this->assertSame(90000, (int) $inv->bayar_atau_dp); // bayar pas = total
+        $this->assertSame(9900, (int) $inv->ppn); // auto 11% × 90000
+        $this->assertSame(99900, (int) $inv->bayar_atau_dp); // bayar pas = DPP + PPN auto
         $this->assertSame('lunas', $inv->status);
         $this->assertSame(2, (int) Barang::where('kode_barang', 'B-DP')->first()->stock);
     }
@@ -327,7 +329,7 @@ class ExcelTemplateTest extends TestCase
         Supplier::create(['nama' => 'PT D', 'kontak' => '1']);
         $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-DPH', 'nama' => 'Ban DPH', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
 
-        // HUTANG, DP kosong → sah; invoice belum lunas, sisa = total
+        // HUTANG, DP kosong + PPN kosong semua → auto 11%; sisa = DPP + PPN auto
         $f = $this->buatFilePembelian([
             ['A' => 'H-1', 'B' => '2026-09-23 10:00', 'C' => 'PT D', 'D' => 'HUTANG', 'F' => '2026-12-31', 'G' => 'B-DPH', 'H' => 5, 'I' => 20000, 'J' => 0, 'K' => 0],
         ]);
@@ -336,7 +338,8 @@ class ExcelTemplateTest extends TestCase
         $inv = InvoicePembelian::firstOrFail();
         $this->assertSame('belum_lunas', $inv->status);
         $this->assertSame(0, (int) $inv->bayar_atau_dp);
-        $this->assertSame(100000, (int) $inv->sisa_hutang);
+        $this->assertSame(11000, (int) $inv->ppn); // auto 11% × 100000
+        $this->assertSame(111000, (int) $inv->sisa_hutang);
     }
 
     public function test_upload_pembelian_ppn_ikut_import(): void
@@ -393,6 +396,64 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame(5000, (int) $inv->diskon_total);      // tidak tertimpa baris kosong
         $this->assertSame(125000, (int) $inv->total_setelah_diskon); // (100000 + 30000) - 5000
         $this->assertSame(180000, (int) $inv->sisa_hutang);     // 125000 + 55000 - 0
+    }
+
+    public function test_upload_pembelian_ppn_per_sku_dijumlahkan(): void
+    {
+        // PPN per baris SKU dijumlahkan menjadi total invoice (bukan nilai pertama saja).
+        Supplier::create(['nama' => 'PT H', 'kontak' => '1']);
+        $b1 = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PS1', 'nama' => 'Ban PS1', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        $b2 = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PS2', 'nama' => 'Ban PS2', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'G-PS', 'B' => '2026-09-23 10:00', 'C' => 'PT H', 'D' => 'HUTANG', 'G' => 'B-PS1', 'H' => 2, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => 5000],
+            ['A' => 'G-PS', 'B' => '2026-09-23 10:00', 'C' => 'PT H', 'D' => 'HUTANG', 'G' => 'B-PS2', 'H' => 1, 'I' => 30000, 'J' => 0, 'K' => 0, 'L' => 3000],
+        ]);
+        $hasil = app(ExcelImportService::class)->importPembelian($f);
+        $this->assertSame(1, $hasil['dibuat']);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(8000, (int) $inv->ppn); // 5000 + 3000
+        $this->assertSame(138000, (int) $inv->sisa_hutang); // 130000 + 8000
+        // HPP per SKU memakai PPN barisnya langsung (bukan proporsional)
+        $this->assertSame(52500, (int) $b1->fresh()->harga_beli_terakhir); // 50000 + 5000/2
+        $this->assertSame(33000, (int) $b2->fresh()->harga_beli_terakhir); // 30000 + 3000/1
+        // PPN per item tersimpan untuk audit
+        $this->assertSame(5000, (int) $inv->items()->whereHas('barang', fn ($q) => $q->where('kode_barang', 'B-PS1'))->first()->ppn);
+        $this->assertSame(3000, (int) $inv->items()->whereHas('barang', fn ($q) => $q->where('kode_barang', 'B-PS2'))->first()->ppn);
+    }
+
+    public function test_upload_pembelian_ppn_campuran_kosong_dihitung_nol(): void
+    {
+        // Satu baris diisi, satu kosong → yang kosong = 0 (tidak ikut auto per baris).
+        Supplier::create(['nama' => 'PT I', 'kontak' => '1']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PC1', 'nama' => 'Ban PC1', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PC2', 'nama' => 'Ban PC2', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'G-PC', 'B' => '2026-09-23 10:00', 'C' => 'PT I', 'D' => 'HUTANG', 'G' => 'B-PC1', 'H' => 2, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => 11000],
+            ['A' => 'G-PC', 'B' => '2026-09-23 10:00', 'C' => 'PT I', 'D' => 'HUTANG', 'G' => 'B-PC2', 'H' => 1, 'I' => 30000, 'J' => 0, 'K' => 0],
+        ]);
+        app(ExcelImportService::class)->importPembelian($f);
+        $inv = InvoicePembelian::firstOrFail();
+        $this->assertSame(11000, (int) $inv->ppn); // hanya baris terisi
+        $this->assertSame(141000, (int) $inv->sisa_hutang); // 130000 + 11000
+    }
+
+    public function test_upload_pembelian_ppn_negatif_ditolak(): void
+    {
+        Supplier::create(['nama' => 'PT J', 'kontak' => '1']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-PN1', 'nama' => 'Ban PN1', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $f = $this->buatFilePembelian([
+            ['A' => 'G-PN', 'B' => '2026-09-23 10:00', 'C' => 'PT J', 'D' => 'HUTANG', 'G' => 'B-PN1', 'H' => 1, 'I' => 50000, 'J' => 0, 'K' => 0, 'L' => -1000],
+        ]);
+        try {
+            app(ExcelImportService::class)->importPembelian($f);
+            $this->fail('PPN negatif harus ditolak.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('PPN tidak boleh negatif', implode(' | ', $e->getErrors()));
+        }
+        $this->assertSame(0, InvoicePembelian::count());
     }
 
     public function test_upload_pembelian_dua_grup_cash_dan_hutang_tidak_tertukar(): void
@@ -511,7 +572,7 @@ class ExcelTemplateTest extends TestCase
         $sheet->setCellValue('B2', '2026-09-05 09:30');
         $sheet->setCellValue('C2', 'PT. Bintang Sparepart');
         $sheet->setCellValue('D2', 'CASH');
-        $sheet->setCellValue('E2', 140000);
+        // BAYAR_DP dikosongkan → bayar pas otomatis = DPP + PPN auto (135000 + 14850)
         $sheet->setCellValue('G2', 'BLT-001');
         $sheet->setCellValue('H2', 2);
         $sheet->setCellValue('I2', 45000);
@@ -522,7 +583,6 @@ class ExcelTemplateTest extends TestCase
         $sheet->setCellValue('B3', '2026-09-05 09:30');
         $sheet->setCellValue('C3', 'PT. Bintang Sparepart');
         $sheet->setCellValue('D3', 'CASH');
-        $sheet->setCellValue('E3', 140000); // metadata grup wajib konsisten (nilai dari baris terakhir)
         $sheet->setCellValue('G3', 'BLT-001');
         $sheet->setCellValue('H3', 1);
         $sheet->setCellValue('I3', 45000);
@@ -539,6 +599,8 @@ class ExcelTemplateTest extends TestCase
         $this->assertSame('PB-001', $inv->no_invoice);
         $this->assertSame('PT. Bintang Sparepart', $inv->supplier->nama);
         $this->assertSame(135000, (int) $inv->total_setelah_diskon);
+        $this->assertSame(14850, (int) $inv->ppn); // auto 11% × 135000
+        $this->assertSame(149850, (int) $inv->bayar_atau_dp); // bayar pas termasuk PPN auto
         $this->assertSame('lunas', $inv->status);
 
         $this->assertSame(3, (int) Barang::where('kode_barang', 'BLT-001')->first()->stock); // 2+1 masuk

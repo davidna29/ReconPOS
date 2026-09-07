@@ -7,6 +7,7 @@ use App\Exceptions\StokException;
 use App\Models\InvoicePembelian;
 use App\Models\PembayaranHutang;
 use App\Models\Supplier;
+use App\Models\TokoSetting;
 use App\Services\ExcelImportService;
 use App\Services\PembelianService;
 use Illuminate\Http\Request;
@@ -27,10 +28,13 @@ class PembelianController extends Controller
     public function create()
     {
         $suppliers = Supplier::orderBy('nama')->get();
+        $ppnPersen = (int) (TokoSetting::utama()->ppn_persen ?? 11);
 
         return view('pembelian.transaksi', [
             'invoice' => null,
             'suppliers' => $suppliers,
+            'ppnPersen' => $ppnPersen,
+            'ppnOtomatis' => true,
         ]);
     }
 
@@ -52,8 +56,13 @@ class PembelianController extends Controller
     public function edit(InvoicePembelian $invoice)
     {
         $suppliers = Supplier::orderBy('nama')->get();
+        $invoice->loadMissing('items');
+        $ppnPersen = (int) (TokoSetting::utama()->ppn_persen ?? 11);
+        // Status auto awal: centang bila PPN tersimpan sama dengan hasil auto dari DPP saat ini.
+        $dpp = (int) ($invoice->total_setelah_diskon ?? 0);
+        $ppnOtomatis = (int) ($invoice->ppn ?? 0) === PembelianService::hitungPpnOtomatis($dpp, $ppnPersen);
 
-        return view('pembelian.transaksi', compact('invoice', 'suppliers'));
+        return view('pembelian.transaksi', compact('invoice', 'suppliers', 'ppnPersen', 'ppnOtomatis'));
     }
 
     public function update(Request $request, InvoicePembelian $invoice)
@@ -313,6 +322,7 @@ class PembelianController extends Controller
             'jenis' => ['required', 'in:cash,hutang'],
             'diskon_total' => ['nullable', 'integer', 'min:0'],
             'ppn' => ['nullable', 'integer', 'min:0'],
+            'ppn_otomatis' => ['nullable'],
             'bayar_atau_dp' => ['nullable', 'integer', 'min:0'],
             'jatuh_tempo' => ['nullable', 'date'],
             'items' => ['required', 'array', 'min:1'],
@@ -323,13 +333,18 @@ class PembelianController extends Controller
             'items.*.no_sn' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $ppnOtomatis = $request->boolean('ppn_otomatis');
+
         return [
             'no_invoice' => $validated['no_invoice'] ?? null,
             'supplier_id' => $validated['supplier_id'],
             'tanggal_transaksi' => Carbon::parse($validated['tanggal_transaksi'])->format('Y-m-d H:i'),
             'jenis' => $validated['jenis'],
             'diskon_total' => (int) ($validated['diskon_total'] ?? 0),
-            'ppn' => (int) ($validated['ppn'] ?? 0),
+            // Auto (checkbox centang) → null agar service menghitung dari DPP + tarif.
+            // Manual (tidak centang) → integer eksplisit (0 = tanpa PPN).
+            'ppn' => $ppnOtomatis ? null : (int) ($validated['ppn'] ?? 0),
+            'ppn_otomatis' => $ppnOtomatis,
             'bayar_atau_dp' => (int) ($validated['bayar_atau_dp'] ?? 0),
             'jatuh_tempo' => $validated['jatuh_tempo'] ?? null,
             'items' => array_map(fn ($it) => [

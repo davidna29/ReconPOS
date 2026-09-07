@@ -9,6 +9,7 @@ use App\Models\InvoicePembelian;
 use App\Models\InvoicePembelianItem;
 use App\Models\PembayaranHutang;
 use App\Models\ReferensiSn;
+use App\Models\TokoSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -38,9 +39,24 @@ class PembelianService
     }
 
     /**
+     * PPN otomatis invoice-level: round(DPP × tarif/100), DPP = subtotal − diskon_total.
+     * Tarif default dari toko_settings.ppn_persen (fallback 11 bila kolom belum ada).
+     */
+    public static function hitungPpnOtomatis(int $dpp, ?int $persen = null): int
+    {
+        $tarif = $persen ?? (int) (TokoSetting::utama()->ppn_persen ?? 11);
+        if ($dpp <= 0 || $tarif <= 0) {
+            return 0;
+        }
+
+        return (int) round($dpp * $tarif / 100);
+    }
+
+    /**
      * @param array $data no_invoice?, supplier_id, tanggal_transaksi (Y-m-d H:i),
      *                    jenis (cash|hutang), diskon_total, bayar_atau_dp, jatuh_tempo?,
-     *                    items: [{barang_id, harga_beli, qty, diskon_item, no_sn?}]
+     *                    ppn? (int|null — null = hitung otomatis), ppn_otomatis? (bool),
+     *                    items: [{barang_id, harga_beli, qty, diskon_item, no_sn?, ppn? (Rp per baris, Excel)}]
      * @param string $sumber manual | import_excel
      */
     public function simpan(array $data, string $sumber = 'manual'): InvoicePembelian
@@ -82,6 +98,7 @@ class PembelianService
                     throw new InvalidArgumentException('Sub total item negatif untuk ' . $barang->nama . '.');
                 }
                 $subtotal += $sub;
+                $ppnItem = max(0, (int) ($it['ppn'] ?? 0));
                 $detail[] = [
                     'barang' => $barang,
                     'qty' => $qty,
@@ -89,6 +106,7 @@ class PembelianService
                     'diskon_item' => $diskonItem,
                     'sub' => $sub,
                     'no_sn' => $it['no_sn'] ?? null,
+                    'ppn_item' => $ppnItem,
                 ];
             }
 
@@ -98,8 +116,17 @@ class PembelianService
             }
             $total = $subtotal - $diskonTotal;
 
-            // PPN manual (Rp) dari e-Faktur supplier — hanya dijumlahkan, tanpa rumus tarif (PRD perluasan)
-            $ppn = (int) ($data['ppn'] ?? 0);
+            // PPN: prioritas (1) override per-SKU dari Excel (Σ PPN baris, baris kosong = 0),
+            // (2) otomatis round(DPP × tarif) bila ppn_otomatis / ppn null (default form),
+            // (3) override manual invoice-level (koreksi e-Faktur).
+            $adaPpnItem = collect($detail)->contains(fn ($d) => $d['ppn_item'] > 0);
+            if ($adaPpnItem) {
+                $ppn = (int) collect($detail)->sum(fn ($d) => $d['ppn_item']);
+            } elseif (! empty($data['ppn_otomatis']) || (array_key_exists('ppn', $data) && $data['ppn'] === null)) {
+                $ppn = self::hitungPpnOtomatis($total);
+            } else {
+                $ppn = max(0, (int) ($data['ppn'] ?? 0));
+            }
 
             $bayarDp = (int) ($data['bayar_atau_dp'] ?? 0);
             $isHutang = $jenis === 'hutang';
@@ -143,6 +170,7 @@ class PembelianService
                     'harga_beli' => $d['harga_beli'],
                     'qty' => $d['qty'],
                     'diskon_item' => $d['diskon_item'],
+                    'ppn' => $d['ppn_item'],
                     'sub_total' => $d['sub'],
                     'no_sn' => $d['no_sn'],
                 ]);
@@ -157,9 +185,13 @@ class PembelianService
                     null,
                     'Pembelian ' . $noInvoice,
                 );
-                // Harga beli EFEKTIF utk HPP/histori/margin = neto + alokasi PPN proporsional
-                // per nilai baris (PPN total dari e-Faktur). Item & subtotal invoice tetap neto.
-                $hargaBeliHistori = $this->hargaBeliEfektif($d['harga_beli'], $d['qty'], $d['sub'], $subtotal, $ppn);
+                // Harga beli EFEKTIF utk HPP/histori/margin = neto + PPN.
+                // Override per-SKU (Excel): langsung per baris (ppn_baris/qty).
+                // Selain itu: alokasi PPN total proporsional per nilai baris.
+                // Item & subtotal invoice tetap neto.
+                $hargaBeliHistori = $adaPpnItem
+                    ? $d['harga_beli'] + (int) round($d['ppn_item'] / max(1, $d['qty']))
+                    : $this->hargaBeliEfektif($d['harga_beli'], $d['qty'], $d['sub'], $subtotal, $ppn);
                 $this->harga->catatPembelian($d['barang'], $hargaBeliHistori, $tgl, $invoice->id);
 
                 if ($d['barang']->isSn()) {
@@ -303,7 +335,10 @@ class PembelianService
                 throw new InvalidArgumentException('Sub total item negatif.');
             }
             $subtotal += $sub;
-            $detail[] = compact('barang', 'qty', 'hargaBeli', 'diskonItem', 'sub') + ['no_sn' => $it['no_sn'] ?? null];
+            $detail[] = compact('barang', 'qty', 'hargaBeli', 'diskonItem', 'sub') + [
+                'no_sn' => $it['no_sn'] ?? null,
+                'ppn_item' => max(0, (int) ($it['ppn'] ?? 0)),
+            ];
         }
 
         $diskonTotal = (int) ($data['diskon_total'] ?? $invoice->diskon_total);
@@ -311,7 +346,19 @@ class PembelianService
             throw new InvalidArgumentException('Diskon tidak boleh melebihi subtotal.');
         }
         $total = $subtotal - $diskonTotal;
-        $ppn = (int) ($data['ppn'] ?? $invoice->ppn ?? 0);
+        // PPN: (1) override per-SKU Σ baris, (2) auto bila flag/null, (3) manual invoice-level, (4) fallback nilai lama.
+        $adaPpnItem = collect($detail)->contains(fn ($d) => $d['ppn_item'] > 0);
+        if ($adaPpnItem) {
+            $ppn = (int) collect($detail)->sum(fn ($d) => $d['ppn_item']);
+        } elseif (! empty($data['ppn_otomatis']) || (array_key_exists('ppn', $data) && $data['ppn'] === null)) {
+            // Edit via form auto (flag) / import auto (ppn null): hitung ulang dari DPP baru.
+            $ppn = self::hitungPpnOtomatis($total);
+        } elseif (array_key_exists('ppn', $data)) {
+            $ppn = max(0, (int) $data['ppn']);
+        } else {
+            // Backward-compat: pemanggil lama tanpa kunci ppn → pertahankan nilai lama.
+            $ppn = (int) ($invoice->ppn ?? 0);
+        }
         $bayarDp = (int) ($data['bayar_atau_dp'] ?? $invoice->bayar_atau_dp);
         $isHutang = $jenis === 'hutang';
         // Sisa Hutang = (Subtotal - Diskon) + PPN - DP
@@ -346,6 +393,7 @@ class PembelianService
                 'harga_beli' => $d['hargaBeli'],
                 'qty' => $d['qty'],
                 'diskon_item' => $d['diskonItem'],
+                'ppn' => $d['ppn_item'],
                 'sub_total' => $d['sub'],
                 'no_sn' => $d['no_sn'],
             ]);
@@ -358,7 +406,9 @@ class PembelianService
                 null,
                 'Pembelian ' . $invoice->no_invoice,
             );
-            $hargaBeliHistori = $this->hargaBeliEfektif($d['hargaBeli'], $d['qty'], $d['sub'], $subtotal, $ppn);
+            $hargaBeliHistori = $adaPpnItem
+                ? $d['hargaBeli'] + (int) round($d['ppn_item'] / max(1, $d['qty']))
+                : $this->hargaBeliEfektif($d['hargaBeli'], $d['qty'], $d['sub'], $subtotal, $ppn);
             $this->harga->catatPembelian($d['barang'], $hargaBeliHistori, $tgl, $invoice->id);
             if ($d['barang']->isSn()) {
                 $this->daftarkanSn($d['barang'], $d['qty'], $invoice->id, (string) $d['no_sn']);

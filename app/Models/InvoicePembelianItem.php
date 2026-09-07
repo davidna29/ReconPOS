@@ -10,7 +10,7 @@ class InvoicePembelianItem extends Model
 
     protected $fillable = [
         'invoice_pembelian_id', 'barang_id', 'harga_beli', 'qty',
-        'diskon_item', 'sub_total', 'no_sn',
+        'diskon_item', 'ppn', 'sub_total', 'no_sn',
     ];
 
     public function invoicePembelian()

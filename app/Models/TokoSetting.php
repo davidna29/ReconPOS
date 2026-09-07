@@ -10,7 +10,7 @@ class TokoSetting extends Model
 
     protected $fillable = [
         'nama_toko', 'alamat', 'telepon', 'npwp', 'logo',
-        'margin_default', 'jam_buka', 'jam_tutup', 'hari_libur',
+        'margin_default', 'ppn_persen', 'jam_buka', 'jam_tutup', 'hari_libur',
         'ambang_stok_menipis', 'parameter_generate', 'template_version',
     ];
 
@@ -19,6 +19,7 @@ class TokoSetting extends Model
         return [
             'hari_libur' => 'array',
             'parameter_generate' => 'array',
+            'ppn_persen' => 'integer',
         ];
     }
 
@@ -30,6 +31,7 @@ class TokoSetting extends Model
             'telepon' => null,
             'npwp' => '',
             'margin_default' => 20,
+            'ppn_persen' => 11,
             'jam_buka' => '08:00',
             'jam_tutup' => '17:00',
             'hari_libur' => ['dates' => [], 'weekly' => []],

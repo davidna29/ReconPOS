@@ -588,4 +588,112 @@ class PembelianTest extends TestCase
         ]);
         $this->assertSame(50000, (int) $b->fresh()->harga_beli_terakhir);
     }
+
+    public function test_ppn_otomatis_dihitung_dari_dpp_tarif_default(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-AUTO1');
+        $s = $this->supplier();
+        // DPP 100000 → PPN auto 11% = 11000
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => null, 'ppn_otomatis' => true,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(11000, (int) $inv->ppn);
+        $this->assertSame(111000, (int) $inv->sisa_hutang);
+    }
+
+    public function test_ppn_otomatis_setelah_diskon_total(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-AUTO2');
+        $s = $this->supplier();
+        // Subtotal 100000 − diskon 10000 = DPP 90000 → PPN 9900
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'diskon_total' => 10000,
+            'ppn' => null, 'ppn_otomatis' => true,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(9900, (int) $inv->ppn);
+        $this->assertSame(99900, (int) $inv->sisa_hutang);
+    }
+
+    public function test_ppn_override_manual_dihormati(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-MAN1');
+        $s = $this->supplier();
+        // Tanpa centang auto: ppn eksplisit dipakai apa adanya (koreksi e-Faktur)
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => 5000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(5000, (int) $inv->ppn);
+        $this->assertSame(105000, (int) $inv->sisa_hutang);
+    }
+
+    public function test_ppn_otomatis_mengikuti_tarif_pengaturan(): void
+    {
+        $this->authUser();
+        TokoSetting::utama()->update(['ppn_persen' => 12]);
+        $b = $this->barang('B-AUTO3');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0, 'ppn' => null, 'ppn_otomatis' => true,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $this->assertSame(12000, (int) $inv->ppn);
+        $this->assertSame(112000, (int) $inv->sisa_hutang);
+    }
+
+    public function test_form_http_menyimpan_ppn_otomatis_dan_override(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-HTTP1');
+        $s = $this->supplier();
+
+        // Centang otomatis → PPN dihitung server walau input ppn dikirim 0
+        $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang',
+            'diskon_total' => 0,
+            'ppn_otomatis' => '1',
+            'ppn' => 0,
+            'bayar_atau_dp' => 0,
+            'items' => [
+                ['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0],
+            ],
+        ])->assertSessionHas('success');
+        $this->assertSame(11000, (int) InvoicePembelian::latest('id')->first()->ppn);
+
+        // Tanpa centang → nilai manual dipakai
+        $b2 = $this->barang('B-HTTP2');
+        $this->post(route('pembelian.store'), [
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang',
+            'diskon_total' => 0,
+            'ppn' => 1234,
+            'bayar_atau_dp' => 0,
+            'items' => [
+                ['barang_id' => $b2->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0],
+            ],
+        ])->assertSessionHas('success');
+        $this->assertSame(1234, (int) InvoicePembelian::latest('id')->first()->ppn);
+    }
+
+    public function test_form_transaksi_memuat_checkbox_ppn_otomatis(): void
+    {
+        $this->authUser();
+
+        $this->get(route('pembelian.create'))
+            ->assertOk()
+            ->assertSee('PPN otomatis', false)
+            ->assertSee('ppn-otomatis', false);
+    }
 }

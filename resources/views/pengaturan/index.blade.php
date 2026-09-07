@@ -49,6 +49,11 @@
                     <input type="number" name="margin_default" min="0" max="1000" value="{{ $settings->margin_default }}" class="input">
                     <span class="hint">harga_jual = harga_beli × (1 + margin%). SKU dengan margin_override memakai nilai sendiri (PRD 4.1).</span>
                 </div>
+                <div class="mt-3">
+                    <label class="label">PPN Otomatis Pembelian (%)</label>
+                    <input type="number" name="ppn_persen" min="0" max="100" value="{{ $settings->ppn_persen ?? 11 }}" class="input">
+                    <span class="hint">Tarif utk hitung PPN otomatis = round((Subtotal − Diskon) × tarif). Berlaku untuk pembelian baru (form centang otomatis & import Excel yang PPN-nya kosong semua); invoice lama tidak diubah ulang.</span>
+                </div>
             </div>
 
             <!-- Jam & Hari Operasional -->

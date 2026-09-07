@@ -30,6 +30,8 @@
     }
 
     $jenisAwal = $invoice ? $invoice->jenis : (old('jenis') ?? 'cash');
+    $ppnPersen = $ppnPersen ?? 11;
+    $ppnOtomatisAwal = old('ppn_otomatis') !== null ? (bool) old('ppn_otomatis') : ($ppnOtomatis ?? true);
 @endphp
 
 @section('content')
@@ -156,9 +158,13 @@
                         </div>
 
                         <div>
-                            <label class="label">PPN (Rp)</label>
+                            <label class="label flex cursor-pointer items-center gap-2">
+                                <input type="checkbox" name="ppn_otomatis" id="ppn-otomatis" value="1" @checked($ppnOtomatisAwal) class="rounded border-outline-variant text-primary focus:ring-primary">
+                                PPN otomatis (<span id="ppn-persen-label">{{ $ppnPersen }}</span>%)
+                            </label>
+                            <label class="label mt-2">PPN (Rp)</label>
                             <input type="number" name="ppn" id="ppn" min="0" value="{{ old('ppn', $invoice?->ppn ?? 0) }}" class="input mono text-right">
-                            <span class="hint">Nilai manual dari e-Faktur supplier — hanya dijumlahkan, tanpa tarif/persen.</span>
+                            <span class="hint">Centang = dihitung otomatis dari (Subtotal − Diskon). Hapus centang untuk koreksi manual dari e-Faktur.</span>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-body-sm text-secondary">Total + PPN</span>
@@ -237,7 +243,18 @@
     <script>
         const DATA_BARANG = {!! $barangJson !!};
         const EDIT_ITEMS = {!! json_encode($itemsData) !!};
+        const PPN_PERSEN = {{ (int) $ppnPersen }};
         let baris = [];
+
+        function ppnAuto(subtotal, diskon) {
+            return Math.round(Math.max(0, subtotal - diskon) * PPN_PERSEN / 100);
+        }
+
+        function sinkronPpnMode() {
+            const auto = document.getElementById('ppn-otomatis')?.checked;
+            const ppnInput = document.getElementById('ppn');
+            if (ppnInput) ppnInput.readOnly = !!auto;
+        }
 
         // Normalizer nominal: tahan "50.000", "50 000", "50,000" -> 50000
         function num(v) {
@@ -299,12 +316,21 @@
 
         function hitungRingkasan(subtotal, reRenderTabel = true) {
             const diskon = num(document.getElementById('diskon-total').value);
-            const ppn = num(document.getElementById('ppn')?.value || '0');
-            const total = Math.max(0, subtotal - diskon + ppn); // Total + PPN manual
+            const auto = document.getElementById('ppn-otomatis')?.checked;
+            let ppn;
+            if (auto) {
+                ppn = ppnAuto(subtotal, diskon);
+                const ppnInput = document.getElementById('ppn');
+                if (ppnInput) ppnInput.value = ppn;
+            } else {
+                ppn = num(document.getElementById('ppn')?.value || '0');
+            }
+            const dpp = Math.max(0, subtotal - diskon);
+            const total = dpp + ppn; // DPP + PPN (otomatis / override manual)
             document.getElementById('sum-subtotal').textContent = fmtRp(subtotal);
-            document.getElementById('sum-total').textContent = fmtRp(total);
+            document.getElementById('sum-total').textContent = fmtRp(dpp);
             const ppnEl = document.getElementById('sum-total-ppn');
-            if (ppnEl) ppnEl.textContent = fmtRp(subtotal - diskon + ppn);
+            if (ppnEl) ppnEl.textContent = fmtRp(total);
             document.getElementById('summary-kosong').style.display = baris.length ? 'none' : 'block';
 
             const bayar = num(document.getElementById('bayar-cash').value);
@@ -326,6 +352,11 @@
         ['diskon-total', 'ppn', 'bayar-cash', 'dp-hutang'].forEach(id => {
             const el = document.getElementById(id);
             if (el) ['input', 'change'].forEach(evt => el.addEventListener(evt, () => hitungRingkasan(sumBaris(), false)));
+        });
+        const ppnAutoEl = document.getElementById('ppn-otomatis');
+        if (ppnAutoEl) ppnAutoEl.addEventListener('change', () => {
+            sinkronPpnMode();
+            hitungRingkasan(sumBaris(), false);
         });
 
         // Aktifkan hanya input pembayaran pada tab yg aktif (hindari 2 nama sama ikut terkirim)
@@ -385,6 +416,7 @@
         inputCari.addEventListener('blur', () => setTimeout(() => hasil.classList.add('hidden'), 150));
 
         // Inisialisasi & sinkronisasi awal (jenis dari server: cash / hutang)
+        sinkronPpnMode();
         sinkronPanelPembayaran(document.getElementById('jenis').value);
         EDIT_ITEMS.forEach(it => {
             baris.push({ id: it.barang_id, kode: it.kode, nama: it.nama, harga_beli: it.harga_beli, qty: it.qty, diskon_item: it.diskon_item, no_sn: it.no_sn || '', sn: it.sn });

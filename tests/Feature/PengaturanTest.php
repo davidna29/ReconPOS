@@ -64,6 +64,18 @@ class PengaturanTest extends TestCase
         $this->assertSame('01.234.567.8-901.000', TokoSetting::utama()->fresh()->npwp);
     }
 
+    public function test_simpan_tarif_ppn_persen(): void
+    {
+        $this->authUser();
+        $this->post(route('pengaturan.update'), [
+            'margin_default' => 20,
+            'ppn_persen' => 12,
+        ])->assertSessionHas('success');
+
+        $this->assertSame(12, (int) TokoSetting::utama()->fresh()->ppn_persen);
+        $this->get(route('pengaturan.index'))->assertOk()->assertSee('PPN Otomatis Pembelian', false);
+    }
+
     public function test_parameter_lain_tetap_aman_saat_simpan(): void
     {
         $this->authUser();

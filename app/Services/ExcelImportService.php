@@ -306,9 +306,10 @@ class ExcelImportService
             '13) UPLOAD ULANG dengan REF_PEMBELIAN yang sama akan MEMPERBARUI invoice tsb (stok & histori',
             '    disesuaikan otomatis) — bukan membuat invoice ganda. Perubahan qty di bawah qty yang sudah',
             '    terjual akan ditolak demi menjaga stok.',
-            '14) PPN (Rp): kolom OPSIONAL utk PPN manual dari e-Faktur supplier — kosongkan = 0; hanya dijumlahkan',
-            '    ke Sisa Hutang/Cash (tanpa tarif). PPN di e-Faktur adalah nilai TOTAL per invoice: cukup isi SEKALI',
-            '    di salah satu baris grup REF (nilai pertama yang terisi dipakai) — TIDAK perlu dipecah per SKU.',
+            '14) PPN (Rp, per SKU): kolom OPSIONAL nominal per baris — total invoice = JUMLAH semua PPN baris',
+            '    dalam 1 REF (baris kosong = 0). Bila SEMUA baris dikosongkan/0 → PPN dihitung OTOMATIS',
+            '    = round((Subtotal − DISKON_TOTAL) × tarif PPN Pengaturan, default 11%). Isi per baris hanya',
+            '    bila e-Faktur berbeda (koreksi per SKU); HPP per SKU memakai PPN barisnya langsung.',
             '    Untuk CASH, kosongkan BAYAR_DP agar bayar pas termasuk PPN.',
         ];
         foreach ($garis as $i => $teks) {
@@ -538,9 +539,11 @@ class ExcelImportService
     /**
      * Isi metadata grup REF dengan aturan "nilai pertama yang terisi" (PRD 5.3):
      * baris pertama grup menginisialisasi; baris berikutnya hanya mengisi field yang masih kosong.
-     * Dipakai utk PPN / DISKON_TOTAL / BAYAR_DP / JATUH_TEMPO — cukup diisi sekali utk 1 invoice.
+     * Dipakai utk DISKON_TOTAL / BAYAR_DP / JATUH_TEMPO — cukup diisi sekali utk 1 invoice.
+     * PPN TIDAK di sini: PPN adalah nominal per baris SKU (opsional), total invoice = Σ PPN baris;
+     * bila semua baris kosong/0 → dihitung otomatis dari DPP × tarif (lihat importPembelian).
      */
-    private function isiMetadataGroup(array &$groups, string $ref, $parsed, string $supplier, string $jenis, array $r, int $ppn): void
+    private function isiMetadataGroup(array &$groups, string $ref, $parsed, string $supplier, string $jenis, array $r): void
     {
         $bayar = (int) round((float) ($r['BAYAR_DP'] ?? 0));
         $jatuh = trim((string) ($r['JATUH_TEMPO'] ?? ''));
@@ -554,7 +557,6 @@ class ExcelImportService
                 'bayar_dp' => $bayar,
                 'jatuh_tempo' => $jatuh,
                 'diskon_total' => $diskon,
-                'ppn' => $ppn,
             ];
 
             return;
@@ -569,9 +571,6 @@ class ExcelImportService
         }
         if ((int) $m['diskon_total'] === 0 && $diskon > 0) {
             $m['diskon_total'] = $diskon;
-        }
-        if ((int) $m['ppn'] === 0 && $ppn > 0) {
-            $m['ppn'] = $ppn;
         }
     }
 
@@ -641,16 +640,31 @@ class ExcelImportService
             }
 
             // Metadata invoice = NILAI PERTAMA YANG TERISI per grup REF (bukan baris terakhir).
-            // Ini supaya PPN/DISKON_TOTAL/BAYAR_DP/JATUH_TEMPO cukup diisi SEKALI di salah satu baris
-            // (mis. total PPN e-Faktur utk seluruh invoice) — TIDAK perlu dipecah per SKU.
-            $this->isiMetadataGroup($groups, $ref, $parsed, $supplier, $jenis, $r, $ppn);
+            // Ini supaya DISKON_TOTAL/BAYAR_DP/JATUH_TEMPO cukup diisi SEKALI di salah satu baris.
+            // PPN dikecualikan: PPN adalah nominal per baris SKU (opsional) — total = Σ PPN baris,
+            // baris kosong = 0; bila SEMUA baris kosong/0 → otomatis dari DPP × tarif.
+            $this->isiMetadataGroup($groups, $ref, $parsed, $supplier, $jenis, $r);
             $groups[$ref]['items'][] = [
                 'no' => $no,
                 'kode' => $kode,
                 'qty' => $qty,
                 'harga_beli' => $hargaBeli,
                 'diskon_item' => (int) round((float) ($r['DISKON_ITEM'] ?? 0)),
+                'ppn' => $ppn,
             ];
+        }
+
+        // ---- PPN per grup: Σ PPN baris bila ada override, selain itu otomatis ----
+        foreach ($groups as $ref => $g) {
+            $dpp = 0;
+            foreach ($g['items'] as $it) {
+                $dpp += ($it['harga_beli'] * $it['qty']) - $it['diskon_item'];
+            }
+            $dpp -= (int) ($g['metadata']['diskon_total'] ?? 0);
+            $ppnSum = (int) collect($g['items'])->sum(fn ($it) => $it['ppn'] ?? 0);
+            $groups[$ref]['metadata']['ppn'] = $ppnSum > 0
+                ? $ppnSum
+                : PembelianService::hitungPpnOtomatis(max(0, $dpp));
         }
 
         // ---- Aturan BAYAR_DP per grup (PRD 5.3): CASH boleh kosong = "bayar pas" ----
@@ -734,6 +748,7 @@ class ExcelImportService
                         'harga_beli' => $it['harga_beli'],
                         'qty' => $it['qty'],
                         'diskon_item' => $it['diskon_item'],
+                        'ppn' => $it['ppn'] ?? 0,
                     ];
                 }
                 // REF_PEMBELIAN dipakai sebagai NOMOR INVOICE (PRD 5.3): user bisa melacak
