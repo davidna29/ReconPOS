@@ -79,6 +79,11 @@
         </div>
     </div>
 
+    <!-- Kartu Pembelian ringkas (filter preset ?pb — independen dari filter omset) -->
+    <div class="mt-4">
+        @include('pembelian.partials.kartu-pembelian')
+    </div>
+
     <div class="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div class="flex flex-col gap-6 lg:col-span-2">
             @if (! $publik)

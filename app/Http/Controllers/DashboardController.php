@@ -67,11 +67,22 @@ class DashboardController extends Controller
             ->limit(10)
             ->get(['id', 'kode_barang', 'nama', 'satuan', 'stock']);
 
+        // ---- Kartu Pembelian: mengikuti filter periode kartu omset ----
+        $scopeBeli = InvoicePembelian::whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+        $labelBeli = $labelPeriode;
+        $totalBeli = (int) (clone $scopeBeli)->sum('total_setelah_diskon') + (int) (clone $scopeBeli)->sum('ppn');
+        $sisaBeli = (int) (clone $scopeBeli)->sum('sisa_hutang');
+        $countBeli = (int) (clone $scopeBeli)->count();
+
         return view('dashboard.index', compact(
             'awal',
             'akhir',
             'labelPeriode',
             'omsetPeriode',
+            'labelBeli',
+            'totalBeli',
+            'sisaBeli',
+            'countBeli',
             'totalHutang',
             'jatuhTempo7Hari',
             'stokKritis',

@@ -45,6 +45,8 @@
         <a href="{{ $r('pembelian.invoice-lunas') }}" class="btn btn-secondary btn-sm">Reset</a>
     </form>
 
+    @include('pembelian.partials.kartu-pembelian')
+
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
             @if (! $publik)

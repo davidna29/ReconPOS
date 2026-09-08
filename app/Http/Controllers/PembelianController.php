@@ -99,8 +99,9 @@ class PembelianController extends Controller
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
+        [$labelBeli, $totalBeli, $sisaBeli, $countBeli] = $this->kartuPembelian($request, $awal, $akhir);
 
-        return view('pembelian.invoice-hutang', compact('invoices', 'suppliers'));
+        return view('pembelian.invoice-hutang', compact('invoices', 'suppliers', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
     }
 
     /** Data Pembelian (Lunas/Cash) (PRD 5.2b) — dengan filter periode + supplier. */
@@ -124,8 +125,9 @@ class PembelianController extends Controller
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
+        [$labelBeli, $totalBeli, $sisaBeli, $countBeli] = $this->kartuPembelian($request, $awal, $akhir);
 
-        return view('pembelian.invoice-lunas', compact('invoices', 'suppliers'));
+        return view('pembelian.invoice-lunas', compact('invoices', 'suppliers', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
     }
 
     public function show(InvoicePembelian $invoice)
@@ -414,6 +416,48 @@ class PembelianController extends Controller
         }
 
         return [null, null];
+    }
+
+    /**
+     * Kartu Pembelian: mengikuti filter periode + supplier milik tabel
+     * (tanpa search/pagination). Tanpa filter = semua waktu.
+     * @param array{0: ?Carbon, 1: ?Carbon} $periode hasil periodeDariRequest
+     * @return array{0: string, 1: int, 2: int, 3: int} [label, total, sisa, count]
+     */
+    private function kartuPembelian(Request $request, ?Carbon $awal, ?Carbon $akhir): array
+    {
+        $query = InvoicePembelian::query();
+        $label = 'Semua Waktu';
+        if ($awal && $akhir) {
+            $query->whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+            $label = $this->labelPeriodeBeli($request, $awal, $akhir);
+        }
+        if ($sid = (int) $request->query('supplier')) {
+            $query->where('supplier_id', $sid);
+            if ($nama = Supplier::whereKey($sid)->value('nama')) {
+                $label .= ' · ' . $nama;
+            }
+        }
+
+        return [
+            $label,
+            (int) (clone $query)->sum('total_setelah_diskon') + (int) (clone $query)->sum('ppn'),
+            (int) (clone $query)->sum('sisa_hutang'),
+            (int) (clone $query)->count(),
+        ];
+    }
+
+    /** Label periode kartu mengikuti aturan filter tabel (bulan > tahun > rentang). */
+    private function labelPeriodeBeli(Request $request, Carbon $awal, Carbon $akhir): string
+    {
+        if (($bulan = (string) $request->query('bulan')) && preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+            return bulan_id($awal);
+        }
+        if (($tahun = (int) $request->query('tahun')) && $tahun >= 2000 && $tahun <= 2099) {
+            return 'Tahun ' . $tahun;
+        }
+
+        return $awal->format('d/m/Y') . ' – ' . $akhir->format('d/m/Y');
     }
 
     private function parseForm(Request $request, ?InvoicePembelian $invoice = null): array
