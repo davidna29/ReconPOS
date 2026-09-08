@@ -22,6 +22,7 @@ s sesuai PRD `docs/PRD-Generate-Transaksi-Otomatis.md`, dengan desain mengikuti 
 | **Generate Transaksi** | periode + target omset -> draft per hari -> review/edit -> **Simpan** (potong stok, tandai SN, label `rekonstruksi`). Kapasitas stok kurang -> warning 2 opsi. Hari libur & jam operasional dipatuhi. **Item Dikecualikan** (checklist + pencarian, default dari Pengaturan) | 6, 7, 9 |
 | Export | **Format A** siap import POS Bengkel (template konfigurabel, pre-validasi, pecah 5.000 baris/file, sheet PETUNJUK) & **Format B** laporan internal + ringkasan; histori & tanda 'sudah diupload ke POS' | 4.2, 8 |
 | Pengaturan Toko | info toko, margin global, jam/hari operasional, parameter generate, ambang stok, **Template Export POS**, **ubah password admin** | 4.5, 4.2 |
+| Backup & Restore | backup database `.json.gz` portabel (SQLite lokal ↔ MySQL hosting), retensi 5, restore 3 langkah (unggah → pratinjau → ketik RESTORE) + pra-backup otomatis, atomik | tambahan |
 | **Mode Publik (tanpa login, read-only)** | akses `/publik` tanpa login: Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan — semua read-only, tanpa Supplier/Generate/Export/Pengaturan, tanpa edit/template/bulk & tanpa label sumber | tambahan |
 
 ---

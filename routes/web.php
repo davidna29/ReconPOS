@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
@@ -110,6 +111,15 @@ Route::middleware('auth')->group(function () {
     Route::delete('/export/{exportBatch}', [ExportController::class, 'destroy'])->name('export.destroy');
     Route::get('/export/{exportBatch}/unduh/{index}', [ExportController::class, 'unduh'])->name('export.unduh');
 
+    // ---- Backup & Restore (database) ----
+    Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
+    Route::post('/backup/buat', [BackupController::class, 'store'])->name('backup.store');
+    Route::get('/backup/unduh/{nama}', [BackupController::class, 'download'])->name('backup.download');
+    Route::delete('/backup/{nama}', [BackupController::class, 'destroy'])->name('backup.destroy');
+    Route::post('/backup/unggah', [BackupController::class, 'upload'])->name('backup.upload');
+    Route::get('/backup/pratinjau', [BackupController::class, 'preview'])->name('backup.preview');
+    Route::post('/backup/pulihkan', [BackupController::class, 'restore'])->name('backup.restore');
+
     // ---- Pengaturan (PRD 4.5) ----
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');
     Route::post('/pengaturan', [PengaturanController::class, 'update'])->name('pengaturan.update');
@@ -122,7 +132,7 @@ Route::middleware('auth')->group(function () {
 // ============================================================================
 // MODE PUBLIK (tanpa login) — read-only.
 // Menu yang TAMPIL: Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan.
-// Menu yang DITUTUP: Data Supplier, Generate Transaksi, Export, Pengaturan
+// Menu yang DITUTUP: Data Supplier, Generate Transaksi, Export, Pengaturan, Backup
 //   (tidak ada route -> 404). Semua aksi mutasi TIDAK didaftarkan di sini.
 // View admin dipakai ulang dengan flag $publik = true (guard @if(! $publik)).
 // ============================================================================

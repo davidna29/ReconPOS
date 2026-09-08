@@ -106,6 +106,14 @@
                 </a>
             </li>
             @endif
+            @if (! $publik)
+            <li>
+                <a class="nav-link {{ request()->routeIs('backup.*') ? 'nav-link-active' : '' }}" href="{{ route('backup.index') }}" title="Backup & Restore database">
+                    <span class="material-symbols-outlined">backup</span>
+                    <span class="nav-label">Backup</span>
+                </a>
+            </li>
+            @endif
         </ul>
 
         <div class="mt-auto px-2 pb-4">
