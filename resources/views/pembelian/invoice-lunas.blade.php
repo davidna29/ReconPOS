@@ -82,13 +82,12 @@
                         <th>Supplier</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Bayar</th>
-                        <th class="text-right">Kembali</th>
+                        <th class="text-right">PPN</th>
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($invoices as $i => $inv)
-                        @php($kembali = $inv->jenis === 'cash' ? max(0, $inv->bayar_atau_dp - $inv->total_setelah_diskon) : 0)
                         <tr data-id="{{ $inv->id }}">
                             @if (! $publik)
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="lunas" value="{{ $inv->id }}"></td>
@@ -101,7 +100,7 @@
                             <td class="font-medium">{{ $inv->supplier?->nama }}</td>
                             <td class="mono text-right">{{ rupiah($inv->total_setelah_diskon) }}</td>
                             <td class="mono text-right">{{ rupiah($inv->bayar_atau_dp) }}</td>
-                            <td class="mono text-right text-lunas-green">{{ $kembali > 0 ? rupiah($kembali) : '-' }}</td>
+                            <td class="mono text-right text-secondary">{{ (int) $inv->ppn > 0 ? rupiah($inv->ppn) : '-' }}</td>
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
                                     <a href="{{ $r('pembelian.show', $inv) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Detail">

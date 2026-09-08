@@ -434,6 +434,29 @@ class PembelianTest extends TestCase
         $this->assertDatabaseMissing('invoice_pembelian', ['id' => $c->id]);
     }
 
+    public function test_daftar_lunas_menampilkan_kolom_ppn_bukan_kembali(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-LUNASPPN');
+        $s = $this->supplier();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 111000, 'ppn' => 11000,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $b2 = $this->barang('B-LUNASNP');
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 100000, 'ppn' => 0,
+            'items' => [['barang_id' => $b2->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+
+        $html = $this->get(route('pembelian.invoice-lunas'))->getContent();
+        $this->assertStringContainsString('>PPN<', $html);
+        $this->assertStringNotContainsString('>Kembali<', $html);
+        $this->assertStringContainsString('11.000', $html); // ppn invoice pertama
+    }
+
     public function test_form_transaksi_memuat_input_ppn(): void
     {
         $this->authUser();
