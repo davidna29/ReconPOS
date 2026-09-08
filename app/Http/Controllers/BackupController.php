@@ -105,6 +105,15 @@ class BackupController extends Controller
                 . ' (' . $hasil['tabel'] . ' tabel). Pra-backup kondisi sebelumnya tersimpan: ' . $hasil['pra_backup'] . ' — silakan login ulang bila sesi berakhir.');
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            // Error DB tak terduga (transaksi sudah rollback sendiri) — tampilkan
+            // ramah + arahkan ke pra-backup, bukan 500 putih.
+            \Illuminate\Support\Facades\Log::error('Restore backup gagal di luar validasi', [
+                'file' => $data['file'],
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Restore gagal karena kesalahan database dan SELURUH perubahan dibatalkan (data tidak berubah): ' . $e->getMessage())->withInput();
         }
     }
 }

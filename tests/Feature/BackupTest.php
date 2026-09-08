@@ -107,6 +107,23 @@ class BackupTest extends TestCase
         $this->assertFileExists(BackupService::direktori() . '/' . $ringkas['pra_backup']);
     }
 
+    public function test_setelah_restore_id_baru_tidak_bentrok(): void
+    {
+        // Regresi insiden hosting 08/09/2026: perbaikiSequence WAJIB tetap jalan
+        // (di posisi barunya, sesudah transaksi) agar insert berikutnya = max+1.
+        $this->authUser();
+        $this->seedTransaksi();
+        $hasil = app(BackupService::class)->buat();
+        app(BackupService::class)->restore(BackupService::direktori() . '/' . $hasil['nama']);
+
+        $maxId = (int) \Illuminate\Support\Facades\DB::table('barang')->max('id');
+        $baru = Barang::create([
+            'tipe_item' => 'barang', 'kode_barang' => 'B-SEQ', 'nama' => 'Ban Seq',
+            'sn_atau_non_sn' => 'NON_SN',
+        ]);
+        $this->assertSame($maxId + 1, (int) $baru->id);
+    }
+
     public function test_restore_file_rusak_ditolak_tanpa_mengubah_data(): void
     {
         $this->authUser();

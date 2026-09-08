@@ -229,6 +229,12 @@ class BackupService
     /**
      * Eksekusi restore: validasi ketat → pra-backup otomatis → timpa atomik.
      * Mengembalikan ringkasan (termasuk nama pra-backup utk jalan kembali).
+     *
+     * ATURAN KERAS MySQL: di dalam DB::transaction HANYA boleh DML
+     * (delete/insert). DDL apa pun (ALTER/CREATE/DROP/TRUNCATE) menyebabkan
+     * *implicit commit* di MySQL → transaksi hilang → "There is no active
+     * transaction" saat commit + atomisitas jebol (insiden restore 08/09/2026
+     * di hosting; SQLite lokal tidak terpengaruh sehingga lolos test).
      */
     public function restore(string $path): array
     {
@@ -237,16 +243,16 @@ class BackupService
 
         $pra = $this->buat('pra-restore');
 
-        DB::transaction(function () use ($data) {
-            Schema::disableForeignKeyConstraints();
-            try {
-                // Hapus anak-dulu (urutan balik)
+        Schema::disableForeignKeyConstraints();
+        try {
+            DB::transaction(function () use ($data) {
+                // Hapus anak-dulu (urutan balik) — DML saja, JANGAN truncate
                 foreach (array_reverse(self::TABEL) as $t) {
                     if (Schema::hasTable($t)) {
                         DB::table($t)->delete();
                     }
                 }
-                // Insert induk-dulu per chunk
+                // Insert induk-dulu per chunk — DML saja
                 foreach (self::TABEL as $t) {
                     $rows = $data['tables'][$t]['rows'] ?? null;
                     if ($rows === null || ! Schema::hasTable($t)) {
@@ -262,11 +268,13 @@ class BackupService
                         );
                     }
                 }
-                $this->perbaikiSequence();
-            } finally {
-                Schema::enableForeignKeyConstraints();
-            }
-        });
+            });
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+
+        // DDL (sequence) SESUDAH transaksi commit — tidak boleh di dalamnya
+        $this->perbaikiSequence();
 
         // Bersihkan transient + cache aplikasi/teks agar tak ada sesi basi
         foreach (self::TRANSIENT as $t) {
