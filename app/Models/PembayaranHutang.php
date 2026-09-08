@@ -8,7 +8,7 @@ class PembayaranHutang extends Model
 {
     protected $table = 'pembayaran_hutang';
 
-    protected $fillable = ['invoice_pembelian_id', 'tanggal_bayar', 'nominal', 'catatan'];
+    protected $fillable = ['invoice_pembelian_id', 'tanggal_bayar', 'nominal', 'catatan', 'grup_bulk'];
 
     protected function casts(): array
     {

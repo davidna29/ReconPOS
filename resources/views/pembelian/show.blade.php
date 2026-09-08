@@ -93,12 +93,42 @@
             @if ($invoice->pembayaranHutang->count())
                 <div class="card-pad">
                     <h3 class="mb-2 text-headline-sm">Histori Pembayaran</h3>
+                    @php($grupBulkTampil = [])
                     @foreach ($invoice->pembayaranHutang as $p)
-                        <div class="flex items-center justify-between border-b border-slate-100 py-1.5">
-                            <span>{{ $p->tanggal_bayar->format('d/m/Y') }}</span>
+                        <div class="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5">
+                            <span>{{ $p->tanggal_bayar->format('d/m/Y') }}
+                                @if ($p->grup_bulk)<x-badge color="blue">bulk</x-badge>@endif
+                            </span>
                             <span class="mono font-bold text-lunas-green">{{ rupiah($p->nominal) }}</span>
+                            @if (! $publik)
+                            <form method="POST" action="{{ route('pembelian.bayar.destroy', $p) }}"
+                                onsubmit="return confirm('Batalkan pembayaran {{ uang($p->nominal) }} ({{ $p->tanggal_bayar->format('d/m/Y') }})? Sisa hutang akan dikembalikan.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn-icon text-danger-red" title="Batalkan pembayaran ini">
+                                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                            </form>
+                            @endif
                         </div>
+                        @if ($p->grup_bulk && ! in_array($p->grup_bulk, $grupBulkTampil, true))
+                            @php($grupBulkTampil[] = $p->grup_bulk)
+                        @endif
                     @endforeach
+                    @if (! $publik && count($grupBulkTampil))
+                        <div class="mt-2 flex flex-col gap-1">
+                            @foreach ($grupBulkTampil as $g)
+                                <form method="POST" action="{{ route('pembelian.bayar-bulk.cancel', $g) }}"
+                                    onsubmit="return confirm('Batalkan SELURUH bulk ini? Semua pembayaran satu paket bulk akan dikembalikan.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="btn btn-secondary btn-sm w-full">
+                                        <span class="material-symbols-outlined text-[16px]">restart_alt</span> Batalkan bulk ini
+                                    </button>
+                                </form>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @endif
 

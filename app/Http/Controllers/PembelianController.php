@@ -155,6 +155,90 @@ class PembelianController extends Controller
         }
     }
 
+    /** Hapus 1 pembayaran hutang (revert): sisa dikembalikan & status dihitung ulang. */
+    public function bayarDestroy(PembayaranHutang $pembayaran)
+    {
+        $noInvoice = $pembayaran->invoicePembelian?->no_invoice ?? ('#' . $pembayaran->invoice_pembelian_id);
+        $nominal = (int) $pembayaran->nominal;
+
+        try {
+            $inv = $this->service->hapusPembayaran($pembayaran);
+
+            return back()->with('success', 'Pembayaran ' . uang($nominal) . ' pada ' . $noInvoice . ' dibatalkan. Sisa hutang kini ' . uang($inv->sisa_hutang) . '.');
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /** Pratinjau alokasi bayar-bulk per supplier (read-only, tanpa menulis DB). */
+    public function bayarBulkPreview(Request $request)
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:supplier,id'],
+            'nominal' => ['required', 'integer', 'min:1'],
+            'tanggal_bayar' => ['required', 'date'],
+            'catatan' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            $supplier = Supplier::findOrFail((int) $data['supplier_id']);
+            $hasil = $this->service->simulasiBulk((int) $data['supplier_id'], (int) $data['nominal']);
+
+            return view('pembelian.bayar-bulk-preview', [
+                'supplier' => $supplier,
+                'hasil' => $hasil,
+                'nominal' => (int) $data['nominal'],
+                'tanggalBayar' => $data['tanggal_bayar'],
+                'catatan' => $data['catatan'] ?? null,
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+    }
+
+    /** Eksekusi bayar-bulk setelah pratinjau dikonfirmasi (atomik all-or-nothing). */
+    public function bayarBulkConfirm(Request $request)
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:supplier,id'],
+            'nominal' => ['required', 'integer', 'min:1'],
+            'tanggal_bayar' => ['required', 'date'],
+            'catatan' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        try {
+            $hasil = $this->service->bayarBulk(
+                (int) $data['supplier_id'],
+                (int) $data['nominal'],
+                Carbon::parse($data['tanggal_bayar']),
+                $data['catatan'] ?? null
+            );
+
+            $bagian = collect($hasil['rinci'])->map(fn ($r) => $r['invoice']->no_invoice
+                . ($r['lunas_baru'] ? ' lunas' : ' (sisa ' . uang($r['sisa_baru']) . ')'))->implode('; ');
+            $pesan = 'Bayar bulk ' . uang($hasil['dialokasi']) . ' dialokasikan ke ' . count($hasil['rinci']) . ' invoice: ' . $bagian . '.';
+            if ($hasil['kembalian'] > 0) {
+                $pesan .= ' Kembalian (tidak dicatat): ' . uang($hasil['kembalian']) . '.';
+            }
+
+            return redirect()->route('pembelian.invoice-hutang')->with('success', $pesan);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+    }
+
+    /** Batalkan 1 grup bulk sekaligus (revert atomik). */
+    public function bayarBulkCancel(string $grup)
+    {
+        try {
+            $hasil = $this->service->batalkanBulk($grup);
+
+            return back()->with('success', 'Bulk dibatalkan: ' . uang($hasil['nominal_kembali']) . ' dikembalikan ke ' . count($hasil['invoice_ids']) . ' invoice (' . $hasil['baris'] . ' baris pembayaran).');
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
     /** Hapus invoice pembelian (PRD 5.5b) — dengan konfirmasi force bila stok minus. */
     public function destroy(Request $request, InvoicePembelian $invoice)
     {

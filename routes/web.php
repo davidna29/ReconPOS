@@ -15,12 +15,7 @@ use App\Http\Controllers\Publik\DashboardController as PublikDashboardController
 use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
 use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
 use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
-
-// Rate limiting login (anti brute force, PRD 1.1)
-RateLimiter::for('login', fn () => Limit::perMinute(5)->by(request()->ip()));
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -74,6 +69,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/pembelian/{invoice}', [PembelianController::class, 'update'])->name('pembelian.update');
     Route::delete('/pembelian/{invoice}', [PembelianController::class, 'destroy'])->name('pembelian.destroy');
     Route::post('/pembelian/{invoice}/bayar', [PembelianController::class, 'bayarStore'])->name('pembelian.bayar');
+    Route::post('/pembelian/bayar-bulk/pratinjau', [PembelianController::class, 'bayarBulkPreview'])->name('pembelian.bayar-bulk.preview');
+    Route::post('/pembelian/bayar-bulk/konfirmasi', [PembelianController::class, 'bayarBulkConfirm'])->name('pembelian.bayar-bulk.confirm');
+    Route::delete('/pembelian/bayar-bulk/{grup}', [PembelianController::class, 'bayarBulkCancel'])->name('pembelian.bayar-bulk.cancel');
+    Route::delete('/pembelian/bayar/{pembayaran}', [PembelianController::class, 'bayarDestroy'])->name('pembelian.bayar.destroy');
     Route::get('/pembelian/{invoice}/print', [PembelianController::class, 'print'])->name('pembelian.print');
     Route::post('/pembelian/print-batch', [PembelianController::class, 'printBatch'])->name('pembelian.print-batch');
     Route::post('/pembelian/bulk-delete', [PembelianController::class, 'bulkDelete'])->name('pembelian.bulk-delete');

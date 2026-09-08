@@ -54,4 +54,14 @@ class AuthTest extends TestCase
     {
         $this->get('/register')->assertNotFound();
     }
+
+    public function test_rate_limiter_login_terdaftar_di_provider(): void
+    {
+        // Regresi hosting: limiter didefinisikan di AppServiceProvider (bukan
+        // routes/web.php) agar tetap ada saat route:cache aktif — tanpanya
+        // POST /login 500 "Rate limiter [login] is not defined".
+        $limiter = $this->app->make(\Illuminate\Cache\RateLimiter::class)->limiter('login');
+
+        $this->assertNotNull($limiter, 'Rate limiter [login] harus terdaftar.');
+    }
 }

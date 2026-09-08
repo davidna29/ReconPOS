@@ -256,19 +256,170 @@ class PembelianService
         }
 
         DB::transaction(function () use ($invoice, $nominal, $tanggal, $catatan) {
-            PembayaranHutang::create([
-                'invoice_pembelian_id' => $invoice->id,
-                'tanggal_bayar' => $tanggal,
-                'nominal' => $nominal,
-                'catatan' => $catatan,
-            ]);
+            $this->catatPembayaran($invoice->fresh(), $nominal, $tanggal, $catatan);
+        });
+    }
 
-            $invoice->sisa_hutang -= $nominal;
-            if ($invoice->sisa_hutang <= 0) {
-                $invoice->sisa_hutang = 0;
-                $invoice->status = 'lunas';
+    /**
+     * Inti pencatatan 1 pembayaran (tanpa transaksi sendiri) — dipakai
+     * pelunasan() satuan & bayarBulk() (yang membungkus loop dalam 1 transaksi).
+     */
+    private function catatPembayaran(InvoicePembelian $invoice, int $nominal, Carbon $tanggal, ?string $catatan = null, ?string $grupBulk = null): PembayaranHutang
+    {
+        $bayar = PembayaranHutang::create([
+            'invoice_pembelian_id' => $invoice->id,
+            'tanggal_bayar' => $tanggal,
+            'nominal' => $nominal,
+            'catatan' => $catatan,
+            'grup_bulk' => $grupBulk,
+        ]);
+
+        $invoice->sisa_hutang -= $nominal;
+        if ($invoice->sisa_hutang <= 0) {
+            $invoice->sisa_hutang = 0;
+            $invoice->status = 'lunas';
+        }
+        $invoice->save();
+
+        return $bayar;
+    }
+
+    /**
+     * Simulasi alokasi bayar-bulk per supplier (read-only, tanpa menulis DB).
+     * Urutan FIFO: tanggal_transaksi ASC, id ASC. Dipakai pratinjau & eksekusi
+     * agar angkanya identik.
+     *
+     * @return array{invoices: \Illuminate\Support\Collection, total_hutang: int, dialokasi: int, kembalian: int, rinci: array}
+     */
+    public function simulasiBulk(int $supplierId, int $nominal): array
+    {
+        if ($nominal <= 0) {
+            throw new InvalidArgumentException('Nominal pembayaran harus lebih dari 0.');
+        }
+
+        $invoices = InvoicePembelian::where('supplier_id', $supplierId)
+            ->where('status', 'belum_lunas')
+            ->where('sisa_hutang', '>', 0)
+            ->orderBy('tanggal_transaksi')
+            ->orderBy('id')
+            ->get();
+
+        $total = (int) $invoices->sum('sisa_hutang');
+        if ($total <= 0) {
+            throw new InvalidArgumentException('Supplier ini tidak punya hutang belum lunas.');
+        }
+
+        // Kelebihan di atas total = kembalian (tidak dicatat sebagai kredit).
+        $sisaAlokasi = min($nominal, $total);
+        $rinci = [];
+        foreach ($invoices as $inv) {
+            if ($sisaAlokasi <= 0) {
+                break;
             }
-            $invoice->save();
+            $porsi = min((int) $inv->sisa_hutang, $sisaAlokasi);
+            $sisaBaru = (int) $inv->sisa_hutang - $porsi;
+            $rinci[] = [
+                'invoice' => $inv,
+                'dibayar' => $porsi,
+                'sisa_baru' => $sisaBaru,
+                'lunas_baru' => $sisaBaru <= 0,
+            ];
+            $sisaAlokasi -= $porsi;
+        }
+
+        $dialokasi = min($nominal, $total);
+
+        return [
+            'invoices' => $invoices,
+            'total_hutang' => $total,
+            'dialokasi' => $dialokasi,
+            'kembalian' => $nominal - $dialokasi,
+            'rinci' => $rinci,
+        ];
+    }
+
+    /**
+     * Bayar bulk per supplier (FIFO tertua dulu) dalam 1 transaksi atomik.
+     * Mengembalikan hasil alokasi + grup UUID utk tombol "Batalkan bulk ini".
+     */
+    public function bayarBulk(int $supplierId, int $nominal, Carbon $tanggal, ?string $catatan = null): array
+    {
+        return DB::transaction(function () use ($supplierId, $nominal, $tanggal, $catatan) {
+            // Kunci baris agar dua bulk bersamaan tidak alokasi ganda.
+            $simulasi = $this->simulasiBulk($supplierId, $nominal);
+            $grup = (string) \Illuminate\Support\Str::uuid();
+
+            foreach ($simulasi['rinci'] as $i => $r) {
+                /** @var InvoicePembelian $inv */
+                $inv = InvoicePembelian::whereKey($r['invoice']->id)->lockForUpdate()->firstOrFail();
+                if (! $inv->isHutang() || $inv->sudahLunas() || (int) $inv->sisa_hutang <= 0) {
+                    throw new InvalidArgumentException('Invoice ' . $inv->no_invoice . ' berubah saat diproses. Ulangi pembayaran.');
+                }
+                $porsi = min((int) $inv->sisa_hutang, $r['dibayar']);
+                if ($porsi <= 0) {
+                    continue;
+                }
+                $catat = $catatan !== null && trim($catatan) !== ''
+                    ? trim($catatan) . ' · bulk ' . ($i + 1) . '/' . count($simulasi['rinci']) . ' dari ' . uang($simulasi['dialokasi'])
+                    : 'Bayar bulk ' . uang($simulasi['dialokasi']) . ' (' . ($i + 1) . '/' . count($simulasi['rinci']) . ')';
+                $this->catatPembayaran($inv, $porsi, $tanggal, $catat, $grup);
+            }
+
+            return $simulasi + ['grup' => $grup, 'tanggal' => $tanggal, 'catatan' => $catatan];
+        });
+    }
+
+    /**
+     * Hapus 1 pembayaran (revert): sisa dikembalikan, status dihitung ulang.
+     * Salah input → hapus → input ulang (tidak ada edit nominal).
+     */
+    public function hapusPembayaran(PembayaranHutang $pembayaran): InvoicePembelian
+    {
+        return DB::transaction(function () use ($pembayaran) {
+            /** @var InvoicePembelian $inv */
+            $inv = InvoicePembelian::whereKey($pembayaran->invoice_pembelian_id)->lockForUpdate()->firstOrFail();
+            $inv->sisa_hutang += (int) $pembayaran->nominal;
+            if ($inv->isHutang() && (int) $inv->sisa_hutang > 0) {
+                $inv->status = 'belum_lunas';
+            }
+            $inv->save();
+            $pembayaran->delete();
+
+            return $inv->fresh();
+        });
+    }
+
+    /**
+     * Batalkan 1 grup bulk sekaligus (revert atomik). Baris grup yang sudah
+     * dihapus manual sebelumnya dilewati & dilaporkan (toleran, bukan gagal).
+     *
+     * @return array{nominal_kembali: int, baris: int, invoice_ids: array}
+     */
+    public function batalkanBulk(string $grup): array
+    {
+        return DB::transaction(function () use ($grup) {
+            $rows = PembayaranHutang::where('grup_bulk', $grup)->orderBy('id')->get();
+            if ($rows->isEmpty()) {
+                throw new InvalidArgumentException('Grup bulk tidak ditemukan (mungkin sudah dibatalkan).');
+            }
+
+            $kembali = 0;
+            $invoiceIds = [];
+            foreach ($rows->groupBy('invoice_pembelian_id') as $invoiceId => $perInv) {
+                /** @var InvoicePembelian $inv */
+                $inv = InvoicePembelian::whereKey($invoiceId)->lockForUpdate()->firstOrFail();
+                $jumlah = (int) $perInv->sum('nominal');
+                $inv->sisa_hutang += $jumlah;
+                if ($inv->isHutang() && (int) $inv->sisa_hutang > 0) {
+                    $inv->status = 'belum_lunas';
+                }
+                $inv->save();
+                $kembali += $jumlah;
+                $invoiceIds[] = $inv->id;
+                PembayaranHutang::whereIn('id', $perInv->pluck('id'))->delete();
+            }
+
+            return ['nominal_kembali' => $kembali, 'baris' => $rows->count(), 'invoice_ids' => $invoiceIds];
         });
     }
 

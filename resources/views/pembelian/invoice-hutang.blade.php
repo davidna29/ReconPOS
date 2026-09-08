@@ -46,10 +46,46 @@
         <a href="{{ $r('pembelian.invoice-hutang') }}" class="btn btn-secondary btn-sm">Reset</a>
     </form>
 
+    @if (! $publik)
+    <div id="bayar-bulk-row" class="card hidden p-4">
+        <form method="POST" action="{{ route('pembelian.bayar-bulk.preview') }}" class="flex flex-wrap items-end gap-3">
+            @csrf
+            <div>
+                <label class="label">Supplier <span class="text-danger-red">*</span></label>
+                <select name="supplier_id" required class="input w-56">
+                    <option value="">-- Pilih Supplier --</option>
+                    @foreach (($suppliers ?? collect()) as $s)
+                        <option value="{{ $s->id }}" @selected((string) request('supplier') === (string) $s->id)>{{ $s->nama }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="label text-danger-red">Nominal Bayar (Rp) <span class="text-danger-red">*</span></label>
+                <input type="number" name="nominal" min="1" step="1" required class="input mono w-44 text-right" placeholder="1500000">
+            </div>
+            <div>
+                <label class="label">Tanggal Bayar <span class="text-danger-red">*</span></label>
+                <input type="date" name="tanggal_bayar" value="{{ now()->format('Y-m-d') }}" required class="input">
+            </div>
+            <div class="min-w-52 flex-1">
+                <label class="label">Catatan (opsional)</label>
+                <input type="text" name="catatan" maxlength="255" placeholder="mis. transfer BCA" class="input">
+            </div>
+            <button class="btn btn-success btn-sm"><span class="material-symbols-outlined text-[16px]">preview</span> Pratinjau Alokasi</button>
+        </form>
+        <p class="hint mt-2">Mencakup <strong>semua</strong> invoice belum lunas supplier tsb (bukan hanya halaman ini) — dialokasikan otomatis dari yang <strong>terlama</strong>. Kelebihan di atas total = kembalian (tidak dicatat). Pratinjau dulu sebelum tercatat.</p>
+    </div>
+    @endif
+
     <div class="card overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
             @if (! $publik)
             @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
+                <button type="button" class="btn btn-success btn-sm"
+                    onclick="document.getElementById('bayar-bulk-row').classList.toggle('hidden')"
+                    title="Bayar banyak invoice satu supplier sekaligus (tertua dulu)">
+                    <span class="material-symbols-outlined text-[16px]">payments</span> Bayar Bulk
+                </button>
                 <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
                     data-bulk-delete-btn="hutang"
                     data-bulk-delete-url="{{ route('pembelian.bulk-delete') }}"
