@@ -26,6 +26,10 @@
                 @if ($kapFinal !== null && $kapFinal !== $kapPeak)
                     <span class="rounded bg-slate-100 px-2 py-1">Kapasitas Akhir: <span class="font-bold">{{ rupiah($kapFinal) }}</span></span>
                 @endif
+                @php($masukTerakhir = $param['masuk_terakhir'] ?? null)
+                @if ($masukTerakhir > 0)
+                    <span class="rounded bg-slate-100 px-2 py-1" title="Stok masuk hari terakhir periode — aturan H+1 membuatnya tak bisa dijual periode ini">Masuk hari terakhir: <span class="font-bold">{{ rupiah($masukTerakhir) }}</span></span>
+                @endif
                 <span class="rounded bg-amber-50 px-2 py-1">Sisa Target: {{ rupiah($sisaTarget) }}</span>
                 <span class="rounded bg-green-50 px-2 py-1">Hari terisi: {{ $perHari->count() }} hari · {{ $batch->transaksiPenjualan->count() }} nota</span>
             </div>

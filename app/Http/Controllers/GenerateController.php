@@ -76,6 +76,7 @@ class GenerateController extends Controller
                 return back()->with('kapasitas_warning', [
                     'kapasitas' => $result['kapasitas'],
                     'target' => $result['target'],
+                    'masuk_terakhir' => $result['masuk_terakhir'] ?? 0,
                     'pesan' => $result['pesan'],
                     'input' => $request->except('_token'),
                 ])->withInput();

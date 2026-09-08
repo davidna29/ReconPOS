@@ -180,7 +180,11 @@
         const warning = @json(session('kapasitas_warning'));
         if (warning) {
             document.getElementById('kapasitas-pesan').textContent = warning.pesan;
-            document.getElementById('kapasitas-detail').textContent = 'Opsi 1: generate semaksimal stok (' + 'Rp ' + Number(warning.kapasitas).toLocaleString('id-ID') + '). Opsi 2: batalkan, sesuaikan target atau tambah stok.';
+            let detail = 'Opsi 1: generate semaksimal stok (' + 'Rp ' + Number(warning.kapasitas).toLocaleString('id-ID') + '). Opsi 2: batalkan, sesuaikan target atau tambah stok.';
+            if (warning.masuk_terakhir > 0) {
+                detail += ' Masuk hari terakhir periode: Rp ' + Number(warning.masuk_terakhir).toLocaleString('id-ID') + ' (tak terjualable H+1).';
+            }
+            document.getElementById('kapasitas-detail').textContent = detail;
             const fields = document.getElementById('form-force-fields');
             for (const [k, v] of Object.entries(warning.input || {})) {
                 if (Array.isArray(v)) continue; // array diisi ulang manual oleh user

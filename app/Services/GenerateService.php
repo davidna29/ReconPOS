@@ -94,6 +94,7 @@ class GenerateService
             'sisaTarget' => $sisaTarget,
             'kapasitasPeak' => $diagnose['kapasitasPeak'],
             'kapasitasFinal' => $diagnose['kapasitasFinal'],
+            'masukTerakhir' => $diagnose['masukTerakhir'],
             'kapasitasDipakai' => $kapasitas,
             'totalWeight' => $diagnose['totalWeight'],
             'openDays' => $diagnose['openDays'],
@@ -102,19 +103,28 @@ class GenerateService
 
         // 3. Cek kapasitas: warning + 2 opsi (lanjut semaksimal / batal)
         if ($kapasitas < $sisaTarget && ! $force) {
+            $pesan = 'Nilai jual seluruh stok yang tersedia pada periode ini (Rp '
+                . uang($kapasitas) . ') lebih kecil dari sisa target (Rp ' . uang($sisaTarget) . ').';
+            if ($diagnose['masukTerakhir'] > 0) {
+                $pesan .= ' Termasuk Rp ' . uang($diagnose['masukTerakhir'])
+                    . ' stok masuk hari terakhir periode yang tak bisa dijual periode ini (aturan H+1).';
+            }
+
             return [
                 'status' => 'kapasitas_kurang',
                 'kapasitas' => $kapasitas,
                 'target' => $sisaTarget,
-                'pesan' => 'Nilai jual seluruh stok yang tersedia pada periode ini (Rp '
-                    . uang($kapasitas) . ') lebih kecil dari sisa target (Rp ' . uang($sisaTarget) . ').',
+                'masuk_terakhir' => $diagnose['masukTerakhir'],
+                'pesan' => $pesan,
             ];
         }
 
         $efektifTarget = min($sisaTarget, $kapasitas);
         $kapasitasKurang = $kapasitas < $sisaTarget;
 
-        // 4-8. Alokasikan & bangun transaksi
+        // 4-8. Alokasikan & bangun transaksi. $efektifTarget sudah = min(sisa, kapasitas),
+        // sehingga pass maksimalisasi (global fill + penyesuaianAkhir) SELALU jalan —
+        // juga saat kapasitas kurang — menargetkan nilai yang memang tercapai.
         $transaksi = $this->bangunTransaksi(
             $mulai->copy(),
             $selesai->copy(),
@@ -130,7 +140,6 @@ class GenerateService
             (string) $params['jam_buka'],
             (string) $params['jam_tutup'],
             $closedDays,
-            $kapasitasKurang,
         );
 
         $total = 0;
@@ -155,6 +164,7 @@ class GenerateService
                 'kapasitas' => $kapasitas,
                 'kapasitasPeak' => $diagnose['kapasitasPeak'],
                 'kapasitasFinal' => $diagnose['kapasitasFinal'],
+                'masuk_terakhir' => $diagnose['masukTerakhir'],
             ],
             'status' => 'draft',
             'total_generate' => $total,
@@ -270,6 +280,7 @@ class GenerateService
         $timeline = [];
         $kapasitasPeak = 0;
         $kapasitasFinal = 0;
+        $masukTerakhir = 0; // nilai stok masuk TEPAT di hari terakhir periode (tak terjualable H+1)
         $closedDays = [];
 
         $settings = TokoSetting::utama();
@@ -318,6 +329,9 @@ class GenerateService
             if ($peakAvail > 0) {
                 $kapasitasPeak += $peakAvail * (int) $barang->harga_jual;
             }
+            // Nilai masuk hari terakhir periode: aturan H+1 membuatnya tak bisa dijual
+            // periode ini (diagnosa keterisian, bukan pengurang kapasitas).
+            $masukTerakhir += (int) ($masukPerHari[$selesai->toDateString()] ?? 0) * (int) $barang->harga_jual;
             // final balance = stock tersisa di akhir periode (termasuk masuk hari terakhir, tapi konservatif peak lebih akurat)
             $finalAvail = max(0, $balance - ($masukPerHari[$selesai->toDateString()] ?? 0));
             // Jika ada masuk di hari terakhir, finalAvail sudah dikurangi di atas agar tidak jual stok H terakhir di hari itu
@@ -345,6 +359,7 @@ class GenerateService
         $diagnose = [
             'kapasitasPeak' => $kapasitasPeak,
             'kapasitasFinal' => $kapasitasFinal,
+            'masukTerakhir' => $masukTerakhir,
             'totalWeight' => 0, // diisi caller jika perlu
             'openDays' => count($days) - count($closedDays),
         ];
@@ -389,7 +404,6 @@ class GenerateService
         string $jamBuka,
         string $jamTutup,
         array $closedDays,
-        bool $kapasitasKurang,
     ): array {
         // Clamp 1..100 untuk target besar (validasi sudah max 100, ini pertahanan)
         $notaMin = max(1, min($notaMin, 100));
@@ -643,7 +657,7 @@ class GenerateService
             }
         }
         $sisaGlobal = $target - $totalSales;
-        if ($sisaGlobal > 0 && ! $kapasitasKurang) {
+        if ($sisaGlobal > 0) {
             // Coba isi sisa global dengan loop tambahan (maksimal 5000 iterasi)
             $guard = 0;
             while ($sisaGlobal > 0 && $guard++ < 5000) {
@@ -857,7 +871,7 @@ class GenerateService
         }
 
         // 8. Penyesuaian akhir: dekatkan total ke target dalam toleransi (harga/qty/drop)
-        $transaksi = $this->penyesuaianAkhir($transaksi, $target, $toleransi, $kapasitasKurang, $avail, $notaSeq, $jamBuka, $jamTutup, $variasiMin, $maksQtyPerNota);
+        $transaksi = $this->penyesuaianAkhir($transaksi, $target, $toleransi, $avail, $notaSeq, $jamBuka, $jamTutup, $variasiMin, $maksQtyPerNota);
 
         return $transaksi;
     }
@@ -904,11 +918,13 @@ class GenerateService
      * Penyesuaian akhir: dekatkan total ke target dalam toleransi (PRD 6 poin 8).
      * Prioritas: (1) naik/turunkan harga jual dalam rentang variasi (fine-tune presisi),
      *            (2) tambah/kurangi qty, (3) top-up nota / drop nota.
-     * Kasus kapasitas kurang → selesai apa adanya (semaksimal stok).
+     * Selalu jalan (termasuk saat kapasitas kurang — generate() sudah meng-capped
+     * target ke min(sisa, kapasitas), jadi maksimalisasi ini menargetkan nilai
+     * yang memang tercapai tanpa pernah menjual melebihi stok).
      */
-    private function penyesuaianAkhir(array $transaksi, int $target, int $toleransi, bool $kapasitasKurang, array &$avail, int &$notaSeq, string $jamBuka, string $jamTutup, int $variasiMin, int $maksQtyPerNota): array
+    private function penyesuaianAkhir(array $transaksi, int $target, int $toleransi, array &$avail, int &$notaSeq, string $jamBuka, string $jamTutup, int $variasiMin, int $maksQtyPerNota): array
     {
-        if ($kapasitasKurang || count($transaksi) === 0) {
+        if (count($transaksi) === 0) {
             return $transaksi;
         }
 

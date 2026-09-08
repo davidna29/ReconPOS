@@ -167,6 +167,83 @@ class GenerateTest extends TestCase
         }
     }
 
+    public function test_diagnose_masuk_terakhir_hari_terakhir_periode(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        [$a] = $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+
+        // Tanpa masuk di hari terakhir → 0
+        $d = $svc->diagnose($bulan->copy(), $bulan->copy()->endOfMonth());
+        $this->assertSame(0, $d['masukTerakhir']);
+
+        // Tambah masuk tepat di hari terakhir: 5 unit @ master
+        $s = Supplier::first();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => $bulan->copy()->endOfMonth()->setTime(9, 0)->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000, 'ppn' => 0,
+            'items' => [['barang_id' => $a->id, 'harga_beli' => 40000, 'qty' => 5, 'diskon_item' => 0]],
+        ]);
+
+        $d2 = app(GenerateService::class)->diagnose($bulan->copy(), $bulan->copy()->endOfMonth());
+        $this->assertSame(5 * (int) $a->fresh()->harga_jual, $d2['masukTerakhir']);
+    }
+
+    public function test_warning_kapasitas_memuat_masuk_terakhir(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        [$a] = $this->setupStok($bulan);
+        $s = Supplier::first();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => $bulan->copy()->endOfMonth()->setTime(9, 0)->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000, 'ppn' => 0,
+            'items' => [['barang_id' => $a->id, 'harga_beli' => 40000, 'qty' => 5, 'diskon_item' => 0]],
+        ]);
+
+        $res = app(GenerateService::class)->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 999999999, [], false);
+        $this->assertSame('kapasitas_kurang', $res['status']);
+        $this->assertArrayHasKey('masuk_terakhir', $res);
+        $this->assertGreaterThan(0, $res['masuk_terakhir']);
+        $this->assertStringContainsString('H+1', $res['pesan']);
+    }
+
+    public function test_force_kapasitas_kurang_tetap_maksimal_tanpa_lebihi_kapasitas(): void
+    {
+        $bulan = Carbon::now()->startOfMonth();
+        $this->setupStok($bulan);
+        $svc = app(GenerateService::class);
+
+        // Target jauh di atas kapasitas + force: pass maksimalisasi tetap jalan,
+        // total > 0 dan tak pernah melebihi kapasitas (harga ≤ master).
+        $res = $svc->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 999999999, [], true);
+        $this->assertSame('ok', $res['status']);
+        $kapasitas = (int) ($res['batch']->parameter_json['kapasitas'] ?? 0);
+        $this->assertGreaterThan(0, $kapasitas);
+        $this->assertGreaterThan(0, $res['total']);
+        $this->assertLessThanOrEqual($kapasitas, $res['total']);
+        $this->assertArrayHasKey('masuk_terakhir', $res['batch']->parameter_json);
+    }
+
+    public function test_review_menampilkan_chip_masuk_terakhir(): void
+    {
+        $this->authUser();
+        $bulan = Carbon::now()->startOfMonth();
+        [$a] = $this->setupStok($bulan);
+        $s = Supplier::first();
+        app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => $bulan->copy()->endOfMonth()->setTime(9, 0)->format('Y-m-d H:i'),
+            'jenis' => 'cash', 'bayar_atau_dp' => 500000, 'ppn' => 0,
+            'items' => [['barang_id' => $a->id, 'harga_beli' => 40000, 'qty' => 5, 'diskon_item' => 0]],
+        ]);
+
+        $res = app(GenerateService::class)->generate($bulan->copy(), $bulan->copy()->endOfMonth(), 800000, [], true);
+        $this->get(route('generate.review', $res['batch']))
+            ->assertOk()->assertSee('Masuk hari terakhir', false);
+    }
+
     public function test_generate_ulang_menimpa_draft_sebelumnya(): void
     {
         $bulan = Carbon::now()->startOfMonth();
