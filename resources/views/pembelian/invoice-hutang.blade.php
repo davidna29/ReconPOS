@@ -119,6 +119,7 @@
                         <th>Tanggal Transaksi</th>
                         <th>Supplier</th>
                         <th>Jatuh Tempo</th>
+                        <th class="text-right">Sudah Bayar</th>
                         <th class="text-right">Sisa Hutang</th>
                         <th class="text-right">Aksi</th>
                     </tr>
@@ -141,6 +142,9 @@
                                     <x-badge color="amber">≤ 7 hr</x-badge>
                                 @endif
                             </td>
+                            @php($sudahBayar = (int) $inv->bayar_atau_dp + (int) ($inv->cicilan_sum ?? 0))
+                            <td class="mono text-right font-bold text-lunas-green"
+                                title="DP {{ uang($inv->bayar_atau_dp) }} + cicilan {{ uang($inv->cicilan_sum ?? 0) }} ({{ (int) ($inv->cicilan_count ?? 0) }}×)">{{ rupiah($sudahBayar) }}</td>
                             <td class="mono text-right font-bold text-hutang-amber">{{ rupiah($inv->sisa_hutang) }}</td>
                             <td class="text-right">
                                 <div class="flex justify-end gap-1">
@@ -173,7 +177,7 @@
                         </tr>
                         @if (! $publik)
                         <tr id="bayar-{{ $inv->id }}" class="hidden bg-slate-50">
-                            <td colspan="8">
+                            <td colspan="9">
                                 <form method="POST" action="{{ route('pembelian.bayar', $inv) }}" class="flex flex-wrap items-end gap-3 p-3">
                                     @csrf
                                     <div>
@@ -194,7 +198,7 @@
                         </tr>
                         @endif
                     @empty
-                        <tr><td colspan="{{ $publik ? 7 : 8 }}" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
+                        <tr><td colspan="{{ $publik ? 8 : 9 }}" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
                     @endforelse
                 </tbody>
             </table>

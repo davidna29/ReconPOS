@@ -80,6 +80,8 @@ class PembelianController extends Controller
     public function invoiceHutang(Request $request)
     {
         $query = InvoicePembelian::with('supplier')
+            ->withSum('pembayaranHutang as cicilan_sum', 'nominal')
+            ->withCount('pembayaranHutang as cicilan_count')
             ->where('status', 'belum_lunas');
 
         [$awal, $akhir] = $this->periodeDariRequest($request);

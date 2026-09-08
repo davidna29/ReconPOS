@@ -219,6 +219,30 @@ class BayarBulkTest extends TestCase
         $this->assertSame(1000000, (int) $inv1->fresh()->sisa_hutang);
     }
 
+    public function test_daftar_hutang_menampilkan_sudah_bayar(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. SB', 'kontak' => '0822']);
+        $b = $this->barang('B-SB');
+        // DP 200rb + 1 cicilan 300rb dari total 1jt → Sudah Bayar 500rb, sisa 500rb
+        $inv = app(PembelianService::class)->simpan([
+            'no_invoice' => 'INV-SB',
+            'supplier_id' => $s->id, 'tanggal_transaksi' => '2026-06-01 10:00',
+            'jenis' => 'hutang', 'bayar_atau_dp' => 200000, 'ppn' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 500000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        app(PembelianService::class)->pelunasan($inv, 300000, now());
+
+        $html = $this->get(route('pembelian.invoice-hutang'))->getContent();
+        $this->assertStringContainsString('Sudah Bayar', $html);
+        $this->assertStringContainsString('500.000', $html); // 200rb DP + 300rb cicilan
+        $this->assertStringContainsString('(1×)', $html);
+
+        // Publik (view bersama) ikut tampil
+        $this->get(route('publik.pembelian.invoice-hutang'))
+            ->assertOk()->assertSee('Sudah Bayar', false);
+    }
+
     public function test_toolbar_bayar_bulk_hanya_admin(): void
     {
         $this->authUser();
