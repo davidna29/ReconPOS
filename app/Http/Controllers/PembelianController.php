@@ -172,6 +172,19 @@ class PembelianController extends Controller
         }
     }
 
+    /** Laman khusus bayar bulk: form + riwayat (tracking). */
+    public function bayarBulkIndex()
+    {
+        $suppliers = Supplier::orderBy('nama')->get();
+
+        $riwayat = \App\Models\BulkBayarHutang::with('supplier')
+            ->withCount('pembayaran as baris_aktif')
+            ->latest()
+            ->paginate(10);
+
+        return view('pembelian.bayar-bulk-index', compact('suppliers', 'riwayat'));
+    }
+
     /** Pratinjau alokasi bayar-bulk per supplier (read-only, tanpa menulis DB). */
     public function bayarBulkPreview(Request $request)
     {
@@ -180,6 +193,7 @@ class PembelianController extends Controller
             'nominal' => ['required', 'integer', 'min:1'],
             'tanggal_bayar' => ['required', 'date'],
             'catatan' => ['nullable', 'string', 'max:255'],
+            'bukti_url' => ['nullable', 'url', 'max:1000'],
         ]);
 
         try {
@@ -192,6 +206,7 @@ class PembelianController extends Controller
                 'nominal' => (int) $data['nominal'],
                 'tanggalBayar' => $data['tanggal_bayar'],
                 'catatan' => $data['catatan'] ?? null,
+                'buktiUrl' => $data['bukti_url'] ?? null,
             ]);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
@@ -206,6 +221,7 @@ class PembelianController extends Controller
             'nominal' => ['required', 'integer', 'min:1'],
             'tanggal_bayar' => ['required', 'date'],
             'catatan' => ['nullable', 'string', 'max:255'],
+            'bukti_url' => ['nullable', 'url', 'max:1000'],
         ]);
 
         try {
@@ -213,7 +229,8 @@ class PembelianController extends Controller
                 (int) $data['supplier_id'],
                 (int) $data['nominal'],
                 Carbon::parse($data['tanggal_bayar']),
-                $data['catatan'] ?? null
+                $data['catatan'] ?? null,
+                $data['bukti_url'] ?? null
             );
 
             $bagian = collect($hasil['rinci'])->map(fn ($r) => $r['invoice']->no_invoice
@@ -223,7 +240,7 @@ class PembelianController extends Controller
                 $pesan .= ' Kembalian (tidak dicatat): ' . uang($hasil['kembalian']) . '.';
             }
 
-            return redirect()->route('pembelian.invoice-hutang')->with('success', $pesan);
+            return redirect()->route('pembelian.bayar-bulk.index')->with('success', $pesan);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
         }

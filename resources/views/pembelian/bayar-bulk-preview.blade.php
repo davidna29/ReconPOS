@@ -32,7 +32,7 @@
                 <p class="mono font-bold {{ $hasil['kembalian'] > 0 ? 'text-hutang-amber' : '' }}">{{ rupiah($hasil['kembalian']) }}</p>
             </div>
         </div>
-        <p class="hint mt-2">Tanggal bayar: {{ \Illuminate\Support\Carbon::parse($tanggalBayar)->format('d/m/Y') }}@if ($catatan) · Catatan: {{ $catatan }}@endif</p>
+        <p class="hint mt-2">Tanggal bayar: {{ \Illuminate\Support\Carbon::parse($tanggalBayar)->format('d/m/Y') }}@if ($catatan) · Catatan: {{ $catatan }}@endif @if (! empty($buktiUrl)) · Bukti: <a href="{{ $buktiUrl }}" target="_blank" rel="noopener" class="text-primary underline">buka link</a>@endif</p>
     </div>
 
     <div class="card overflow-hidden">
@@ -79,11 +79,12 @@
             <input type="hidden" name="nominal" value="{{ $nominal }}">
             <input type="hidden" name="tanggal_bayar" value="{{ $tanggalBayar }}">
             @if ($catatan)<input type="hidden" name="catatan" value="{{ $catatan }}">@endif
+            @if (! empty($buktiUrl))<input type="hidden" name="bukti_url" value="{{ $buktiUrl }}">@endif
             <button class="btn btn-success" onclick="return confirm('Catat pembayaran bulk {{ rupiah($hasil['dialokasi']) }} ke {{ count($hasil['rinci']) }} invoice?');">
                 <span class="material-symbols-outlined text-[18px]">check_circle</span> Konfirmasi & Catat Pembayaran
             </button>
         </form>
-        <a href="{{ route('pembelian.invoice-hutang', ['supplier' => $supplier->id]) }}" class="btn btn-secondary">
+        <a href="{{ route('pembelian.bayar-bulk.index', ['supplier' => $supplier->id]) }}" class="btn btn-secondary">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali (batalkan)
         </a>
     </div>

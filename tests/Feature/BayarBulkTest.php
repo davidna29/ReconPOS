@@ -197,11 +197,11 @@ class BayarBulkTest extends TestCase
         ])->assertOk()->assertSee('INV-H1')->assertSee('Pratinjau');
         $this->assertSame(0, PembayaranHutang::count());
 
-        // Konfirmasi: tercatat
+        // Konfirmasi: tercatat + kembali ke laman bulk
         $this->post(route('pembelian.bayar-bulk.confirm'), [
             'supplier_id' => $s->id, 'nominal' => 1500000,
             'tanggal_bayar' => now()->format('Y-m-d'), 'catatan' => 'tes',
-        ])->assertRedirect(route('pembelian.invoice-hutang'))
+        ])->assertRedirect(route('pembelian.bayar-bulk.index'))
             ->assertSessionHas('success');
         $this->assertSame(2, PembayaranHutang::count());
         $grup = PembayaranHutang::first()->grup_bulk;
@@ -251,11 +251,106 @@ class BayarBulkTest extends TestCase
         $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-TB');
 
         $this->get(route('pembelian.invoice-hutang'))
-            ->assertOk()->assertSee('Bayar Bulk', false)->assertSee('bayar-bulk-row', false);
+            ->assertOk()->assertSee('Bayar Bulk', false)
+            ->assertSee(route('pembelian.bayar-bulk.index'), false);
 
-        // Mode publik: read-only, tanpa tombol bulk
+        // Mode publik: read-only, tanpa tombol/tab bulk
         $this->get(route('publik.pembelian.invoice-hutang'))
             ->assertOk()->assertDontSee('Bayar Bulk');
+    }
+
+    public function test_laman_bulk_memuat_form_dan_riwayat(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. LB', 'kontak' => '0822']);
+        $b = $this->barang('B-LB');
+        $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-LB1');
+        $this->hutang1jt($s, $b, '2026-06-02 10:00', 'INV-LB2');
+
+        // Kosong: form + riwayat kosong
+        $this->get(route('pembelian.bayar-bulk.index'))
+            ->assertOk()
+            ->assertSee('Pratinjau Alokasi', false)
+            ->assertSee('Link Bukti Transfer', false)
+            ->assertSee('Belum ada pembayaran bulk.');
+
+        // Setelah bulk: riwayat tampil dgn bukti + hitungan invoice
+        app(PembelianService::class)->bayarBulk($s->id, 1500000, now(), 'tes', 'https://drive.google.com/file/d/abc');
+
+        $this->get(route('pembelian.bayar-bulk.index'))
+            ->assertOk()
+            ->assertSee('PT. LB')
+            ->assertSee('1.500.000')
+            ->assertSee('https://drive.google.com/file/d/abc', false)
+            ->assertSee('2 invoice')
+            ->assertSee('Batalkan', false);
+
+        // Publik tidak punya laman bulk
+        $this->get('/publik/pembelian/bayar-bulk')->assertNotFound();
+    }
+
+    public function test_bukti_url_opsional_tapi_harus_url_valid(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. BU', 'kontak' => '0823']);
+        $b = $this->barang('B-BU');
+        $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-BU');
+
+        // Tanpa bukti: lolos, header bukti null
+        $hasil = app(PembelianService::class)->bayarBulk($s->id, 500000, now());
+        $this->assertNull($hasil['header']->fresh()->bukti_url);
+
+        // URL ngawur via HTTP: ditolak validasi
+        $this->post(route('pembelian.bayar-bulk.preview'), [
+            'supplier_id' => $s->id, 'nominal' => 100000,
+            'tanggal_bayar' => now()->format('Y-m-d'), 'bukti_url' => 'bukan-url',
+        ])->assertSessionHasErrors('bukti_url');
+        $this->post(route('pembelian.bayar-bulk.confirm'), [
+            'supplier_id' => $s->id, 'nominal' => 100000,
+            'tanggal_bayar' => now()->format('Y-m-d'), 'bukti_url' => 'bukan-url',
+        ])->assertSessionHasErrors('bukti_url');
+    }
+
+    public function test_header_tercatat_dan_hilang_saat_dibatalkan(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. HH', 'kontak' => '0824']);
+        $b = $this->barang('B-HH');
+        $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-HH');
+
+        $hasil = app(PembelianService::class)->bayarBulk($s->id, 2000000, now(), null, 'https://drive.google.com/x');
+        $header = $hasil['header']->fresh();
+        $this->assertSame(1000000, (int) $header->dialokasi);
+        $this->assertSame(1000000, (int) $header->kembalian);
+        $this->assertSame('https://drive.google.com/x', $header->bukti_url);
+        $this->assertSame($hasil['grup'], $header->uuid);
+        $this->assertSame(1, \App\Models\BulkBayarHutang::count());
+
+        app(PembelianService::class)->batalkanBulk($hasil['grup']);
+        $this->assertSame(0, \App\Models\BulkBayarHutang::count()); // hilang dari riwayat
+    }
+
+    public function test_hapus_satuan_menyinkronkan_header(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. SH', 'kontak' => '0825']);
+        $b = $this->barang('B-SH');
+        $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-SH1');
+        $this->hutang1jt($s, $b, '2026-06-02 10:00', 'INV-SH2');
+
+        $hasil = app(PembelianService::class)->bayarBulk($s->id, 1500000, now());
+        $grup = $hasil['grup'];
+
+        // Hapus 1 dari 2 baris → header dihitung ulang (500rb tersisa)
+        $satu = PembayaranHutang::where('grup_bulk', $grup)->orderBy('id')->firstOrFail();
+        app(PembelianService::class)->hapusPembayaran($satu);
+        $header = \App\Models\BulkBayarHutang::where('uuid', $grup)->firstOrFail();
+        $this->assertSame(500000, (int) $header->dialokasi);
+        $this->assertSame(1000000, (int) $header->kembalian); // nominal 1,5jt − sisa 500rb
+
+        // Hapus baris terakhir → header ikut hilang
+        app(PembelianService::class)->hapusPembayaran(PembayaranHutang::where('grup_bulk', $grup)->firstOrFail());
+        $this->assertSame(0, \App\Models\BulkBayarHutang::where('uuid', $grup)->count());
     }
 
     public function test_http_hapus_pembayaran_satuan(): void

@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/pembelian', [PembelianController::class, 'store'])->name('pembelian.store');
     Route::get('/pembelian/hutang', [PembelianController::class, 'invoiceHutang'])->name('pembelian.invoice-hutang');
     Route::get('/pembelian/lunas', [PembelianController::class, 'invoiceLunas'])->name('pembelian.invoice-lunas');
+    Route::get('/pembelian/bayar-bulk', [PembelianController::class, 'bayarBulkIndex'])->name('pembelian.bayar-bulk.index');
     Route::get('/pembelian/{invoice}', [PembelianController::class, 'show'])->name('pembelian.show');
     Route::get('/pembelian/{invoice}/edit', [PembelianController::class, 'edit'])->name('pembelian.edit');
     Route::put('/pembelian/{invoice}', [PembelianController::class, 'update'])->name('pembelian.update');

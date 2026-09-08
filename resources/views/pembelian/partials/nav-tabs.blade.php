@@ -10,6 +10,8 @@
     } elseif (request()->routeIs('pembelian.invoice-lunas', 'publik.pembelian.lunas')
         || (request()->routeIs('pembelian.show', 'publik.pembelian.show') && filled($invoice ?? null) && $invoice->status === 'lunas')) {
         $aktif = 'lunas';
+    } elseif (! $publik && request()->routeIs('pembelian.bayar-bulk.*')) {
+        $aktif = 'bulk';
     }
     $jumlahHutang = \App\Models\InvoicePembelian::where('status', 'belum_lunas')->count();
     $jumlahLunas = \App\Models\InvoicePembelian::where('status', 'lunas')->count();
@@ -32,5 +34,11 @@
             Data Pembelian (Lunas/Cash)
             @if ($jumlahLunas > 0)<span class="badge badge-green">{{ $jumlahLunas }}</span>@endif
         </a>
+        @if (! $publik)
+        <a href="{{ route('pembelian.bayar-bulk.index') }}" class="{{ $aktif === 'bulk' ? 'active-lunas' : '' }}" title="Bayar banyak invoice sekaligus + riwayat">
+            <span class="material-symbols-outlined text-[16px]">payments</span>
+            Bayar Bulk
+        </a>
+        @endif
     </div>
 </div>

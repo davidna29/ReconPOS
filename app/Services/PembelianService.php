@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\JenisMutasiStok;
 use App\Exceptions\StokException;
 use App\Models\Barang;
+use App\Models\BulkBayarHutang;
 use App\Models\InvoicePembelian;
 use App\Models\InvoicePembelianItem;
 use App\Models\PembayaranHutang;
@@ -340,14 +341,25 @@ class PembelianService
 
     /**
      * Bayar bulk per supplier (FIFO tertua dulu) dalam 1 transaksi atomik.
-     * Mengembalikan hasil alokasi + grup UUID utk tombol "Batalkan bulk ini".
+     * Membuat header BulkBayarHutang + N baris pembayaran (grup = uuid header).
+     * Mengembalikan hasil alokasi + header utk tombol "Batalkan bulk ini".
      */
-    public function bayarBulk(int $supplierId, int $nominal, Carbon $tanggal, ?string $catatan = null): array
+    public function bayarBulk(int $supplierId, int $nominal, Carbon $tanggal, ?string $catatan = null, ?string $buktiUrl = null): array
     {
-        return DB::transaction(function () use ($supplierId, $nominal, $tanggal, $catatan) {
+        return DB::transaction(function () use ($supplierId, $nominal, $tanggal, $catatan, $buktiUrl) {
             // Kunci baris agar dua bulk bersamaan tidak alokasi ganda.
             $simulasi = $this->simulasiBulk($supplierId, $nominal);
-            $grup = (string) \Illuminate\Support\Str::uuid();
+            $header = BulkBayarHutang::create([
+                'uuid' => (string) \Illuminate\Support\Str::uuid(),
+                'supplier_id' => $supplierId,
+                'tanggal_bayar' => $tanggal,
+                'nominal_bayar' => $nominal,
+                'dialokasi' => $simulasi['dialokasi'],
+                'kembalian' => $simulasi['kembalian'],
+                'bukti_url' => $buktiUrl,
+                'catatan' => $catatan,
+            ]);
+            $grup = $header->uuid;
 
             foreach ($simulasi['rinci'] as $i => $r) {
                 /** @var InvoicePembelian $inv */
@@ -365,7 +377,7 @@ class PembelianService
                 $this->catatPembayaran($inv, $porsi, $tanggal, $catat, $grup);
             }
 
-            return $simulasi + ['grup' => $grup, 'tanggal' => $tanggal, 'catatan' => $catatan];
+            return $simulasi + ['grup' => $grup, 'header' => $header, 'tanggal' => $tanggal, 'catatan' => $catatan, 'bukti_url' => $buktiUrl];
         });
     }
 
@@ -376,6 +388,7 @@ class PembelianService
     public function hapusPembayaran(PembayaranHutang $pembayaran): InvoicePembelian
     {
         return DB::transaction(function () use ($pembayaran) {
+            $grup = $pembayaran->grup_bulk;
             /** @var InvoicePembelian $inv */
             $inv = InvoicePembelian::whereKey($pembayaran->invoice_pembelian_id)->lockForUpdate()->firstOrFail();
             $inv->sisa_hutang += (int) $pembayaran->nominal;
@@ -385,13 +398,39 @@ class PembelianService
             $inv->save();
             $pembayaran->delete();
 
+            // Sinkronkan header bulk bila baris yang dihapus bagian dari paket bulk:
+            // hitung ulang dari baris tersisa; header dihapus bila tak ada sisa.
+            if ($grup) {
+                $this->sinkronHeaderBulk($grup);
+            }
+
             return $inv->fresh();
         });
     }
 
+    /** Hitung ulang dialokasi/kembalian header dari baris tersisa (atau hapus header). */
+    private function sinkronHeaderBulk(string $grup): void
+    {
+        $header = BulkBayarHutang::where('uuid', $grup)->first();
+        if (! $header) {
+            return;
+        }
+        $sisaBaris = PembayaranHutang::where('grup_bulk', $grup)->sum('nominal');
+        if ((int) $sisaBaris <= 0) {
+            $header->delete();
+
+            return;
+        }
+        $header->update([
+            'dialokasi' => (int) $sisaBaris,
+            'kembalian' => max(0, (int) $header->nominal_bayar - (int) $sisaBaris),
+        ]);
+    }
+
     /**
-     * Batalkan 1 grup bulk sekaligus (revert atomik). Baris grup yang sudah
-     * dihapus manual sebelumnya dilewati & dilaporkan (toleran, bukan gagal).
+     * Batalkan 1 grup bulk sekaligus (revert atomik + header dihapus agar
+     * hilang dari riwayat). Baris grup yang sudah dihapus manual sebelumnya
+     * dilewati & dilaporkan (toleran, bukan gagal).
      *
      * @return array{nominal_kembali: int, baris: int, invoice_ids: array}
      */
@@ -418,6 +457,7 @@ class PembelianService
                 $invoiceIds[] = $inv->id;
                 PembayaranHutang::whereIn('id', $perInv->pluck('id'))->delete();
             }
+            BulkBayarHutang::where('uuid', $grup)->delete();
 
             return ['nominal_kembali' => $kembali, 'baris' => $rows->count(), 'invoice_ids' => $invoiceIds];
         });
