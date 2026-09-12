@@ -18,13 +18,17 @@
 
 @section('content')
     <div class="max-w-4xl">
-        <h2 class="text-headline-lg text-on-surface">Transaksi Penjualan Baru</h2>
-        <p class="mt-1 text-body-md text-secondary">CASH, Customer Umum (CUSTOMER_ID 0). Stok langsung terpotong (PRD 4.2).</p>
+        <h2 class="page-head-title">Transaksi Penjualan Baru</h2>
+        <p class="page-head-subtitle">CASH, Customer Umum (CUSTOMER_ID 0). Stok langsung terpotong (PRD 4.2).</p>
 
         <form method="POST" action="{{ route('penjualan.store') }}" class="mt-4 flex flex-col gap-4">
             @csrf
 
             <div class="card-pad flex flex-col gap-4">
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">point_of_sale</span>
+                    Item Penjualan
+                </h3>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                         <label class="label">Tanggal dan Waktu <span class="text-danger-red">*</span></label>
@@ -35,8 +39,8 @@
                 <div class="relative">
                     <label class="label">Cari Barang (Kode / Nama)</label>
                     <div class="relative">
-                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">search</span>
-                        <input type="text" id="cari-jual" autocomplete="off" placeholder="Scan / ketik…" class="input pl-10">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary" aria-hidden="true">search</span>
+                        <input type="text" id="cari-jual" autocomplete="off" placeholder="Scan / ketik…" aria-label="Cari barang" class="input pl-10 shadow-sm">
                     </div>
                     <div id="hasil-jual" class="absolute z-20 mt-1 hidden max-h-64 w-full overflow-y-auto rounded-lg border border-outline-variant bg-white shadow-lg"></div>
                 </div>
@@ -51,12 +55,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center justify-between">
+            <div class="form-actions-sticky flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="text-body-md">
                     Total: <span class="mono text-headline-md font-bold text-primary" id="total-jual">Rp 0</span>
                 </div>
-                <button class="btn btn-primary py-2.5">
-                    <span class="material-symbols-outlined text-[18px]">point_of_sale</span> Simpan Penjualan
+                <button class="btn btn-primary w-full py-2.5 shadow-sm sm:w-auto">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">point_of_sale</span> Simpan Penjualan
                 </button>
             </div>
         </form>

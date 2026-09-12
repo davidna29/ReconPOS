@@ -107,6 +107,123 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================
+    // DASHBOARD CHARTS (Batch G — Chart.js code-split, hanya bila ada canvas)
+    // Data dari window.DASHBOARD_CHARTS (inline script dashboard/index).
+    // ============================
+    const chartData = window.DASHBOARD_CHARTS;
+    if (chartData && (document.getElementById('chart-trend') || document.getElementById('chart-aging') || document.getElementById('chart-kritik'))) {
+        const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let charts = [];
+
+        async function initDashboardCharts() {
+            const { Chart, LineController, BarController, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip, Legend } = await import('chart.js');
+            Chart.register(LineController, BarController, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip, Legend);
+            charts.forEach((c) => c.destroy());
+            charts = [];
+
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = cssVar('--color-secondary') || '#666';
+            const grid = cssVar('--color-outline-variant') || '#e5e7eb';
+            const primary = cssVar('--color-primary') || '#6d28d9';
+            const danger = cssVar('--color-danger-red') || '#dc2626';
+            const amber = cssVar('--color-hutang-amber') || '#d97706';
+            const slate = cssVar('--color-secondary') || '#666';
+            const rp = (v) => 'Rp ' + Number(v).toLocaleString('id-ID');
+            const base = {
+                animation: reducedMotion ? false : { duration: 600 },
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+            };
+
+            const trendEl = document.getElementById('chart-trend');
+            if (trendEl) {
+                const ctx = trendEl.getContext('2d');
+                const grad = ctx.createLinearGradient(0, 0, 0, 256);
+                grad.addColorStop(0, primary + '55');
+                grad.addColorStop(1, primary + '00');
+                const labels = chartData.trend.labels;
+                charts.push(new Chart(trendEl, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data: chartData.trend.values,
+                            borderColor: primary,
+                            backgroundColor: grad,
+                            fill: true,
+                            tension: 0.35,
+                            pointRadius: labels.length > 60 ? 0 : 2,
+                            pointBackgroundColor: primary,
+                        }],
+                    },
+                    options: { ...base,
+                        scales: {
+                            x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+                            y: { grid: { color: grid }, ticks: { maxTicksLimit: 6, callback: (v) => 'Rp ' + Intl.NumberFormat('id-ID', { notation: 'compact' }).format(v) } },
+                        },
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => rp(c.parsed.y) } } },
+                    },
+                }));
+            }
+
+            const agingEl = document.getElementById('chart-aging');
+            if (agingEl) {
+                charts.push(new Chart(agingEl, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.aging.labels,
+                        datasets: [{
+                            data: chartData.aging.values,
+                            backgroundColor: [danger, amber, slate],
+                            borderRadius: 6,
+                        }],
+                    },
+                    options: { ...base,
+                        indexAxis: 'y',
+                        scales: {
+                            x: { grid: { color: grid }, ticks: { precision: 0 } },
+                            y: { grid: { display: false } },
+                        },
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => c.parsed.x + ' invoice' } } },
+                    },
+                }));
+            }
+
+            const kritikEl = document.getElementById('chart-kritik');
+            if (kritikEl) {
+                const items = chartData.kritik;
+                charts.push(new Chart(kritikEl, {
+                    type: 'bar',
+                    data: {
+                        labels: items.map((it) => it.kode),
+                        datasets: [{
+                            data: items.map((it) => it.stok),
+                            backgroundColor: items.map((it) => it.stok <= 0 ? danger : amber),
+                            borderRadius: 6,
+                        }],
+                    },
+                    options: { ...base,
+                        indexAxis: 'y',
+                        scales: {
+                            x: { grid: { color: grid }, ticks: { precision: 0 } },
+                            y: { grid: { display: false } },
+                        },
+                        plugins: { legend: { display: false },
+                            tooltip: { callbacks: {
+                                title: (cs) => items[cs[0].dataIndex].kode,
+                                label: (c) => items[c.dataIndex].nama + ': ' + items[c.dataIndex].stok + ' ' + items[c.dataIndex].satuan,
+                            } } },
+                    },
+                }));
+            }
+        }
+
+        initDashboardCharts();
+        document.getElementById('theme-toggle')?.addEventListener('click', () => setTimeout(initDashboardCharts, 50));
+    }
+
+    // ============================
     // DARK MODE TOGGLE
     // ============================
     const themeBtn = document.getElementById('theme-toggle');
@@ -159,6 +276,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 checks.forEach(cb => cb.remove());
             })
             .catch(() => alert('Gagal menghapus. Periksa koneksi.'));
+        });
+    });
+
+    // ============================
+    // TOAST AUTO-DISMISS (partials/flash [data-toast], 6 dtk + progress bar CSS)
+    // ============================
+    document.querySelectorAll('[data-toast]').forEach((el) => {
+        setTimeout(() => {
+            el.classList.add('toast-hide');
+            setTimeout(() => el.remove(), 400);
+        }, 6000);
+    });
+
+    // ============================
+    // SUBMIT LOADING STATE (spinner + disabled, kecuali GET/AJAX-delete/opt-out)
+    // ============================
+    document.querySelectorAll('form').forEach((form) => {
+        if (form.method.toUpperCase() === 'GET') return;
+        if (form.hasAttribute('data-delete-ajax') || form.hasAttribute('data-no-loading')) return;
+        form.addEventListener('submit', (e) => {
+            const btn = (e.submitter && e.submitter.matches('button, input'))
+                ? e.submitter
+                : form.querySelector('button[type="submit"], input[type="submit"]');
+            if (!btn || btn.disabled) return;
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            // Pengaman: aktifkan lagi bila navigasi batal/validasi klien menahan submit.
+            setTimeout(() => { btn.classList.remove('is-loading'); btn.disabled = false; }, 10000);
         });
     });
 });

@@ -5,10 +5,10 @@
 @section('content')
     @php($publik = $publik ?? false)
     @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Penjualan</h2>
-            <p class="mt-1 text-body-md text-secondary">
+            <h2 class="page-head-title">Penjualan</h2>
+            <p class="page-head-subtitle">
                 @if ($publik)
                     Daftar transaksi penjualan (lihat saja)
                 @else
@@ -19,10 +19,10 @@
         @if (! $publik)
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('generate.index') }}" class="btn btn-secondary btn-sm">
-                <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Generate Transaksi
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">auto_awesome</span> Generate Transaksi
             </a>
-            <a href="{{ route('penjualan.create') }}" class="btn btn-primary btn-sm">
-                <span class="material-symbols-outlined text-[16px]">add</span> Transaksi Penjualan Baru
+            <a href="{{ route('penjualan.create') }}" class="btn btn-primary btn-sm shadow-sm">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span> Transaksi Penjualan Baru
             </a>
         </div>
         @endif
@@ -49,23 +49,23 @@
             <label class="label mb-0.5">Sampai</label>
             <input type="date" name="to" value="{{ request('to') }}" class="input">
         </div>
-        <button class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
+        <button class="btn btn-primary btn-sm shadow-sm">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
         </button>
         <a href="{{ $r('penjualan.index') }}" class="btn btn-secondary btn-sm">Reset</a>
     </form>
 
-    <div class="relative mb-4 flex h-32 flex-col justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <div class="absolute -bottom-4 -right-4 opacity-5">
+    <div class="kpi-card kpi-live animate-rise mb-4 h-32" style="--rise-delay:.06s">
+        <div class="absolute -bottom-4 -right-4 opacity-5" aria-hidden="true">
             <span class="material-symbols-outlined text-8xl">payments</span>
         </div>
         <div>
-            <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Omset — {{ $labelPeriode }}</h3>
+            <h3 class="kpi-card-caption">Total Omset — {{ $labelPeriode }}</h3>
             <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetPeriode) }}</div>
         </div>
         <div class="flex items-center gap-3 text-body-sm">
             <span class="text-lunas-green">
-                <span class="material-symbols-outlined text-[16px]">trending_up</span>
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">trending_up</span>
                 {{ $awal->format('d/m/Y') }} – {{ $akhir->format('d/m/Y') }}
             </span>
             @if ($targetOmset !== null)
@@ -82,7 +82,7 @@
         </div>
     </div>
 
-    <div class="card">
+    <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant p-3">
             @if (! $publik)
             <div class="segmented">
@@ -98,7 +98,7 @@
                     data-bulk-delete-btn="penjualan"
                     data-bulk-delete-url="{{ route('penjualan.bulk-delete') }}"
                     title="Hapus semua item terpilih dari halaman ini">
-                    <span class="material-symbols-outlined text-[16px]">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
                 </button>
                 @endif
                 <form method="GET" class="flex items-center gap-2">
@@ -113,8 +113,8 @@
                         @endforeach
                     </select>
                     <div class="relative">
-                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary">search</span>
-                        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari ref transaksi…" class="input w-52 pl-9">
+                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary" aria-hidden="true">search</span>
+                        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari ref transaksi…" aria-label="Cari ref transaksi" class="input w-52 pl-9 shadow-sm">
                     </div>
                     <button class="btn btn-secondary btn-sm">Cari</button>
                 </form>
@@ -122,7 +122,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="tbl">
+            <table class="tbl tbl-cards">
                 <thead>
                     <tr>
                         @if (! $publik)
@@ -136,18 +136,18 @@
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="rise-rows">
                     @forelse ($transaksis as $i => $t)
                         <tr data-id="{{ $t->id }}">
                             @if (! $publik)
                             <td><input type="checkbox" class="bulk-check shrink-0 rounded border-outline-variant text-primary focus:ring-primary" data-bulk="penjualan" value="{{ $t->id }}"></td>
                             @endif
-                            <td class="text-secondary">{{ $transaksis->firstItem() + $i }}</td>
-                            <td class="mono font-semibold text-primary">{{ $t->ref_transaksi }}</td>
-                            <td>{{ $t->tanggal_waktu->format('d/m/Y H:i') }}</td>
-                            <td class="mono text-right">{{ rupiah($t->total) }}</td>
+                            <td data-label="No" class="text-secondary">{{ $transaksis->firstItem() + $i }}</td>
+                            <td data-label="Ref Transaksi" class="mono font-semibold text-primary">{{ $t->ref_transaksi }}</td>
+                            <td data-label="Tanggal">{{ $t->tanggal_waktu->format('d/m/Y H:i') }}</td>
+                            <td data-label="Total" class="mono text-right">{{ rupiah($t->total) }}</td>
                             @if (! $publik)
-                            <td>
+                            <td data-label="Sumber">
                                 @if ($t->sumber === 'rekonstruksi')
                                     <x-badge color="blue">Rekonstruksi</x-badge>
                                 @else
@@ -158,33 +158,33 @@
                                 @endif
                             </td>
                             @endif
-                            <td class="text-right">
+                            <td data-label="Aksi" class="text-right">
                                 <div class="flex justify-end gap-1">
                                     <button type="button" class="btn-icon hover:bg-slate-100" title="Detail"
                                         onclick="document.getElementById('det-{{ $t->id }}').classList.toggle('hidden')">
-                                        <span class="material-symbols-outlined text-[18px]">visibility</span>
+                                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">visibility</span>
                                     </button>
                                     @if (! $publik)
                                     <a href="{{ route('penjualan.edit', $t) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="Edit nota">
-                                        <span class="material-symbols-outlined text-[18px]">edit</span>
+                                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
                                     </a>
                                     @endif
                                     <a href="{{ $r('penjualan.print', $t) }}" target="_blank" class="btn-icon text-hutang-amber hover:bg-amber-50" title="Cetak Struk">
-                                        <span class="material-symbols-outlined text-[18px]">print</span>
+                                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">print</span>
                                     </a>
                                     @if (! $publik && $t->sumber !== 'draft')
                                         <form method="POST" action="{{ route('penjualan.destroy', $t) }}" data-confirm="Hapus penjualan {{ $t->ref_transaksi }}? Stok akan dikembalikan." data-delete-ajax>
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus">
-                                                <span class="material-symbols-outlined text-[18px]">delete</span>
+                                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
                                             </button>
                                         </form>
                                     @endif
                                 </div>
                             </td>
                         </tr>
-                        <tr id="det-{{ $t->id }}" class="hidden bg-slate-50">
+                        <tr id="det-{{ $t->id }}" class="hidden bg-surface-container-low">
                             <td colspan="{{ $publik ? 5 : 7 }}">
                                 <table class="tbl">
                                     <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-right">Harga</th><th class="text-right">Subtotal</th></tr></thead>

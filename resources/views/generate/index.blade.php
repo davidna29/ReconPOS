@@ -3,19 +3,19 @@
 @section('title', 'Generate Transaksi')
 
 @section('content')
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Generate Transaksi Otomatis</h2>
-            <p class="mt-1 text-body-md text-secondary">Rekonstruksi penjualan dari target omset & stok masuk — draft direview dulu sebelum disimpan (PRD 6, 7)</p>
+            <h2 class="page-head-title">Generate Transaksi Otomatis</h2>
+            <p class="page-head-subtitle">Rekonstruksi penjualan dari target omset & stok masuk — draft direview dulu sebelum disimpan (PRD 6, 7)</p>
         </div>
         <a href="{{ route('generate.riwayat') }}" class="btn btn-secondary btn-sm">
-            <span class="material-symbols-outlined text-[16px]">history</span> Riwayat Batch
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">history</span> Riwayat Batch
         </a>
     </div>
 
-    <div id="kapasitas-warning" class="card hidden border-l-4 border-l-danger-red p-5">
+    <div id="kapasitas-warning" class="card kpi-accent-red hidden p-5">
         <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-danger-red">warning</span>
+            <span class="material-symbols-outlined text-danger-red" aria-hidden="true">warning</span>
             <div class="flex-1">
                 <h3 class="text-headline-sm text-danger-red">Kapasitas stok tidak mencukupi target</h3>
                 <p class="mt-1 text-body-md" id="kapasitas-pesan"></p>
@@ -35,7 +35,11 @@
         </div>
     </div>
 
-    <div class="card p-6">
+    <div class="card animate-rise p-6" style="--rise-delay:.06s">
+        <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-primary" aria-hidden="true">tune</span>
+            Parameter Generate
+        </h3>
         <form method="POST" action="{{ route('generate.run') }}" class="grid grid-cols-1 gap-4 md:grid-cols-3">
             @csrf
 
@@ -113,12 +117,15 @@
         </form>
     </div>
 
-    <div class="card">
-        <div class="border-b border-outline-variant bg-slate-50 px-4 py-3">
-            <h3 class="text-headline-sm">Batch Terbaru</h3>
+    <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
+        <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 px-4 py-3">
+            <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                <span class="material-symbols-outlined text-primary" aria-hidden="true">history</span>
+                Batch Terbaru
+            </h3>
         </div>
         <div class="overflow-x-auto">
-            <table class="tbl">
+            <table class="tbl tbl-cards">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -131,17 +138,17 @@
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="rise-rows">
                     @forelse ($batches as $b)
                         <tr>
-                            <td class="mono text-secondary">#{{ $b->id }}</td>
-                            <td>{{ $b->periode_mulai->format('d/m/Y') }} – {{ $b->periode_selesai->format('d/m/Y') }}</td>
-                            <td class="mono text-right">{{ uang($b->target_omset) }}</td>
-                            <td class="mono text-right">{{ $b->total_generate !== null ? uang($b->total_generate) : '-' }}</td>
-                            <td class="mono text-right {{ ($b->selisih ?? 0) > 0 ? 'text-danger-red' : 'text-lunas-green' }}">
+                            <td data-label="ID" class="mono text-secondary">#{{ $b->id }}</td>
+                            <td data-label="Periode">{{ $b->periode_mulai->format('d/m/Y') }} – {{ $b->periode_selesai->format('d/m/Y') }}</td>
+                            <td data-label="Target" class="mono text-right">{{ uang($b->target_omset) }}</td>
+                            <td data-label="Total Generate" class="mono text-right">{{ $b->total_generate !== null ? uang($b->total_generate) : '-' }}</td>
+                            <td data-label="Selisih" class="mono text-right {{ ($b->selisih ?? 0) > 0 ? 'text-danger-red' : 'text-lunas-green' }}">
                                 {{ $b->selisih !== null ? ($b->selisih > 0 ? '+' . uang($b->selisih) : uang($b->selisih)) : '-' }}
                             </td>
-                            <td>
+                            <td data-label="Status">
                                 @if ($b->status === 'draft')
                                     <x-badge color="amber">Draft</x-badge>
                                 @elseif ($b->status === 'dibatalkan')
@@ -150,8 +157,8 @@
                                     <x-badge color="green">Tersimpan</x-badge>
                                 @endif
                             </td>
-                            <td>{{ $b->created_at->format('d/m/Y H:i') }}</td>
-                            <td class="text-right">
+                            <td data-label="Dibuat">{{ $b->created_at->format('d/m/Y H:i') }}</td>
+                            <td data-label="Aksi" class="text-right">
                                 @if ($b->status === 'draft')
                                     <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review <span class="material-symbols-outlined text-[14px]">arrow_forward</span></a>
                                 @elseif ($b->status === 'tersimpan')

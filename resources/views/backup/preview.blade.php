@@ -3,9 +3,11 @@
 @section('title', 'Pratinjau Restore')
 
 @section('content')
-    <div>
-        <h2 class="text-headline-lg text-on-surface">Pratinjau Restore</h2>
-        <p class="mt-1 text-body-md text-secondary"><strong>Langkah 2 dari 3 — Periksa.</strong> Belum ada yang berubah. Lanjut hanya bila semua baris di bawah sudah benar.</p>
+    <div class="page-head">
+        <div>
+            <h2 class="page-head-title">Pratinjau Restore</h2>
+            <p class="page-head-subtitle"><strong>Langkah 2 dari 3 — Periksa.</strong> Belum ada yang berubah. Lanjut hanya bila semua baris di bawah sudah benar.</p>
+        </div>
     </div>
 
     <div class="card-pad">
@@ -75,8 +77,11 @@
     </div>
 
     @if ($hasil['ok'])
-        <div class="card-pad border-l-4 border-l-danger-red">
-            <h3 class="mb-2 text-headline-sm text-danger-red">Langkah 3 dari 3 — Konfirmasi (tidak bisa dibatalkan selain via pra-backup)</h3>
+        <div class="card-pad kpi-accent-red">
+            <h3 class="mb-2 flex items-center gap-2 text-headline-sm text-danger-red">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">warning</span>
+                Langkah 3 dari 3 — Konfirmasi (tidak bisa dibatalkan selain via pra-backup)
+            </h3>
             <p class="mb-3 text-body-sm text-secondary">Restore akan <strong>mengganti seluruh data</strong> dengan isi file. Pra-backup kondisi saat ini dibuat otomatis dulu. Ketik persis <span class="mono font-bold">RESTORE</span> lalu tekan tombol.</p>
             <form method="POST" action="{{ route('backup.restore') }}" class="flex flex-wrap items-end gap-2"
                 onsubmit="return confirm('YAKIN restore? Seluruh data saat ini akan diganti isi file backup.');">
@@ -86,14 +91,14 @@
                     <label class="label">Ketik RESTORE untuk konfirmasi</label>
                     <input type="text" name="konfirmasi" required autocomplete="off" placeholder="RESTORE" class="input mono w-44">
                 </div>
-                <button class="btn btn-danger"><span class="material-symbols-outlined text-[18px]">warning</span> Pulihkan Sekarang</button>
+                <button class="btn btn-danger shadow-sm"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">warning</span> Pulihkan Sekarang</button>
                 <a href="{{ route('backup.index') }}" class="btn btn-secondary">Batalkan</a>
             </form>
         </div>
     @else
         <div class="flex">
             <a href="{{ route('backup.index') }}" class="btn btn-secondary">
-                <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali (file ditolak)
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span> Kembali (file ditolak)
             </a>
         </div>
     @endif

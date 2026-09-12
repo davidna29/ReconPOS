@@ -1,7 +1,7 @@
 @if (session('stok_warning'))
     @php($w = session('stok_warning'))
-    <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-        <div class="card w-full max-w-lg p-6">
+    <div class="modal-backdrop" role="alertdialog" aria-modal="true" aria-label="Konfirmasi hapus stok minus">
+        <div class="modal-card">
             <div class="mb-3 flex items-center gap-2">
                 <span class="material-symbols-outlined text-danger-red">warning</span>
                 <h3 class="text-headline-sm">Hapus akan membuat stok minus</h3>

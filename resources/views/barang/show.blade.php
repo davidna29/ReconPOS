@@ -5,25 +5,26 @@
 @section('content')
     @php($publik = $publik ?? false)
     @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
-    <div class="flex items-end justify-between">
+    <div class="page-head">
         <div>
-            <h2 class="text-headline-lg text-on-surface">{{ $barang->nama }}</h2>
-            <p class="mt-1 font-mono text-mono-data text-secondary">{{ $barang->kode_barang }} · {{ $barang->kategori?->nama ?? 'Tanpa kategori' }} · {{ $barang->satuan }} ·
+            <h2 class="page-head-title">{{ $barang->nama }}</h2>
+            <p class="page-head-subtitle font-mono text-mono-data">{{ $barang->kode_barang }} · {{ $barang->kategori?->nama ?? 'Tanpa kategori' }} · {{ $barang->satuan }} ·
                 @if ($barang->isSn())<span class="badge badge-teal">SN</span>@else<span class="badge badge-slate">NON_SN</span>@endif
                 <span class="badge badge-slate">{{ $barang->status }}</span>
             </p>
         </div>
         @if (! $publik)
         <a href="{{ route('barang.edit', $barang) }}" class="btn btn-primary">
-            <span class="material-symbols-outlined text-[18px]">edit</span> Edit
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span> Edit
         </a>
         @endif
     </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div class="card overflow-hidden lg:col-span-2">
-            <div class="border-b border-outline-variant bg-slate-50 px-4 py-3">
-                <h3 class="text-headline-sm">Detail Barang</h3>
+            <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">inventory_2</span>
+                <h3 class="text-headline-sm text-on-surface">Detail Barang</h3>
             </div>
             <div class="grid grid-cols-1 gap-x-6 gap-y-3 p-5 sm:grid-cols-2">
                 <div><span class="text-label-caps font-bold text-secondary">Kode Barang</span><div class="mono text-body-md">{{ $barang->kode_barang }}</div></div>
@@ -40,18 +41,19 @@
             </div>
         </div>
 
-        <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
             <a href="{{ $r('barang.kartuStok', $barang) }}" class="btn btn-amber">
-                <span class="material-symbols-outlined text-[18px]">history</span> Buka Kartu Stok (Riwayat Mutasi)
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">history</span> Buka Kartu Stok (Riwayat Mutasi)
             </a>
             <a href="{{ $r('barang.barcode', $barang) }}" class="btn btn-secondary">
-                <span class="material-symbols-outlined text-[18px]">qr_code_2</span> Cetak Label Barcode
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">qr_code_2</span> Cetak Label Barcode
             </a>
         </div>
 
-        <div class="card">
-            <div class="border-b border-outline-variant bg-slate-50 px-4 py-3">
-                <h3 class="text-headline-sm">Referensi SN ({{ $barang->referensiSn->count() }})</h3>
+        <div class="card overflow-hidden">
+            <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">tag</span>
+                <h3 class="text-headline-sm text-on-surface">Referensi SN ({{ $barang->referensiSn->count() }})</h3>
             </div>
             <div class="max-h-64 overflow-y-auto p-3">
                 @forelse ($barang->referensiSn as $sn)
@@ -70,9 +72,12 @@
         </div>
     </div>
 
-    <div class="card-inner grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="card-pad">
-            <h3 class="mb-3 text-headline-sm">Riwayat Harga (histori_harga)</h3>
+            <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">price_change</span>
+                Riwayat Harga (histori_harga)
+            </h3>
             <div class="overflow-x-auto">
                 <table class="tbl">
                     <thead><tr><th>Tanggal</th><th class="text-right">Harga Beli</th><th class="text-right">Margin</th><th class="text-right">Harga Jual Efektif</th></tr></thead>
@@ -93,7 +98,10 @@
         </div>
 
         <div class="card-pad">
-            <h3 class="mb-3 text-headline-sm">Kartu Stok (ringkas)</h3>
+            <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">history</span>
+                Kartu Stok (ringkas)
+            </h3>
             <div class="overflow-x-auto">
                 <table class="tbl">
                     <thead><tr><th>Tanggal</th><th>Jenis</th><th class="text-right">Qty</th><th class="text-right">Saldo</th></tr></thead>

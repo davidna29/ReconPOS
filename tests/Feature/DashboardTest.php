@@ -97,16 +97,25 @@ class DashboardTest extends TestCase
             ->assertSee('Pembelian Terakhir');
     }
 
-    public function test_dashboard_barang_terbaru(): void
+    public function test_dashboard_grafik_stok_kritis_dan_strip_terbaru(): void
     {
         $this->authUser();
         Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'D-B1', 'nama' => 'Baru Satu', 'sn_atau_non_sn' => 'NON_SN', 'stock' => 5]);
         Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'D-B2', 'nama' => 'Baru Dua', 'sn_atau_non_sn' => 'NON_SN', 'stock' => 0]);
         Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'D-B3', 'nama' => 'Baru Tiga', 'sn_atau_non_sn' => 'NON_SN', 'stock' => 1]);
 
+        // Grafik Top-10 kritik (ambang default 3): hanya stok 0 dan 1.
         $this->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Barang Terbaru')
+            ->assertSee('Stok Kritis')
+            ->assertSee('D-B2')
+            ->assertSee('D-B3')
+            ->assertDontSee('D-B1');
+
+        // Strip "Baru Ditambahkan" pindah ke halaman Data Barang.
+        $this->get(route('barang.index'))
+            ->assertOk()
+            ->assertSee('Baru Ditambahkan')
             ->assertSee('D-B1')
             ->assertSee('D-B2')
             ->assertSee('D-B3');
@@ -118,7 +127,10 @@ class DashboardTest extends TestCase
 
         $this->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('backdrop-blur')
+            // Overlay mobile tetap tanpa blur (konten tajam saat drawer terbuka);
+            // blur hanya diizinkan pada topbar glass (Batch E).
+            ->assertSee('id="sidebar-overlay" class="fixed inset-0 z-30 hidden bg-black/40 md:hidden"', false)
+            ->assertDontSee('sidebar-overlay" class="fixed inset-0 z-30 hidden bg-black/40 md:hidden backdrop', false)
             ->assertSee('id="app-sidebar"', false)
             ->assertSee('z-40', false)                  // sidebar di atas overlay mobile
             ->assertSee('md:z-20', false)

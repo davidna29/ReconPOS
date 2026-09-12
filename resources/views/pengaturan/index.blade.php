@@ -3,10 +3,10 @@
 @section('title', 'Pengaturan Toko')
 
 @section('content')
-    <div class="flex items-end justify-between">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Pengaturan Toko</h2>
-            <p class="mt-1 text-body-md text-secondary">Semua konfigurasi dalam 1 halaman — 1 baris per toko, bukan hardcode (PRD 4.5)</p>
+            <h2 class="page-head-title">Pengaturan Toko</h2>
+            <p class="page-head-subtitle">Semua konfigurasi dalam 1 halaman — 1 baris per toko, bukan hardcode (PRD 4.5)</p>
         </div>
     </div>
 
@@ -19,7 +19,10 @@
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <!-- Info Toko -->
             <div class="card-pad">
-                <h3 class="mb-4 text-headline-sm">Info Toko</h3>
+                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">store</span>
+                    Info Toko
+                </h3>
                 <div class="flex flex-col gap-3">
                     <div>
                         <label class="label">Nama Toko / Bengkel</label>
@@ -43,7 +46,10 @@
 
             <!-- Harga & Margin -->
             <div class="card-pad">
-                <h3 class="mb-4 text-headline-sm">Harga & Margin</h3>
+                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">payments</span>
+                    Harga & Margin
+                </h3>
                 <div>
                     <label class="label">Margin Default (%) <span class="text-danger-red">*</span></label>
                     <input type="number" name="margin_default" min="0" max="1000" value="{{ $settings->margin_default }}" class="input">
@@ -58,7 +64,10 @@
 
             <!-- Jam & Hari Operasional -->
             <div class="card-pad">
-                <h3 class="mb-4 text-headline-sm">Jam & Hari Operasional (dipatuhi Generate)</h3>
+                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">schedule</span>
+                    Jam & Hari Operasional (dipatuhi Generate)
+                </h3>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="label">Jam Buka</label>
@@ -90,7 +99,10 @@
 
             <!-- Parameter Generate -->
             <div class="card-pad">
-                <h3 class="mb-4 text-headline-sm">Parameter Generate Transaksi</h3>
+                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">auto_awesome</span>
+                    Parameter Generate Transaksi
+                </h3>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="label">Nota / Hari (min)</label>
@@ -142,8 +154,8 @@
         </div>
 
         <div class="flex justify-end">
-            <button class="btn btn-primary">
-                <span class="material-symbols-outlined text-[18px]">save</span> Simpan Semua Pengaturan
+            <button class="btn btn-primary shadow-sm">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Simpan Semua Pengaturan
             </button>
         </div>
     </form>
@@ -151,14 +163,17 @@
     <!-- Terapkan Margin ke Semua SKU (form TERPISAH — jangan pernah diletakkan di dalam form utama) -->
     <div class="card-pad">
         <div class="mb-3">
-            <h3 class="text-headline-sm">Terapkan Margin ke Semua SKU Otomatis</h3>
+            <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">calculate</span>
+                Terapkan Margin ke Semua SKU Otomatis
+            </h3>
             <p class="text-body-sm text-secondary">Setelah mengubah Margin Default & menekan <strong>Simpan Semua Pengaturan</strong>, klik tombol ini utk menghitung ulang harga jual semua SKU mode otomatis yang tidak punya override (histori harga lama tetap). SKU manual_terkunci & ber-override tidak disentuh.</p>
         </div>
         <form method="POST" action="{{ route('pengaturan.terapkan-margin') }}"
             onsubmit="return confirm('Terapkan margin {{ $settings->margin_default }}% ke SEMUA SKU mode otomatis (tanpa override)? Histori harga lama tetap.');">
             @csrf
             <button class="btn btn-secondary">
-                <span class="material-symbols-outlined text-[18px]">calculate</span>
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">calculate</span>
                 Terapkan ke Semua SKU Otomatis ({{ $settings->margin_default }}%)
             </button>
         </form>
@@ -167,7 +182,10 @@
     <!-- Keamanan: Ubah Password Admin -->
     <div class="card-pad">
         <div class="mb-4">
-            <h3 class="text-headline-sm">Keamanan — Ubah Password Admin</h3>
+            <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">lock</span>
+                Keamanan — Ubah Password Admin
+            </h3>
             <p class="text-body-sm text-secondary">Ganti password akun login ({{ auth()->user()->email }}). Minimal 8 karakter.</p>
         </div>
         <form method="POST" action="{{ route('pengaturan.password') }}" class="max-w-md">
@@ -190,8 +208,8 @@
                 </div>
             </div>
             <div class="mt-4">
-                <button class="btn btn-amber">
-                    <span class="material-symbols-outlined text-[18px]">lock_reset</span> Ubah Password
+                <button class="btn btn-amber shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">lock_reset</span> Ubah Password
                 </button>
             </div>
         </form>
@@ -201,7 +219,10 @@
     <div class="card-pad">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h3 class="text-headline-sm">Template Export POS (konfigurabel)</h3>
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">view_column</span>
+                    Template Export POS (konfigurabel)
+                </h3>
                 <p class="text-body-sm text-secondary">
                     Nama & urutan kolom, wajib/opsional, format, nilai default — dipakai Format A. Versi aktif: <span class="mono font-bold">{{ $settings->template_version }}</span>.
                 </p>
@@ -209,7 +230,7 @@
             <form method="POST" action="{{ route('pengaturan.template.reset') }}" class="flex items-center gap-2">
                 @csrf
                 <button class="btn btn-secondary btn-sm">
-                    <span class="material-symbols-outlined text-[16px]">restart_alt</span> Reset ke Default v1
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">restart_alt</span> Reset ke Default v1
                 </button>
             </form>
         </div>
@@ -221,7 +242,7 @@
                 <input type="text" name="template_version" value="{{ $settings->template_version }}" class="input mono w-40" required>
             </div>
             <div class="overflow-x-auto">
-                <table class="tbl">
+                <table class="tbl tbl-cards">
                     <thead>
                         <tr>
                             <th>Urutan</th>
@@ -233,21 +254,21 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody id="tbody-template">
+                    <tbody id="tbody-template" class="rise-rows">
                         @foreach ($mapping as $i => $m)
                             <tr>
-                                <td><input type="number" name="kolom[{{ $i }}][urutan]" value="{{ $m->urutan }}" min="1" class="input mono w-16 text-center" required></td>
-                                <td><input type="text" name="kolom[{{ $i }}][nama_kolom]" value="{{ $m->nama_kolom }}" class="input mono" required></td>
-                                <td>
+                                <td data-label="Urutan" data-stack="1"><input type="number" name="kolom[{{ $i }}][urutan]" value="{{ $m->urutan }}" min="1" class="input mono w-16 text-center" required></td>
+                                <td data-label="Nama Kolom" data-stack="1"><input type="text" name="kolom[{{ $i }}][nama_kolom]" value="{{ $m->nama_kolom }}" class="input mono" required></td>
+                                <td data-label="Wajib/Opsional" data-stack="1">
                                     <select name="kolom[{{ $i }}][wajib_opsional]" class="input">
                                         <option value="wajib" @selected($m->wajib_opsional === 'wajib')>Wajib</option>
                                         <option value="opsional" @selected($m->wajib_opsional === 'opsional')>Opsional</option>
                                     </select>
                                 </td>
-                                <td><input type="text" name="kolom[{{ $i }}][format]" value="{{ $m->format }}" class="input mono" placeholder="Y-m-d H:i"></td>
-                                <td><input type="text" name="kolom[{{ $i }}][nilai_default]" value="{{ $m->nilai_default }}" class="input" placeholder="mis. CASH"></td>
-                                <td><input type="text" name="kolom[{{ $i }}][sumber_data]" value="{{ $m->sumber_data }}" class="input" placeholder="mis. kode_barang"></td>
-                                <td class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus-template><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
+                                <td data-label="Format" data-stack="1"><input type="text" name="kolom[{{ $i }}][format]" value="{{ $m->format }}" class="input mono" placeholder="Y-m-d H:i"></td>
+                                <td data-label="Nilai Default" data-stack="1"><input type="text" name="kolom[{{ $i }}][nilai_default]" value="{{ $m->nilai_default }}" class="input" placeholder="mis. CASH"></td>
+                                <td data-label="Sumber Data" data-stack="1"><input type="text" name="kolom[{{ $i }}][sumber_data]" value="{{ $m->sumber_data }}" class="input" placeholder="mis. kode_barang"></td>
+                                <td data-label="Aksi" class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus-template><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -255,10 +276,10 @@
             </div>
             <div class="flex items-center justify-between">
                 <button type="button" class="btn btn-secondary btn-sm" id="tambah-kolom">
-                    <span class="material-symbols-outlined text-[16px]">add</span> Tambah Kolom
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span> Tambah Kolom
                 </button>
-                <button class="btn btn-primary">
-                    <span class="material-symbols-outlined text-[18px]">save</span> Simpan Template
+                <button class="btn btn-primary shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Simpan Template
                 </button>
             </div>
         </form>
@@ -271,7 +292,10 @@
     <div class="card-pad">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h3 class="text-headline-sm">Status Lingkungan Excel</h3>
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">table_view</span>
+                    Status Lingkungan Excel
+                </h3>
                 <p class="text-body-sm text-secondary">
                     Diagnosa cepat utk masalah upload/import Excel. Di shared hosting, ekstensi web PHP-FPM bisa beda dengan SSH CLI —
                     kalau <span class="mono">simplexml/dom/xmlreader</span> tidak aktif, <strong>download & export jalan tapi upload 500</strong>.
@@ -330,13 +354,13 @@
         document.getElementById('tambah-kolom').addEventListener('click', () => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><input type="number" name="kolom[${idx}][urutan]" value="${idx + 1}" min="1" class="input mono w-16 text-center" required></td>
-                <td><input type="text" name="kolom[${idx}][nama_kolom]" class="input mono" required></td>
-                <td><select name="kolom[${idx}][wajib_opsional]" class="input"><option value="opsional">Opsional</option><option value="wajib">Wajib</option></select></td>
-                <td><input type="text" name="kolom[${idx}][format]" class="input mono" placeholder="Y-m-d H:i"></td>
-                <td><input type="text" name="kolom[${idx}][nilai_default]" class="input" placeholder="mis. CASH"></td>
-                <td><input type="text" name="kolom[${idx}][sumber_data]" class="input" placeholder="mis. kode_barang"></td>
-                <td class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus-template><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
+                <td data-label="Urutan" data-stack="1"><input type="number" name="kolom[${idx}][urutan]" value="${idx + 1}" min="1" class="input mono w-16 text-center" required></td>
+                <td data-label="Nama Kolom" data-stack="1"><input type="text" name="kolom[${idx}][nama_kolom]" class="input mono" required></td>
+                <td data-label="Wajib/Opsional" data-stack="1"><select name="kolom[${idx}][wajib_opsional]" class="input"><option value="opsional">Opsional</option><option value="wajib">Wajib</option></select></td>
+                <td data-label="Format" data-stack="1"><input type="text" name="kolom[${idx}][format]" class="input mono" placeholder="Y-m-d H:i"></td>
+                <td data-label="Nilai Default" data-stack="1"><input type="text" name="kolom[${idx}][nilai_default]" class="input" placeholder="mis. CASH"></td>
+                <td data-label="Sumber Data" data-stack="1"><input type="text" name="kolom[${idx}][sumber_data]" class="input" placeholder="mis. kode_barang"></td>
+                <td data-label="Aksi" class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus-template><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
             `;
             tbody.appendChild(tr);
             idx++;

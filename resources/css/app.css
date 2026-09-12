@@ -8,10 +8,14 @@
  * (warna, tipografi Inter/JetBrains Mono, radius, spacing, semantik Cash/Hutang/Lunas/Danger).
  */
 @theme {
-    --color-primary: #004ac6;
+    --color-surface-tint: #7c3aed;
+    --color-primary: #6d28d9;
     --color-on-primary: #ffffff;
-    --color-primary-container: #2563eb;
-    --color-on-primary-container: #eeefff;
+    --color-primary-container: #6d28d9;
+    --color-on-primary-container: #f5f0ff;
+    --color-primary-fixed: #dbe1ff;
+    --color-on-primary-fixed: #00174b;
+    --color-on-primary-fixed-variant: #003ea8;
     --color-on-tertiary: #ffffff;
     --color-on-tertiary-container: #ffede6;
     --color-on-error: #ffffff;
@@ -35,29 +39,36 @@
     --color-inverse-on-surface: #f0f0fb;
     --color-outline: #737686;
     --color-outline-variant: #c3c6d7;
-    --color-secondary: #515f74;
+    --color-secondary: #3f4756;
     --color-on-secondary: #ffffff;
     --color-secondary-container: #d5e3fc;
     --color-on-secondary-container: #57657a;
-    --color-tertiary: #943700;
+    --color-secondary-fixed: #d5e3fc;
+    --color-on-secondary-fixed: #0d1c2e;
+    --color-on-secondary-fixed-variant: #3a485b;
+    --color-tertiary: #a21caf;
     --color-on-tertiary: #ffffff;
-    --color-tertiary-container: #bc4800;
+    --color-tertiary-container: #d946ef;
     --color-on-tertiary-container: #ffede6;
+    --color-tertiary-fixed: #ffdbcd;
+    --color-on-tertiary-fixed: #360f00;
+    --color-on-tertiary-fixed-variant: #7d2d00;
     --color-error: #ba1a1a;
     --color-on-error: #ffffff;
     --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
 
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
     --font-mono-data: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    --text-headline-lg: 24px;
-    --text-headline-lg--line-height: 32px;
+    --text-headline-lg: 26px;
+    --text-headline-lg--line-height: 34px;
     --text-headline-lg--letter-spacing: -0.02em;
-    --text-headline-md: 20px;
-    --text-headline-md--line-height: 28px;
-    --text-headline-sm: 16px;
-    --text-headline-sm--line-height: 24px;
+    --text-headline-md: 21px;
+    --text-headline-md--line-height: 30px;
+    --text-headline-sm: 17px;
+    --text-headline-sm--line-height: 26px;
     --text-body-md: 14px;
     --text-body-md--line-height: 20px;
     --text-body-sm: 13px;
@@ -66,25 +77,42 @@
     --text-table-data--line-height: 16px;
     --text-label-caps: 11px;
     --text-label-caps--line-height: 16px;
-    --text-label-caps--letter-spacing: 0.05em;
+    --text-label-caps--letter-spacing: 0.08em;
     --text-mono-data: 13px;
     --text-mono-data--line-height: 16px;
 
-    --radius-sm: 0.125rem;
-    --radius-md: 0.375rem;
-    --radius-lg: 0.5rem;
-    --radius-xl: 0.75rem;
+    --radius-sm: 0.375rem;
+    --radius-md: 0.625rem;
+    --radius-lg: 0.875rem;
+    --radius-xl: 1.25rem;
+
+    --shadow-card: 0 1px 2px rgba(16, 24, 64, 0.06), 0 4px 16px -4px rgba(67, 56, 202, 0.1);
+    --shadow-pop: 0 12px 32px -8px rgba(67, 56, 202, 0.22);
+    --shadow-glow-primary: 0 0 0 1px rgba(124, 58, 237, 0.4), 0 8px 28px -6px rgba(124, 58, 237, 0.5);
+    --shadow-glow-tertiary: 0 0 0 1px rgba(217, 70, 239, 0.35), 0 8px 28px -6px rgba(217, 70, 239, 0.45);
+
+    --gradient-brand: linear-gradient(135deg, #7c3aed, #4f46e5 55%, #0e7490);
 }
 
 @layer components {
     .btn {
-        @apply inline-flex cursor-pointer select-none items-center justify-center gap-1.5 rounded px-3.5 py-2 text-body-sm font-medium transition-colors;
+        @apply inline-flex cursor-pointer select-none items-center justify-center gap-1.5 rounded px-3.5 py-2 text-body-sm font-medium transition-all duration-200 ease-out;
     }
     .btn:disabled {
         @apply cursor-not-allowed opacity-50;
     }
     .btn-primary {
-        @apply bg-primary text-on-primary hover:bg-primary-container;
+        @apply text-on-primary;
+        background-image: var(--gradient-brand);
+        box-shadow: var(--shadow-card);
+    }
+    .btn-primary:hover {
+        filter: brightness(1.08);
+        box-shadow: var(--shadow-glow-primary);
+    }
+    .btn-primary:focus-visible {
+        outline: none;
+        box-shadow: var(--shadow-glow-primary);
     }
     .btn-secondary {
         @apply border border-outline-variant bg-white text-on-surface hover:bg-surface-muted;
@@ -102,11 +130,11 @@
         @apply px-2.5 py-1.5 text-[12px];
     }
     .btn-icon {
-        @apply inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-secondary transition-colors hover:bg-surface-container-high;
+        @apply inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-secondary transition-all duration-200 ease-out hover:bg-surface-container-high;
     }
 
     .badge {
-        @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-caps font-bold normal-case tracking-wide;
+        @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label-caps font-bold normal-case tracking-wide transition-all duration-200 ease-out;
     }
     .badge-green {
         @apply bg-green-100 text-green-800;
@@ -129,9 +157,122 @@
 
     .card {
         @apply rounded-xl border border-outline-variant bg-surface-container-lowest;
+        box-shadow: var(--shadow-card);
+        transition: box-shadow 0.2s ease-out, border-color 0.2s ease-out;
     }
     .card-pad {
-        @apply rounded-xl border border-outline-variant bg-surface-container-lowest p-5;
+        @apply rounded-xl border border-outline-variant bg-surface-container-lowest p-6;
+        box-shadow: var(--shadow-card);
+        transition: box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+    }
+
+    .page-head {
+        @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+    }
+    .page-head-title {
+        @apply text-headline-lg font-bold text-on-surface;
+    }
+    .page-head-subtitle {
+        @apply mt-1 text-body-md text-secondary;
+    }
+    .page-head-actions {
+        @apply flex flex-wrap items-center gap-2;
+    }
+
+    .kpi-card {
+        @apply relative flex flex-col justify-between gap-2 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4;
+        box-shadow: var(--shadow-card);
+        transition: box-shadow 0.2s ease-out, border-color 0.2s ease-out;
+    }
+    /* Garis aksen gradient di tepi atas kartu KPI */
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background-image: var(--gradient-brand);
+        background-size: 200% 100%;
+    }
+    /* Opt-in: garis KPI animasi halus (hanya elemen kecil) */
+    .kpi-live::before {
+        animation: gradient-shift 5s ease-in-out infinite alternate;
+    }
+    .kpi-card-caption {
+        @apply text-label-caps font-bold uppercase tracking-wider text-secondary;
+    }
+    .kpi-card-value {
+        @apply text-headline-lg font-bold text-on-surface;
+    }
+    .kpi-card-foot {
+        @apply flex items-center gap-1 text-body-sm;
+    }
+    .kpi-accent-red {
+        @apply border-l-4 border-l-danger-red;
+    }
+    .kpi-accent-amber {
+        @apply border-l-4 border-l-hutang-amber;
+    }
+    .kpi-accent-blue {
+        @apply border-l-4 border-l-cash-blue;
+    }
+    .kpi-accent-green {
+        @apply border-l-4 border-l-lunas-green;
+    }
+
+    .alert-panel {
+        @apply flex flex-col gap-3;
+    }
+    .alert-item {
+        @apply flex gap-3 rounded-lg border p-3;
+    }
+    .alert-item-red {
+        @apply border-red-200 bg-red-50;
+    }
+    .alert-item-amber {
+        @apply border-amber-200 bg-amber-50;
+    }
+    .alert-item-title {
+        @apply text-body-sm font-semibold;
+    }
+    .alert-item-detail {
+        @apply mt-1 text-table-data text-slate-700;
+    }
+
+    .empty-state {
+        @apply flex flex-col items-center gap-2 px-6 py-10 text-center;
+    }
+    .empty-state-icon {
+        @apply flex h-11 w-11 items-center justify-center rounded-full bg-surface-container text-secondary;
+    }
+    .empty-state-title {
+        @apply text-headline-sm font-semibold text-on-surface;
+    }
+    .empty-state-hint {
+        @apply text-body-sm text-secondary;
+    }
+
+    .modal-backdrop {
+        @apply fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm;
+    }
+    .modal-card {
+        @apply w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest p-6;
+        box-shadow: var(--shadow-pop);
+    }
+
+    .nav-section {
+        @apply px-6 pb-1 pt-3 text-label-caps font-bold uppercase tracking-wider text-secondary;
+    }
+
+    .badge-red-soft {
+        @apply border border-danger-red/30 bg-error-container text-on-error-container;
+    }
+    .badge-amber-soft {
+        @apply border border-hutang-amber/30 bg-amber-50 text-amber-800;
+    }
+    .badge-green-soft {
+        @apply border border-lunas-green/30 bg-green-50 text-green-800;
     }
 
     .input {
@@ -155,6 +296,9 @@
     }
     .tbl thead th {
         @apply border-b border-outline-variant bg-slate-50 px-3 py-2 text-label-caps font-bold text-secondary;
+        position: sticky;
+        top: 0;
+        z-index: 1;
     }
     .tbl tbody td {
         @apply border-b border-slate-100 px-3 py-2.5 align-middle text-table-data text-on-surface;
@@ -174,28 +318,73 @@
         font-size: var(--text-mono-data);
     }
 
+    /* Command bar di sekitar segmented (mis. nav-tabs pembelian):
+       bilah kaca + bar gradient kiri, senada aksen nav aktif */
+    .seg-bar {
+        @apply rounded-xl border border-outline-variant bg-surface-container-lowest/70 p-1.5 pl-4 backdrop-blur-md;
+        position: relative;
+        box-shadow: var(--shadow-card);
+    }
+    .seg-bar::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 10px;
+        bottom: 10px;
+        width: 3px;
+        border-radius: 9999px;
+        background-image: var(--gradient-brand);
+    }
     .segmented {
         @apply inline-flex rounded-lg border border-outline-variant bg-surface-container-low p-1;
+        box-shadow: var(--shadow-card);
     }
     .segmented button,
     .segmented a {
-        @apply rounded-md px-4 py-1.5 text-body-sm font-semibold text-secondary transition-colors;
+        @apply rounded-md px-4 py-1.5 text-body-sm font-semibold text-secondary transition-all duration-200;
     }
+    .segmented button:hover,
+    .segmented a:hover {
+        @apply text-on-surface;
+    }
+    /* Segmen aktif: hue semantik dipertahankan + kilau atas + glow sewarna */
     .segmented .active-cash {
         @apply bg-cash-blue text-white;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 16px -4px rgba(37, 99, 235, 0.65);
     }
     .segmented .active-hutang {
         @apply bg-hutang-amber text-white;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 16px -4px rgba(217, 119, 6, 0.65);
     }
     .segmented .active-lunas {
         @apply bg-lunas-green text-white;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 16px -4px rgba(22, 163, 74, 0.65);
     }
 
     .nav-link {
         @apply mx-2 my-1 flex items-center gap-3 rounded-lg px-4 py-2 text-body-md font-medium text-secondary transition-all duration-200 hover:bg-surface-container-high hover:text-primary;
     }
     .nav-link-active {
-        @apply bg-primary-container font-semibold text-on-primary-container;
+        @apply relative bg-primary-container font-semibold text-on-primary-container;
+        box-shadow: var(--shadow-card);
+    }
+    /* Bar aksen gradient untuk item navigasi aktif */
+    .nav-link-active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        border-radius: 9999px;
+        background-image: var(--gradient-brand);
+    }
+
+    /* Tile logo/brand sidebar — gradient brand */
+    .brand-tile {
+        @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg font-bold text-white;
+        background-image: var(--gradient-brand);
+        box-shadow: var(--shadow-card);
     }
 }
 
@@ -219,6 +408,7 @@
 main {
     transition: margin-left 0.2s ease;
 }
+
 @media (min-width: 768px) {
     body.sidebar-minimized #app-sidebar {
         width: 64px;
@@ -237,6 +427,218 @@ main {
     }
     body.sidebar-minimized main {
         margin-left: 64px;
+    }
+}
+
+/* ============================
+   MOTION SYSTEM (Batch F) — entrance, loading, toast, modal.
+   Semua animasi dinonaktifkan di prefers-reduced-motion (lihat bawah).
+   ============================ */
+@keyframes gradient-shift {
+    from { background-position: 0% 50%; }
+    to { background-position: 100% 50%; }
+}
+@keyframes rise-in {
+    from { opacity: 0; transform: translateY(10px); }
+}
+@keyframes fade-in {
+    from { opacity: 0; }
+}
+@keyframes pop-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+/* Entrance per section — atur tunda via style="--rise-delay:.08s" */
+.animate-rise {
+    animation: rise-in 0.45s ease-out both;
+    animation-delay: var(--rise-delay, 0s);
+}
+/* Stagger ringan untuk baris daftar */
+.rise-rows > tr {
+    animation: rise-in 0.4s ease-out both;
+}
+.rise-rows > tr:nth-child(1) { animation-delay: 0.02s; }
+.rise-rows > tr:nth-child(2) { animation-delay: 0.05s; }
+.rise-rows > tr:nth-child(3) { animation-delay: 0.08s; }
+.rise-rows > tr:nth-child(4) { animation-delay: 0.11s; }
+.rise-rows > tr:nth-child(5) { animation-delay: 0.14s; }
+.rise-rows > tr:nth-child(6) { animation-delay: 0.17s; }
+.rise-rows > tr:nth-child(7) { animation-delay: 0.2s; }
+.rise-rows > tr:nth-child(8) { animation-delay: 0.23s; }
+.rise-rows > tr:nth-child(9) { animation-delay: 0.26s; }
+.rise-rows > tr:nth-child(10) { animation-delay: 0.29s; }
+/* Loading state tombol submit (dipakai JS app.js) */
+.btn.is-loading {
+    position: relative;
+    pointer-events: none;
+}
+.btn.is-loading::before {
+    content: '';
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+}
+/* Toast Params (partials/flash [data-toast]) */
+[data-toast] {
+    position: relative;
+    overflow: hidden;
+    animation: toast-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(-8px); }
+}
+.toast-bar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: currentColor;
+    opacity: 0.35;
+    transform-origin: left;
+    animation: toast-progress 6s linear forwards;
+}
+@keyframes toast-progress {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+.toast-hide {
+    opacity: 0 !important;
+    transform: translateY(-6px);
+    transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+}
+/* Modal: backdrop fade terpisah dari card scale+fade */
+.modal-backdrop {
+    animation: fade-in 0.2s ease-out;
+}
+.modal-card {
+    animation: pop-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    .kpi-live::before {
+        animation: none;
+    }
+    .animate-rise,
+    .rise-rows > tr,
+    [data-toast],
+    .toast-bar,
+    .modal-backdrop,
+    .modal-card,
+    .btn.is-loading::before {
+        animation: none !important;
+    }
+    .toast-hide {
+        transition: none !important;
+    }
+    .btn,
+    .badge,
+    .btn-icon,
+    .card,
+    .card-pad,
+    .kpi-card,
+    .nav-link {
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ============================
+   MOBILE (Batch F) — di bawah 640px tabel .tbl-cards jadi daftar kartu,
+   modal jadi bottom-sheet, aksi form sticky di bawah viewport.
+   ============================ */
+@media (max-width: 639px) {
+    table.tbl.tbl-cards thead {
+        display: none;
+    }
+    table.tbl.tbl-cards,
+    table.tbl.tbl-cards > tbody {
+        display: block;
+    }
+    table.tbl.tbl-cards > tbody > tr {
+        display: block;
+        border: 1px solid var(--color-outline-variant);
+        border-radius: var(--radius-lg);
+        margin-bottom: 12px;
+        padding: 6px 14px;
+        background-color: var(--color-surface-container-lowest);
+        box-shadow: var(--shadow-card);
+    }
+    table.tbl.tbl-cards > tbody > tr.row-overdue,
+    table.tbl.tbl-cards > tbody > tr.row-warning {
+        border-left-width: 4px;
+    }
+    table.tbl.tbl-cards > tbody > tr > td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--color-outline-variant);
+        padding: 8px 0;
+        text-align: right;
+    }
+    table.tbl.tbl-cards > tbody > tr > td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--color-secondary);
+        text-align: left;
+        flex-shrink: 0;
+    }
+    table.tbl.tbl-cards > tbody > tr > td:last-child {
+        border-bottom: 0;
+    }
+    table.tbl.tbl-cards > tbody > tr > td[colspan] {
+        display: table-cell;
+        text-align: center;
+    }
+    table.tbl.tbl-cards > tbody > tr > td[colspan]::before {
+        display: none;
+    }
+    table.tbl.tbl-cards > tbody > tr > td[data-label='No'] {
+        display: none;
+    }
+    table.tbl.tbl-cards > tbody > tr > td[data-label='Aksi'] {
+        justify-content: flex-end;
+    }
+    table.tbl.tbl-cards > tbody > tr > td[data-label='Aksi']::before {
+        display: none;
+    }
+    /* Sel berisi input form: label di atas, input full-width */
+    table.tbl.tbl-cards > tbody > tr > td[data-stack='1'] {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: left;
+    }
+    /* Modal jadi bottom-sheet full-width */
+    .modal-backdrop {
+        padding: 0;
+        align-items: flex-end;
+    }
+    .modal-card {
+        width: 100%;
+        max-width: none;
+        max-height: calc(100dvh - 1rem);
+        overflow-y: auto;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
+    /* Bar aksi form menempel di bawah viewport saat scroll panjang */
+    .form-actions-sticky {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        padding: 12px;
+        margin: 0 -16px -16px;
+        background-color: color-mix(in srgb, var(--color-surface-container-lowest) 88%, transparent);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        border-top: 1px solid var(--color-outline-variant);
     }
 }
 
@@ -264,10 +666,11 @@ main {
     /* Outline */
     --color-outline: #5a5b6e;
     --color-outline-variant: #3a3b48;
-    /* Primary (blue — slightly lighter for dark contrast) */
-    --color-primary: #5b8def;
-    --color-primary-container: #3b6bc9;
-    --color-on-primary-container: #dde8ff;
+    /* Primary (violet — sedikit lebih terang agar kontras di gelap) */
+    --color-primary: #8b5cf6;
+    --color-surface-tint: #a78bfa;
+    --color-primary-container: #6d28d9;
+    --color-on-primary-container: #f5f0ff;
     /* Secondary */
     --color-secondary: #a0b0cc;
     --color-secondary-container: #3a4b66;
@@ -279,13 +682,19 @@ main {
     --color-danger-red: #f87171;
     --color-special-teal: #2dd4bf;
     /* Tertiary / Error */
-    --color-tertiary: #e07030;
+    --color-tertiary: #c026d3;
     --color-on-tertiary: #ffffff;
-    --color-tertiary-container: #f08040;
-    --color-on-tertiary-container: #ffede6;
+    --color-tertiary-container: #a21caf;
+    --color-on-tertiary-container: #fae8ff;
     --color-error: #fca5a5;
     --color-on-error: #1a1b23;
     --color-error-container: #5c2020;
+
+    /* Shadow & glow — lebih kuat di mode gelap (efek neon) */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -6px rgba(0, 0, 0, 0.5);
+    --shadow-pop: 0 16px 48px -8px rgba(0, 0, 0, 0.6);
+    --shadow-glow-primary: 0 0 0 1px rgba(167, 139, 250, 0.55), 0 8px 36px -4px rgba(139, 92, 246, 0.65);
+    --shadow-glow-tertiary: 0 0 0 1px rgba(232, 121, 249, 0.5), 0 8px 36px -4px rgba(217, 70, 239, 0.6);
 
     color-scheme: dark;
 }
@@ -318,8 +727,8 @@ main {
 .dark .input::placeholder { color: var(--color-on-surface-variant) !important; }
 .dark .hint { color: var(--color-on-surface-variant) !important; }
 .dark .label { color: var(--color-on-surface) !important; }
-.dark .btn-primary { background-color: #3a6dcc !important; color: #ffffff !important; }
-.dark .btn-primary:hover { background-color: #4a7dde !important; }
+.dark .btn-primary { color: #ffffff !important; box-shadow: var(--shadow-card) !important; }
+.dark .btn-primary:hover { filter: brightness(1.1); box-shadow: var(--shadow-glow-primary) !important; }
 .dark .btn-secondary { background-color: var(--color-surface-container) !important; border-color: var(--color-outline-variant) !important; color: var(--color-on-surface) !important; }
 .dark .btn-secondary:hover { background-color: var(--color-surface-container-high) !important; }
 .dark .btn-icon { color: var(--color-on-surface-variant) !important; }
@@ -329,7 +738,7 @@ main {
 .dark .nav-link:hover { background-color: var(--color-surface-container-high) !important; color: var(--color-primary) !important; }
 .dark .nav-link-active { background-color: var(--color-primary-container) !important; color: var(--color-on-primary-container) !important; }
 .dark #app-sidebar { background-color: var(--color-surface-container-low) !important; border-color: var(--color-outline-variant) !important; }
-.dark header, .dark header.sticky { background-color: var(--color-surface-container-lowest) !important; border-color: var(--color-outline-variant) !important; }
+.dark header, .dark header.sticky { background-color: rgba(30, 31, 40, 0.85) !important; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-color: var(--color-outline-variant) !important; }
 .dark .card, .dark .card-pad { background-color: var(--color-surface-container-lowest) !important; border-color: var(--color-outline-variant) !important; }
 .dark .segmented { background-color: var(--color-surface-container) !important; border-color: var(--color-outline-variant) !important; }
 .dark .segmented button, .dark .segmented a { color: var(--color-on-surface-variant) !important; }
@@ -356,6 +765,13 @@ main {
 .dark .badge-amber { background-color: rgba(245, 158, 11, 0.20) !important; color: #fcd34d !important; }
 .dark .badge-red { background-color: rgba(239, 68, 68, 0.15) !important; color: #f87171 !important; }
 .dark .badge-teal { background-color: rgba(20, 184, 166, 0.15) !important; color: #2dd4bf !important; }
+.dark .alert-item-red { background-color: rgba(239, 68, 68, 0.12) !important; border-color: rgba(239, 68, 68, 0.35) !important; }
+.dark .alert-item-amber { background-color: rgba(245, 158, 11, 0.12) !important; border-color: rgba(245, 158, 11, 0.35) !important; }
+.dark .alert-item-detail { color: var(--color-on-surface-variant) !important; }
+.dark .badge-red-soft { background-color: rgba(239, 68, 68, 0.15) !important; color: #f87171 !important; border-color: rgba(239, 68, 68, 0.35) !important; }
+.dark .badge-amber-soft { background-color: rgba(245, 158, 11, 0.20) !important; color: #fcd34d !important; border-color: rgba(245, 158, 11, 0.35) !important; }
+.dark .badge-green-soft { background-color: rgba(34, 197, 94, 0.20) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.35) !important; }
+.dark .empty-state-icon { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
 
 /** Cetak invoice & barcode label (PRD 5.2 print, 4.3 cetak barcode) */
 @media print {

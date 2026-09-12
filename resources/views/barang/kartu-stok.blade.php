@@ -4,10 +4,10 @@
 
 @section('content')
     @php($publik = $publik ?? false)
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Kartu Stok: {{ $barang->nama }}</h2>
-            <p class="mt-1 text-body-md text-secondary">
+            <h2 class="page-head-title">Kartu Stok: {{ $barang->nama }}</h2>
+            <p class="page-head-subtitle">
                 <span class="mono">{{ $barang->kode_barang }}</span> · Stok sekarang:
                 <span class="font-bold {{ $barang->stock <= 0 ? 'text-danger-red' : 'text-lunas-green' }}">{{ $barang->stock }} {{ $barang->satuan }}</span>
             </p>
@@ -16,11 +16,11 @@
         <div class="flex gap-2">
             @if ($barang->stock === 0 && ! $barang->sudahDipakaiTransaksi())
                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('stok-awal-form').classList.toggle('hidden')">
-                    <span class="material-symbols-outlined text-[18px]">playlist_add</span> Stok Awal
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">playlist_add</span> Stok Awal
                 </button>
             @endif
             <button type="button" class="btn btn-amber" onclick="document.getElementById('opname-form').classList.toggle('hidden')">
-                <span class="material-symbols-outlined text-[18px]">fact_check</span> Stok Opname
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">fact_check</span> Stok Opname
             </button>
         </div>
         @endif
@@ -28,18 +28,26 @@
 
     @if (! $publik)
     <div id="stok-awal-form" class="card hidden p-4">
+        <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">playlist_add</span>
+            Catat Stok Awal
+        </h3>
         <form method="POST" action="{{ route('barang.stokAwal', $barang) }}" class="flex flex-wrap items-end gap-3">
             @csrf
             <div>
                 <label class="label">Qty Stok Awal</label>
                 <input type="number" name="qty" min="1" required class="input w-40">
             </div>
-            <button class="btn btn-primary"><span class="material-symbols-outlined text-[18px]">save</span> Catat Stok Awal</button>
+            <button class="btn btn-primary"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Catat Stok Awal</button>
             <span class="text-[11px] text-secondary">Pencatatan awal stok fisik (hanya saat stok 0, barang baru).</span>
         </form>
     </div>
 
     <div id="opname-form" class="card hidden p-4">
+        <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">fact_check</span>
+            Stok Opname
+        </h3>
         <form method="POST" action="{{ route('barang.opname', $barang) }}" class="flex flex-wrap items-end gap-3">
             @csrf
             <div>
@@ -50,13 +58,13 @@
                 <label class="label">Alasan (wajib) <span class="text-danger-red">*</span></label>
                 <input type="text" name="alasan" required placeholder="mis. opname bulanan, barang rusak/hilang" class="input">
             </div>
-            <button class="btn btn-amber"><span class="material-symbols-outlined text-[18px]">fact_check</span> Simpan Opname</button>
+            <button class="btn btn-amber"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">fact_check</span> Simpan Opname</button>
             <span class="text-[11px] text-secondary">Selisih otomatis tercatat sebagai 1 baris "opname" di Kartu Stok (PRD 4.3b).</span>
         </form>
     </div>
     @endif
 
-    <div class="card">
+    <div class="card overflow-hidden">
         <div class="overflow-x-auto">
             <table class="tbl">
                 <thead>

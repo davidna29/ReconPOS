@@ -4,12 +4,18 @@
 
 @section('content')
     @include('pembelian.partials.nav-tabs')
-    <div>
-        <h2 class="text-headline-lg text-on-surface">Pratinjau Bayar Bulk</h2>
-        <p class="mt-1 text-body-md text-secondary">Belum tercatat apa pun — periksa alokasi di bawah, lalu Konfirmasi atau Kembali.</p>
+    <div class="page-head animate-rise">
+        <div>
+            <h2 class="page-head-title">Pratinjau Bayar Bulk</h2>
+            <p class="page-head-subtitle">Belum tercatat apa pun — periksa alokasi di bawah, lalu Konfirmasi atau Kembali.</p>
+        </div>
     </div>
 
-    <div class="card-pad">
+    <div class="card-pad animate-rise" style="--rise-delay:.06s">
+        <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">preview</span>
+            Ringkasan Alokasi
+        </h3>
         <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
             <div>
                 <p class="label">Supplier</p>
@@ -35,9 +41,9 @@
         <p class="hint mt-2">Tanggal bayar: {{ \Illuminate\Support\Carbon::parse($tanggalBayar)->format('d/m/Y') }}@if ($catatan) · Catatan: {{ $catatan }}@endif @if (! empty($buktiUrl)) · Bukti: <a href="{{ $buktiUrl }}" target="_blank" rel="noopener" class="text-primary underline">buka link</a>@endif</p>
     </div>
 
-    <div class="card overflow-hidden">
+    <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
         <div class="overflow-x-auto">
-            <table class="tbl">
+            <table class="tbl tbl-cards">
                 <thead>
                     <tr>
                         <th>No</th>
@@ -49,16 +55,16 @@
                         <th>Status Baru</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="rise-rows">
                     @foreach ($hasil['rinci'] as $i => $r)
                         <tr>
-                            <td class="text-secondary">{{ $i + 1 }}</td>
-                            <td class="mono font-semibold text-primary">{{ $r['invoice']->no_invoice }}</td>
-                            <td>{{ $r['invoice']->tanggal_transaksi->format('d/m/Y') }}</td>
-                            <td class="mono text-right">{{ uang($r['invoice']->sisa_hutang) }}</td>
-                            <td class="mono text-right font-bold text-lunas-green">{{ uang($r['dibayar']) }}</td>
-                            <td class="mono text-right font-bold">{{ uang($r['sisa_baru']) }}</td>
-                            <td>
+                            <td data-label="No" class="text-secondary">{{ $i + 1 }}</td>
+                            <td data-label="Invoice" class="mono font-semibold text-primary">{{ $r['invoice']->no_invoice }}</td>
+                            <td data-label="Tanggal">{{ $r['invoice']->tanggal_transaksi->format('d/m/Y') }}</td>
+                            <td data-label="Sisa Saat Ini" class="mono text-right">{{ uang($r['invoice']->sisa_hutang) }}</td>
+                            <td data-label="Dibayar" class="mono text-right font-bold text-lunas-green">{{ uang($r['dibayar']) }}</td>
+                            <td data-label="Sisa Baru" class="mono text-right font-bold">{{ uang($r['sisa_baru']) }}</td>
+                            <td data-label="Status">
                                 @if ($r['lunas_baru'])
                                     <x-badge color="green">Lunas</x-badge>
                                 @else
@@ -80,12 +86,12 @@
             <input type="hidden" name="tanggal_bayar" value="{{ $tanggalBayar }}">
             @if ($catatan)<input type="hidden" name="catatan" value="{{ $catatan }}">@endif
             @if (! empty($buktiUrl))<input type="hidden" name="bukti_url" value="{{ $buktiUrl }}">@endif
-            <button class="btn btn-success" onclick="return confirm('Catat pembayaran bulk {{ rupiah($hasil['dialokasi']) }} ke {{ count($hasil['rinci']) }} invoice?');">
-                <span class="material-symbols-outlined text-[18px]">check_circle</span> Konfirmasi & Catat Pembayaran
+            <button class="btn btn-success shadow-sm" onclick="return confirm('Catat pembayaran bulk {{ rupiah($hasil['dialokasi']) }} ke {{ count($hasil['rinci']) }} invoice?');">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">check_circle</span> Konfirmasi & Catat Pembayaran
             </button>
         </form>
         <a href="{{ route('pembelian.bayar-bulk.index', ['supplier' => $supplier->id]) }}" class="btn btn-secondary">
-            <span class="material-symbols-outlined text-[18px]">arrow_back</span> Kembali (batalkan)
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span> Kembali (batalkan)
         </a>
     </div>
 @endsection

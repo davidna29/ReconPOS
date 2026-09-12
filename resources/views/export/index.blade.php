@@ -3,20 +3,20 @@
 @section('title', 'Export Transaksi')
 
 @section('content')
-    <div class="flex items-end justify-between">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Export Transaksi</h2>
-            <p class="mt-1 text-body-md text-secondary">Format A: siap import ke POS Bengkel (Super Kasir) · Format B: laporan internal (PRD 8)</p>
+            <h2 class="page-head-title">Export Transaksi</h2>
+            <p class="page-head-subtitle">Format A: siap import ke POS Bengkel (Super Kasir) · Format B: laporan internal (PRD 8)</p>
         </div>
     </div>
 
     @if (session('success') && str_contains(session('success'), 'terpecah'))
-        <div class="flex flex-wrap items-center gap-2 rounded-lg border border-cash-blue/40 bg-blue-50 p-4 text-body-sm text-blue-800">
-            <span class="material-symbols-outlined text-cash-blue">info</span>
+        <div role="status" class="flex flex-wrap items-center gap-2 rounded-xl border border-cash-blue/40 bg-blue-50 p-4 text-body-sm text-blue-800 shadow-sm">
+            <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">info</span>
             {{ session('success') }}
             @foreach (App\Models\ExportBatch::where('format', 'A')->latest()->first()?->file_names ?? [] as $i => $f)
                 <a href="{{ route('export.unduh', [App\Models\ExportBatch::where('format', 'A')->latest()->first()->id, $i]) }}" class="btn btn-secondary btn-sm">
-                    <span class="material-symbols-outlined text-[16px]">download</span> {{ $f }}
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> {{ $f }}
                 </a>
             @endforeach
         </div>
@@ -26,8 +26,8 @@
         <!-- Format A -->
         <div class="card-pad">
             <div class="mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-cash-blue">swap_vert</span>
-                <h3 class="text-headline-sm">Format A — Siap Import ke POS Bengkel</h3>
+                <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">swap_vert</span>
+                <h3 class="text-headline-sm text-on-surface">Format A — Siap Import ke POS Bengkel</h3>
             </div>
             <p class="mb-4 text-body-sm text-secondary">
                 Mengikuti template Super Kasir (sheet <span class="mono">IMPORT_PENJUALAN</span>), kolom dari <strong>Pengaturan → Template Export POS</strong> (konfigurabel). Pre-validasi sebelum unduh; otomatis dipecah tiap 5.000 baris.
@@ -49,8 +49,8 @@
                     <input type="month" name="bulan" class="input">
                     <span class="hint">Isi salah satu: rentang tanggal ATAU shortcut bulan — memilih yang satu mengosongkan yang lain.</span>
                 </div>
-                <button class="btn btn-primary self-start">
-                    <span class="material-symbols-outlined text-[18px]">download</span> Unduh Format A (XLSX)
+                <button class="btn btn-primary self-start shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span> Unduh Format A (XLSX)
                 </button>
             </form>
         </div>
@@ -58,8 +58,8 @@
         <!-- Format B -->
         <div class="card-pad">
             <div class="mb-3 flex items-center gap-2">
-                <span class="material-symbols-outlined text-lunas-green">description</span>
-                <h3 class="text-headline-sm">Format B — Laporan / Arsip Internal</h3>
+                <span class="material-symbols-outlined text-lunas-green" aria-hidden="true">description</span>
+                <h3 class="text-headline-sm text-on-surface">Format B — Laporan / Arsip Internal</h3>
             </div>
             <p class="mb-4 text-body-sm text-secondary">
                 Laporan manusiawi dengan baris ringkasan (total omset, jumlah nota, jumlah item). Excel (.xlsx).
@@ -89,19 +89,20 @@
                         <option value="rekonstruksi">Rekonstruksi saja</option>
                     </select>
                 </div>
-                <button class="btn btn-success self-start">
-                    <span class="material-symbols-outlined text-[18px]">download</span> Unduh Format B (XLSX)
+                <button class="btn btn-success self-start shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span> Unduh Format B (XLSX)
                 </button>
             </form>
         </div>
     </div>
 
-    <div class="card">
-        <div class="border-b border-outline-variant bg-slate-50 px-4 py-3">
-            <h3 class="text-headline-sm">Riwayat Export & Status Upload ke POS (jejak 4.2)</h3>
+    <div class="card animate-rise overflow-hidden" style="--rise-delay:.08s">
+        <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">history</span>
+            <h3 class="text-headline-sm text-on-surface">Riwayat Export & Status Upload ke POS (jejak 4.2)</h3>
         </div>
         <div class="overflow-x-auto">
-            <table class="tbl">
+            <table class="tbl tbl-cards">
                 <thead>
                     <tr>
                         <th>Tanggal</th>
@@ -113,27 +114,27 @@
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="rise-rows">
                     @forelse ($batches as $b)
                         <tr>
-                            <td>{{ $b->created_at->format('d/m/Y H:i') }}</td>
-                            <td><x-badge :color="$b->format === 'A' ? 'blue' : 'green'">Format {{ $b->format }}</x-badge></td>
-                            <td class="text-body-sm">
+                            <td data-label="Tanggal">{{ $b->created_at->format('d/m/Y H:i') }}</td>
+                            <td data-label="Format"><x-badge :color="$b->format === 'A' ? 'blue' : 'green'">Format {{ $b->format }}</x-badge></td>
+                            <td data-label="Filter" class="text-body-sm">
                                 @if ($b->filter_bulan)
                                     {{ \Carbon\Carbon::parse($b->filter_bulan . '-01')->translatedFormat('F Y') }}
                                 @else
                                     {{ $b->filter_mulai?->format('d/m/Y') }} – {{ $b->filter_selesai?->format('d/m/Y') }}
                                 @endif
                             </td>
-                            <td class="text-center">{{ $b->jumlah_file }}</td>
-                            <td>
+                            <td data-label="Jumlah File" class="text-center">{{ $b->jumlah_file }}</td>
+                            <td data-label="File">
                                 @foreach ($b->file_names ?? [] as $i => $f)
                                     <a href="{{ route('export.unduh', [$b, $i]) }}" class="btn-icon text-cash-blue hover:bg-blue-50" title="{{ $f }}">
-                                        <span class="material-symbols-outlined text-[18px]">download</span>
+                                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
                                     </a>
                                 @endforeach
                             </td>
-                            <td class="text-center">
+                            <td data-label="Upload POS" class="text-center">
                                 <form method="POST" action="{{ route('export.tandai', $b) }}">
                                     @csrf
                                     @if ($b->status_upload_manual)
@@ -143,13 +144,13 @@
                                     @endif
                                 </form>
                             </td>
-                            <td class="text-right">
+                            <td data-label="Aksi" class="text-right">
                                 <form method="POST" action="{{ route('export.destroy', $b) }}"
                                     data-confirm="Hapus riwayat export Format {{ $b->format }} ({{ $b->created_at->format('d/m/Y H:i') }}, {{ $b->jumlah_file }} file)? Catatan & file dihapus permanen.">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus riwayat">
-                                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
                                     </button>
                                 </form>
                             </td>
@@ -163,7 +164,10 @@
     </div>
 
     <div class="card-pad">
-        <h3 class="mb-2 text-headline-sm">Mapping Kolom Aktif (Template Export POS — v{{ \App\Models\TokoSetting::utama()->template_version }})</h3>
+        <h3 class="mb-2 flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">view_column</span>
+            Mapping Kolom Aktif (Template Export POS — v{{ \App\Models\TokoSetting::utama()->template_version }})
+        </h3>
         <p class="mb-3 text-body-sm text-secondary">Urutan & default dipakai saat generate Format A. Ubah di Pengaturan → Template Export POS.</p>
         <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
             @foreach ($mapping as $m)

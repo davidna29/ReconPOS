@@ -23,10 +23,10 @@
 
 @section('content')
     <div class="max-w-4xl">
-        <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="page-head">
             <div>
-                <h2 class="text-headline-lg text-on-surface">Edit Nota <span class="mono text-primary">{{ $trx->ref_transaksi }}</span></h2>
-                <p class="mt-1 text-body-md text-secondary">
+                <h2 class="page-head-title">Edit Nota <span class="mono text-primary">{{ $trx->ref_transaksi }}</span></h2>
+                <p class="page-head-subtitle">
                     @if ($trx->sumber === 'rekonstruksi')
                         <span class="badge badge-blue">Rekonstruksi</span> — mengedit nota ini akan <strong>mengunci batch</strong>: undo batch tidak bisa dijalankan lagi.
                     @else
@@ -38,8 +38,8 @@
         </div>
 
         @if ($trx->sumber === 'rekonstruksi')
-            <div class="mt-4 flex items-start gap-3 rounded-lg border border-hutang-amber/40 bg-amber-50 p-4">
-                <span class="material-symbols-outlined text-hutang-amber">lock</span>
+            <div class="mt-4 flex items-start gap-3 rounded-xl border border-hutang-amber/40 bg-amber-50 p-4 shadow-sm">
+                <span class="material-symbols-outlined text-hutang-amber" aria-hidden="true">lock</span>
                 <p class="text-body-sm text-amber-800">
                     Setelah disimpan, nota ini ditandai <strong>diedit</strong> dan batch rekonstruksinya <strong>terkunci</strong>
                     (tidak bisa di-undo). Stok & NO_SN akan disesuaikan sesuai isi baru.
@@ -52,6 +52,10 @@
             @method('PUT')
 
             <div class="card-pad flex flex-col gap-4">
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">receipt_long</span>
+                    Item Nota
+                </h3>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                         <label class="label">Tanggal dan Waktu <span class="text-danger-red">*</span></label>
@@ -63,8 +67,8 @@
                 <div class="relative">
                     <label class="label">Cari Barang (Kode / Nama)</label>
                     <div class="relative">
-                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">search</span>
-                        <input type="text" id="cari-jual" autocomplete="off" placeholder="Scan / ketik untuk menambah item…" class="input pl-10">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary" aria-hidden="true">search</span>
+                        <input type="text" id="cari-jual" autocomplete="off" placeholder="Scan / ketik untuk menambah item…" aria-label="Cari barang" class="input pl-10 shadow-sm">
                     </div>
                     <div id="hasil-jual" class="absolute z-20 mt-1 hidden max-h-64 w-full overflow-y-auto rounded-lg border border-outline-variant bg-white shadow-lg"></div>
                 </div>
@@ -79,12 +83,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center justify-between">
+            <div class="form-actions-sticky flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="text-body-md">
                     Total: <span class="mono text-headline-md font-bold text-primary" id="total-jual">Rp 0</span>
                 </div>
-                <button class="btn btn-primary py-2.5">
-                    <span class="material-symbols-outlined text-[18px]">save</span> Simpan Perubahan
+                <button class="btn btn-primary w-full py-2.5 shadow-sm sm:w-auto">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Simpan Perubahan
                 </button>
             </div>
         </form>

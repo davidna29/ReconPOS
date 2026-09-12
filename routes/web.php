@@ -25,9 +25,14 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+// Halaman utama: tamu langsung ke mode publik, admin login ke dashboard admin.
+Route::get('/', function () {
+    return auth()->check()
+        ? app(DashboardController::class)->index(request())
+        : redirect()->route('publik.dashboard');
+})->name('dashboard');
 
+Route::middleware('auth')->group(function () {
     // ---- Data Barang (PRD 4.3) ----
     Route::get('/barang', [BarangController::class, 'index'])->name('barang.index');
     Route::get('/barang/tambah', [BarangController::class, 'create'])->name('barang.create');

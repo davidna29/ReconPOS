@@ -4,7 +4,8 @@
 
 @section('content')
     <div class="max-w-2xl">
-        <h2 class="text-headline-lg text-on-surface">{{ $supplier ? 'Edit Supplier' : 'Tambah Supplier' }}</h2>
+        <h2 class="page-head-title">{{ $supplier ? 'Edit Supplier' : 'Tambah Supplier' }}</h2>
+        <p class="page-head-subtitle">Master supplier pembelian (PRD 4.4)</p>
 
         <div class="card mt-4 p-6">
             <form method="POST" action="{{ $supplier ? route('supplier.update', $supplier) : route('supplier.store') }}" class="grid grid-cols-1 gap-4">
@@ -40,8 +41,8 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <button class="btn btn-primary">
-                        <span class="material-symbols-outlined text-[18px]">save</span>
+                    <button class="btn btn-primary shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span>
                         {{ $supplier ? 'Simpan Perubahan' : 'Simpan Supplier' }}
                     </button>
                     <a href="{{ route('supplier.index') }}" class="btn btn-secondary">Batal</a>

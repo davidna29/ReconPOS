@@ -3,10 +3,10 @@
 @section('title', 'Review Draft Generate')
 
 @section('content')
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Review Draft Generate #{{ $batch->id }}</h2>
-            <p class="mt-1 text-body-md text-secondary">
+            <h2 class="page-head-title">Review Draft Generate #{{ $batch->id }}</h2>
+            <p class="page-head-subtitle">
                 Periode {{ $batch->periode_mulai->format('d/m/Y') }} – {{ $batch->periode_selesai->format('d/m/Y') }} ·
                 Target <span class="font-bold">{{ rupiah($batch->target_omset) }}</span> ·
                 Total Draft <span class="font-bold text-primary">{{ rupiah($batch->total_generate) }}</span> ·
@@ -40,31 +40,35 @@
         <div class="flex flex-wrap gap-2">
             <form method="POST" action="{{ route('generate.simpan', $batch) }}" data-confirm="Simpan draft sebagai transaksi resmi? Stok akan terpotong permanen dan sumber ditandai 'rekonstruksi'.">
                 @csrf
-                <button class="btn btn-success">
-                    <span class="material-symbols-outlined text-[18px]">save</span> Simpan (Jadikan Resmi)
+                <button class="btn btn-success shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Simpan (Jadikan Resmi)
                 </button>
             </form>
             <a href="{{ route('generate.index') }}" class="btn btn-secondary">
-                <span class="material-symbols-outlined text-[18px]">refresh</span> Generate Ulang (form baru)
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span> Generate Ulang (form baru)
             </a>
             <form method="POST" action="{{ route('generate.batal', $batch) }}" data-confirm="Batalkan draft? Tidak ada efek ke stok.">
                 @csrf
                 @method('DELETE')
                 <button class="btn btn-danger">
-                    <span class="material-symbols-outlined text-[18px]">delete_sweep</span> Batalkan Draft
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete_sweep</span> Batalkan Draft
                 </button>
             </form>
         </div>
     </div>
 
-    <p class="text-body-sm text-secondary">
+    <p class="rounded-lg border border-outline-variant bg-surface-muted px-3 py-2 text-body-sm text-secondary">
+        <span class="material-symbols-outlined text-[16px] align-middle text-primary" aria-hidden="true">info</span>
         Draft bersifat reversibel (belum menyentuh stok). Edit baris → klik simpan per baris; hapus nota per hari bila perlu.
     </p>
 
     @foreach ($perHari as $tanggal => $notas)
-        <div class="card">
+        <div class="card animate-rise overflow-hidden" style="--rise-delay:.08s">
             <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 px-4 py-2.5">
-                <h3 class="text-headline-sm">{{ \Carbon\Carbon::parse($tanggal)->translatedFormat('l, d F Y') }}</h3>
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">calendar_month</span>
+                    {{ \Carbon\Carbon::parse($tanggal)->translatedFormat('l, d F Y') }}
+                </h3>
                 <span class="text-body-sm text-secondary">{{ $notas->count() }} nota · {{ rupiah($notas->sum('total')) }}</span>
             </div>
             <div class="overflow-x-auto">

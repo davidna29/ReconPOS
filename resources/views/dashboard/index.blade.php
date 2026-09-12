@@ -5,10 +5,13 @@
 @section('content')
     @php($publik = $publik ?? false)
     @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    @php($hutangAlert = $totalHutang > 0)
+    @php($stokAlert = $stokKritis->count() > 0)
+    @php($kritikJson = ($kritikTop ?? collect())->map(fn ($b) => ['kode' => $b->kode_barang, 'nama' => $b->nama, 'stok' => $b->stock, 'satuan' => $b->satuan])->values()->all())
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Overview</h2>
-            <p class="mt-1 text-body-md text-secondary">Periode aktif: <span class="font-semibold text-primary">{{ $labelPeriode }}</span></p>
+            <h2 class="page-head-title">Overview</h2>
+            <p class="page-head-subtitle">Periode aktif: <span class="font-semibold text-primary">{{ $labelPeriode }}</span></p>
         </div>
 
         <!-- Pemilih periode kartu omset (bulan / tahun / rentang bebas) -->
@@ -30,58 +33,64 @@
                 <input type="date" name="to" value="{{ request('to') }}" class="input">
             </div>
             <button class="btn btn-primary btn-sm">
-                <span class="material-symbols-outlined text-[16px]">filter_alt</span> Terapkan
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
             </button>
             <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
         </form>
     </div>
 
-    <!-- Bento Grid - Summary Cards -->
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div class="relative flex h-32 flex-col justify-between overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-            <div class="absolute -bottom-4 -right-4 opacity-5">
-                <span class="material-symbols-outlined text-8xl">payments</span>
-            </div>
-            <div>
-                <h3 class="text-label-caps font-bold uppercase tracking-wider text-secondary">Total Omset — {{ $labelPeriode }}</h3>
-                <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetPeriode) }}</div>
-            </div>
-            <div class="flex items-center gap-1 text-body-sm text-lunas-green">
-                <span class="material-symbols-outlined text-[16px]">trending_up</span>
-                <span>{{ $awal->format('d/m/Y') }} – {{ $akhir->format('d/m/Y') }} · manual + rekonstruksi (tersimpan)</span>
-            </div>
-        </div>
-
-        <div class="flex h-32 flex-col justify-between rounded-xl border border-outline-variant border-l-4 border-l-danger-red bg-surface-container-lowest p-4">
-            <div class="flex items-start justify-between">
-                <h3 class="flex items-center gap-1 text-label-caps font-bold uppercase tracking-wider text-danger-red">
-                    <span class="material-symbols-outlined text-[14px]">warning</span>
-                    Hutang Belum Lunas
-                </h3>
-            </div>
-            <div class="text-headline-lg font-bold text-on-surface">{{ rupiah($totalHutang) }}</div>
-            <div class="flex w-fit items-center gap-1 rounded bg-error-container px-2 py-0.5 text-body-sm font-medium text-danger-red">
-                <span class="material-symbols-outlined text-[14px]">event_busy</span>
-                {{ $jatuhTempo7Hari->count() }} tagihan jatuh tempo ≤ 7 hari / lewat
-            </div>
-        </div>
-
-        <div class="flex h-32 flex-col justify-between rounded-xl border border-outline-variant border-l-4 border-l-hutang-amber bg-surface-container-lowest p-4">
-            <h3 class="text-label-caps font-bold uppercase tracking-wider text-hutang-amber">SKU Stok Menipis / Habis</h3>
-            <div class="flex items-baseline gap-2">
-                <span class="text-headline-lg font-bold text-on-surface">{{ $stokKritis->count() }}</span>
-                <span class="text-body-md text-secondary">Item (ambang ≤ {{ $ambang }})</span>
-            </div>
-            <div class="flex w-fit items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-body-sm font-medium text-hutang-amber">
-                <span class="material-symbols-outlined text-[14px]">inventory_2</span>
-                {{ $stokKritis->take(2)->pluck('nama')->join(', ') ?: 'Semua aman' }}{{ $stokKritis->count() > 2 ? '…' : '' }}
-            </div>
-        </div>
+    <!-- Bento Grid - Summary Cards (kartu warning/danger naik ke depan) -->
+    <div class="grid animate-rise grid-cols-1 gap-4 md:grid-cols-3" style="--rise-delay:.06s">
+        @if ($hutangAlert)
+            @include('dashboard.partials.kpi-hutang')
+        @endif
+        @if ($stokAlert)
+            @include('dashboard.partials.kpi-stok')
+        @endif
+        @include('dashboard.partials.kpi-omset')
+        @if (! $hutangAlert)
+            @include('dashboard.partials.kpi-hutang')
+        @endif
+        @if (! $stokAlert)
+            @include('dashboard.partials.kpi-stok')
+        @endif
     </div>
 
     <!-- Kartu Pembelian ringkas (filter preset ?pb — independen dari filter omset) -->
     <div class="mt-4">
         @include('pembelian.partials.kartu-pembelian')
+    </div>
+
+    <!-- Grafik: Trend Omset + Aging Hutang -->
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="card animate-rise overflow-hidden lg:col-span-2" style="--rise-delay:.1s">
+            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">show_chart</span>
+                    Trend Omset — {{ $labelPeriode }}
+                </h3>
+            </div>
+            <div class="p-4">
+                <div class="relative h-64"><canvas id="chart-trend"></canvas></div>
+                @if (($trendStep ?? 1) > 1)
+                    <p class="hint mt-2">Rentang lebih dari 1 tahun — diagregasi per minggu (total tetap utuh).</p>
+                @endif
+            </div>
+        </div>
+        <div class="card animate-rise overflow-hidden" style="--rise-delay:.14s">
+            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-hutang-amber" aria-hidden="true">hourglass_bottom</span>
+                    Aging Hutang
+                </h3>
+            </div>
+            <div class="p-4">
+                <div class="relative h-64"><canvas id="chart-aging"></canvas></div>
+                @if (($tanpaTempo ?? 0) > 0)
+                    <p class="hint mt-2">{{ $tanpaTempo }} invoice tanpa jatuh tempo (tidak masuk bucket).</p>
+                @endif
+            </div>
+        </div>
     </div>
 
     <div class="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -91,21 +100,21 @@
             <div class="card p-6">
                 <h3 class="mb-4 text-headline-sm text-on-surface">Aksi Cepat</h3>
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <a href="{{ route('pembelian.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-                            <span class="material-symbols-outlined">add_shopping_cart</span>
+                    <a href="{{ route('pembelian.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed text-on-primary-fixed transition-colors group-hover:bg-primary group-hover:text-white">
+                            <span class="material-symbols-outlined" aria-hidden="true">add_shopping_cart</span>
                         </div>
                         <span class="text-center text-body-sm font-medium text-on-surface">Transaksi Pembelian</span>
                     </a>
-                    <a href="{{ route('barang.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-secondary-container text-primary transition-colors group-hover:bg-secondary group-hover:text-white">
-                            <span class="material-symbols-outlined">inventory</span>
+                    <a href="{{ route('barang.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-secondary-fixed text-on-secondary-fixed transition-colors group-hover:bg-secondary group-hover:text-white">
+                            <span class="material-symbols-outlined" aria-hidden="true">inventory</span>
                         </div>
                         <span class="text-center text-body-sm font-medium text-on-surface">Data Barang Baru</span>
                     </a>
-                    <a href="{{ route('generate.index') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-tertiary-fixed text-tertiary transition-colors group-hover:bg-tertiary group-hover:text-white">
-                            <span class="material-symbols-outlined">auto_awesome</span>
+                    <a href="{{ route('generate.index') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-tertiary-fixed text-on-tertiary-fixed transition-colors group-hover:bg-tertiary group-hover:text-white">
+                            <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
                         </div>
                         <span class="text-center text-body-sm font-medium text-on-surface">Generate Transaksi</span>
                     </a>
@@ -117,12 +126,13 @@
             <div class="card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
                     <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-cash-blue">point_of_sale</span>
+                        <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">point_of_sale</span>
                         Penjualan Terakhir
                     </h3>
                     <a href="{{ $r('penjualan.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
-                <div class="overflow-x-auto">
+                @if ($penjualanTerakhir->count())
+                <div class="max-h-[400px] overflow-auto">
                     <table class="tbl">
                         <thead>
                             <tr>
@@ -136,7 +146,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($penjualanTerakhir as $t)
+                            @foreach ($penjualanTerakhir as $t)
                                 <tr>
                                     <td class="mono text-secondary">{{ $t['ref'] }}</td>
                                     <td>{{ $t['tanggal']->format('d/m/Y H:i') }}</td>
@@ -152,26 +162,37 @@
                                     </td>
                                     @endif
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="{{ $publik ? 4 : 5 }}" class="py-8 text-center text-secondary">Belum ada penjualan.</td>
-                                </tr>
-                            @endforelse
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
+                @else
+                <div class="empty-state">
+                    <div class="empty-state-icon"><span class="material-symbols-outlined" aria-hidden="true">point_of_sale</span></div>
+                    <p class="empty-state-title">Belum ada penjualan.</p>
+                    @if (! $publik)
+                    <p class="empty-state-hint">Catat transaksi manual atau generate otomatis dari stok.</p>
+                    <div class="mt-2 flex flex-wrap justify-center gap-2">
+                        <a href="{{ route('penjualan.create') }}" class="btn btn-primary btn-sm">Buat Transaksi</a>
+                        <a href="{{ route('generate.index') }}" class="btn btn-secondary btn-sm">Generate Otomatis</a>
+                    </div>
+                    @else
+                    <p class="empty-state-hint">Belum ada penjualan pada periode ini.</p>
+                    @endif
+                </div>
+                @endif
             </div>
 
             <!-- Pembelian Terakhir -->
             <div class="card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
                     <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-hutang-amber">shopping_cart</span>
+                        <span class="material-symbols-outlined text-hutang-amber" aria-hidden="true">shopping_cart</span>
                         Pembelian Terakhir
                     </h3>
                     <a href="{{ $r('pembelian.invoice-hutang') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="max-h-[400px] overflow-auto">
                     <table class="tbl">
                         <thead>
                             <tr>
@@ -209,76 +230,12 @@
         </div>
 
         <div class="flex flex-col gap-6">
-            <!-- Attention Panel -->
-            <div class="card p-5">
-                <div class="mb-4 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-danger-red">notification_important</span>
-                    <h3 class="text-headline-sm text-on-surface">Perhatian Segera</h3>
-                </div>
-                <div class="flex flex-col gap-3">
-                    @forelse ($jatuhTempo7Hari->take(3) as $inv)
-                        <div class="flex gap-3 rounded-lg border border-red-100 bg-red-50 p-3">
-                            <span class="material-symbols-outlined mt-0.5 text-[20px] text-danger-red">warning</span>
-                            <div>
-                                <h4 class="text-body-sm font-semibold text-danger-red">Tagihan Jatuh Tempo {{ $inv->jatuh_tempo->isPast() ? 'Terlewat' : 'Segera' }}</h4>
-                                <p class="mt-1 text-table-data text-slate-700">{{ $inv->supplier?->nama }} — sisa {{ rupiah($inv->sisa_hutang) }} ({{ $inv->no_invoice }})</p>
-                                @if (! $publik)
-                                <a href="{{ $r('pembelian.show', $inv) }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Bayar Sekarang →</a>
-                                @endif
-                            </div>
-                        </div>
-                    @empty
-                        <p class="text-body-sm text-secondary">Tidak ada tagihan yang mendesak. 🎉</p>
-                    @endforelse
-
-                    @forelse ($stokKritis->take(3) as $b)
-                        <div class="flex gap-3 rounded-lg border border-amber-100 bg-amber-50 p-3">
-                            <span class="material-symbols-outlined mt-0.5 text-[20px] text-hutang-amber">inventory_2</span>
-                            <div>
-                                <h4 class="text-body-sm font-semibold text-hutang-amber">Stok {{ $b->stock <= 0 ? 'Habis' : 'Menipis' }}: {{ $b->nama }}</h4>
-                                <p class="mt-1 text-table-data text-slate-700">Sisa stok: {{ $b->stock }} {{ $b->satuan }}.</p>
-                                @if (! $publik)
-                                <a href="{{ route('pembelian.create') }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Order Sekarang →</a>
-                                @endif
-                            </div>
-                        </div>
-                    @empty
-                        @if ($stokKritis->count() === 0)
-                            <p class="text-body-sm text-secondary">Semua stok di atas ambang. 👍</p>
-                        @endif
-                    @endforelse
-                </div>
-            </div>
-
-            <!-- Barang Terbaru (10 SKU & Stok) -->
-            <div class="card overflow-hidden">
-                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-special-teal">inventory_2</span>
-                        Barang Terbaru (SKU & Stok)
-                    </h3>
-                    <a href="{{ $r('barang.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
-                </div>
-                <div class="divide-y divide-slate-100">
-                    @forelse ($barangTerbaru as $b)
-                        <a href="{{ $r('barang.show', $b) }}" class="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50">
-                            <div class="min-w-0 flex-1">
-                                <div class="mono text-mono-data text-secondary">{{ $b->kode_barang }}</div>
-                                <div class="truncate text-body-sm text-on-surface">{{ $b->nama }}</div>
-                            </div>
-                            <span class="badge {{ $b->stock <= 0 ? 'badge-red' : ($b->stock <= $ambang ? 'badge-amber' : 'badge-green') }}">
-                                {{ $b->stock }} {{ $b->satuan }}
-                            </span>
-                        </a>
-                    @empty
-                        <p class="px-4 py-6 text-center text-body-sm text-secondary">Belum ada barang.</p>
-                    @endforelse
-                </div>
-            </div>
-
             <!-- System Status -->
-            <div class="card relative flex-1 overflow-hidden p-5">
-                <h3 class="mb-4 text-headline-sm text-on-surface">System Status</h3>
+            <div class="card relative overflow-hidden p-5">
+                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-lunas-green" aria-hidden="true">monitor_heart</span>
+                    System Status
+                </h3>
                 <div class="space-y-4">
                     <div class="flex items-center justify-between">
                         <span class="text-body-sm text-secondary">Mode Aplikasi</span>
@@ -302,6 +259,72 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Attention Panel -->
+            <div class="card p-5">
+                <div class="mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-danger-red" aria-hidden="true">notification_important</span>
+                    <h3 class="text-headline-sm text-on-surface">Perhatian Segera</h3>
+                </div>
+                <div class="alert-panel max-h-[320px] overflow-auto">
+                    @forelse ($jatuhTempo7Hari->take(3) as $inv)
+                        <div class="alert-item alert-item-red">
+                            <span class="material-symbols-outlined mt-0.5 text-[20px] text-danger-red" aria-hidden="true">warning</span>
+                            <div>
+                                <h4 class="alert-item-title text-danger-red">Tagihan Jatuh Tempo {{ $inv->jatuh_tempo->isPast() ? 'Terlewat' : 'Segera' }}</h4>
+                                <p class="alert-item-detail">{{ $inv->supplier?->nama }} — sisa {{ rupiah($inv->sisa_hutang) }} ({{ $inv->no_invoice }})</p>
+                                @if (! $publik)
+                                <a href="{{ $r('pembelian.show', $inv) }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Bayar Sekarang →</a>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-body-sm text-secondary">Tidak ada tagihan yang mendesak. 🎉</p>
+                    @endforelse
+
+                    @forelse ($stokKritis->take(3) as $b)
+                        <div class="alert-item alert-item-amber">
+                            <span class="material-symbols-outlined mt-0.5 text-[20px] text-hutang-amber" aria-hidden="true">inventory_2</span>
+                            <div>
+                                <h4 class="alert-item-title text-hutang-amber">Stok {{ $b->stock <= 0 ? 'Habis' : 'Menipis' }}: {{ $b->nama }}</h4>
+                                <p class="alert-item-detail">Sisa stok: {{ $b->stock }} {{ $b->satuan }}.</p>
+                                @if (! $publik)
+                                <a href="{{ route('pembelian.create') }}" class="mt-1 inline-block text-label-caps font-bold text-primary hover:underline">Order Sekarang →</a>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        @if ($stokKritis->count() === 0)
+                            <p class="text-body-sm text-secondary">Semua stok di atas ambang. 👍</p>
+                        @endif
+                    @endforelse
+                </div>
+            </div>
+
+            <!-- Top 10 SKU Stok Kritis -->
+            <div class="card overflow-hidden">
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
+                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                        <span class="material-symbols-outlined text-danger-red" aria-hidden="true">low_priority</span>
+                        Stok Kritis: Top 10
+                    </h3>
+                    <a href="{{ $r('stok-tracking.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                </div>
+                <div class="p-4">
+                    <div class="relative h-64"><canvas id="chart-kritik"></canvas></div>
+                    <p class="hint mt-2">Ambang ≤ {{ $ambang }} · stok tersedikit di atas.</p>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    window.DASHBOARD_CHARTS = {
+        trend: { labels: @json($trendLabels ?? []), values: @json($trendValues ?? []), step: {{ $trendStep ?? 1 }} },
+        aging: { labels: @json($agingLabels ?? []), values: @json($agingValues ?? []) },
+        kritik: @json($kritikJson ?? []),
+    };
+</script>
+@endpush

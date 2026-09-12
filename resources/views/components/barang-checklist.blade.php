@@ -14,7 +14,7 @@
     'placeholder' => 'Cari kode / nama barang…',
 ])
 
-<div id="{{ $idPrefix }}-barang-checklist" class="flex h-52 flex-col overflow-hidden rounded border border-outline-variant bg-white">
+<div id="{{ $idPrefix }}-barang-checklist" class="flex h-52 flex-col overflow-hidden rounded-xl border border-outline-variant bg-white shadow-sm transition-shadow focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
     <div class="flex items-center gap-2 border-b border-outline-variant bg-surface-muted px-2.5 py-1.5">
         <span class="material-symbols-outlined text-[18px] text-secondary">search</span>
         <input id="{{ $idPrefix }}-cari" type="text" placeholder="{{ $placeholder }}"
@@ -25,7 +25,7 @@
 
     <div id="{{ $idPrefix }}-list" class="flex-1 overflow-y-auto p-1.5">
         @forelse ($barangs as $b)
-            <label data-item="{{ $b->kode_barang }} {{ $b->nama }}" class="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-body-sm transition-colors hover:bg-surface-container-low">
+            <label data-item="{{ $b->kode_barang }} {{ $b->nama }}" class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-body-sm transition-colors hover:bg-surface-container">
                 <input type="checkbox" name="{{ $name }}" value="{{ $b->id }}" class="shrink-0 rounded border-outline-variant text-primary focus:ring-primary"
                     @checked(in_array($b->id, (array) $selected))>
                 <span class="mono text-mono-data shrink-0 text-secondary">{{ $b->kode_barang }}</span>

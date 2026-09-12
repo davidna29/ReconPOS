@@ -1,1 +1,1 @@
-<span class="material-symbols-outlined {{ $class ?? '' }}" {{ $attributes }} {{ $weight ?? '' }}>{{ $icon ?? $slot }}</span>
+<span class="material-symbols-outlined {{ $class ?? '' }}" aria-hidden="true" {{ $attributes }} {{ $weight ?? '' }}>{{ $icon ?? $slot }}</span>

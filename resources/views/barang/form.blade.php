@@ -4,19 +4,21 @@
 
 @section('content')
     @php($isEdit = (bool) $barang)
-    <div class="flex items-end justify-between">
+    <div class="page-head">
         <div>
-            <h2 class="text-headline-lg text-on-surface">{{ $isEdit ? 'Edit Barang' : 'Tambah Barang' }}</h2>
-            <p class="mt-1 text-body-md text-secondary">Kode Barang terkunci saat edit; Harga Beli & Stock dikelola lewat jalur khusus (PRD 4.3b)</p>
+            <h2 class="page-head-title">{{ $isEdit ? 'Edit Barang' : 'Tambah Barang' }}</h2>
+            <p class="page-head-subtitle">Kode Barang terkunci saat edit; Harga Beli & Stock dikelola lewat jalur khusus (PRD 4.3b)</p>
         </div>
     </div>
 
     <div class="card max-w-3xl p-6">
-        <form method="POST" action="{{ $isEdit ? route('barang.update', $barang) : route('barang.store') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form method="POST" action="{{ $isEdit ? route('barang.update', $barang) : route('barang.store') }}" class="flex flex-col gap-4">
             @csrf
             @if ($isEdit)
                 @method('PUT')
             @endif
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 
             <div>
                 <label class="label">Barcode / Kode Barang {!! $isEdit ? '' : '<span class="text-danger-red">*</span>' !!}</label>
@@ -122,13 +124,14 @@
                     <span class="hint">Tercatat sebagai baris "Stok Awal" di Kartu Stok (PRD 4.3b).</span>
                 </div>
             @endif
+            </div>
 
-            <div class="flex items-center gap-3 md:col-span-2">
-                <button type="submit" class="btn btn-primary">
-                    <span class="material-symbols-outlined text-[18px]">save</span>
+            <div class="form-actions-sticky flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button type="submit" class="btn btn-primary shadow-sm max-sm:w-full">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span>
                     {{ $isEdit ? 'Simpan Perubahan' : 'Simpan Barang' }}
                 </button>
-                <a href="{{ route('barang.index') }}" class="btn btn-secondary">Batal</a>
+                <a href="{{ route('barang.index') }}" class="btn btn-secondary max-sm:w-full">Batal</a>
             </div>
         </form>
     </div>

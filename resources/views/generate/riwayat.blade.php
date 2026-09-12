@@ -3,19 +3,19 @@
 @section('title', 'Riwayat Generate')
 
 @section('content')
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head animate-rise">
         <div>
-            <h2 class="text-headline-lg text-on-surface">Riwayat Batch Generate</h2>
-            <p class="mt-1 text-body-md text-secondary">Audit trail: parameter, waktu generate & status setiap batch (PRD 9)</p>
+            <h2 class="page-head-title">Riwayat Batch Generate</h2>
+            <p class="page-head-subtitle">Audit trail: parameter, waktu generate & status setiap batch (PRD 9)</p>
         </div>
         <a href="{{ route('generate.index') }}" class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Generate Baru
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">auto_awesome</span> Generate Baru
         </a>
     </div>
 
-    <div class="card overflow-hidden">
+    <div class="card animate-rise overflow-hidden" style="--rise-delay:.08s">
         <div class="overflow-x-auto">
-            <table class="tbl">
+            <table class="tbl tbl-cards">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -30,18 +30,18 @@
                         <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="rise-rows">
                     @forelse ($batches as $b)
                         <tr>
-                            <td class="mono text-secondary">#{{ $b->id }}</td>
-                            <td>{{ $b->periode_mulai->format('d/m/Y') }} – {{ $b->periode_selesai->format('d/m/Y') }}</td>
-                            <td class="mono text-right">{{ uang($b->target_omset) }}</td>
-                            <td class="mono text-right">{{ $b->total_generate !== null ? uang($b->total_generate) : '-' }}</td>
-                            <td class="mono text-right {{ ($b->selisih ?? 0) > 0 ? 'text-danger-red' : 'text-lunas-green' }}">
+                            <td data-label="ID" class="mono text-secondary">#{{ $b->id }}</td>
+                            <td data-label="Periode">{{ $b->periode_mulai->format('d/m/Y') }} – {{ $b->periode_selesai->format('d/m/Y') }}</td>
+                            <td data-label="Target" class="mono text-right">{{ uang($b->target_omset) }}</td>
+                            <td data-label="Total Generate" class="mono text-right">{{ $b->total_generate !== null ? uang($b->total_generate) : '-' }}</td>
+                            <td data-label="Selisih" class="mono text-right {{ ($b->selisih ?? 0) > 0 ? 'text-danger-red' : 'text-lunas-green' }}">
                                 {{ $b->selisih !== null ? ($b->selisih > 0 ? '+' . uang($b->selisih) : uang($b->selisih)) : '-' }}
                             </td>
-                            <td class="text-center">{{ $b->transaksi_penjualan_count }}</td>
-                            <td>
+                            <td data-label="Jml Nota" class="text-center">{{ $b->transaksi_penjualan_count }}</td>
+                            <td data-label="Status">
                                 @if ($b->status === 'draft')
                                     <x-badge color="amber">Draft</x-badge>
                                 @elseif ($b->status === 'dibatalkan')
@@ -50,14 +50,14 @@
                                     <x-badge color="green">Tersimpan</x-badge>
                                 @endif
                             </td>
-                            <td class="max-w-[200px]">
+                            <td data-label="Parameter" class="max-w-[200px]">
                                 @php($p = $b->parameter_json ?? [])
                                 <span class="text-[11px] text-secondary">
                                     nota {{ $p['nota_min'] ?? '-' }}-{{ $p['nota_max'] ?? '-' }}/hari · tol {{ $p['toleransi_persen'] ?? '-' }}% · variasi {{ $p['variasi_min'] ?? '-' }}..{{ $p['variasi_max'] ?? '-' }}%
                                 </span>
                             </td>
-                            <td>{{ $b->created_at->format('d/m/Y H:i') }}</td>
-                            <td class="text-right">
+                            <td data-label="Dibuat">{{ $b->created_at->format('d/m/Y H:i') }}</td>
+                            <td data-label="Aksi" class="text-right">
                                 <div class="flex justify-end gap-1">
                                     @if ($b->status === 'draft')
                                         <a href="{{ route('generate.review', $b) }}" class="btn btn-primary btn-sm">Review</a>
@@ -96,7 +96,7 @@
                                 </div>
                             </td>
                         </tr>
-                        <tr id="det-b{{ $b->id }}" class="hidden bg-slate-50">
+                        <tr id="det-b{{ $b->id }}" class="hidden bg-surface-container-low">
                             <td colspan="10">
                                 @forelse ($b->transaksiPenjualan as $trx)
                                     <div class="border-b border-slate-200 px-3 py-2">

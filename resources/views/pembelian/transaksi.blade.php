@@ -36,26 +36,30 @@
 
 @section('content')
     @include('pembelian.partials.nav-tabs')
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="page-head">
         <div>
-            <h2 class="text-headline-lg text-on-surface">{{ $invoice ? 'Edit Invoice ' . $invoice->no_invoice : 'Transaksi Pembelian' }}</h2>
-            <p class="mt-1 text-body-md text-secondary">Input pembelian baru — stok otomatis bertambah & harga jual dihitung ulang mengikuti margin saat disimpan (PRD 5.1, 5.4)</p>
+            <h2 class="page-head-title">{{ $invoice ? 'Edit Invoice ' . $invoice->no_invoice : 'Transaksi Pembelian' }}</h2>
+            <p class="page-head-subtitle">Input pembelian baru — stok otomatis bertambah & harga jual dihitung ulang mengikuti margin saat disimpan (PRD 5.1, 5.4)</p>
         </div>
         <div class="flex gap-2">
             <a href="{{ route('pembelian.template.download') }}" class="btn btn-success btn-sm">
-                <span class="material-symbols-outlined text-[16px]">download</span> Download Template Excel
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> Download Template Excel
             </a>
             <button type="button" class="btn btn-amber btn-sm" onclick="document.getElementById('import-row').classList.toggle('hidden')">
-                <span class="material-symbols-outlined text-[16px]">upload</span> Upload Transaksi Excel
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Upload Transaksi Excel
             </button>
         </div>
     </div>
 
     <div id="import-row" class="card hidden items-center gap-3 p-4">
+        <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">upload_file</span>
+            Import Transaksi Excel
+        </h3>
         <form method="POST" action="{{ route('pembelian.template.import') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
             @csrf
             <input type="file" name="file" accept=".xlsx" class="input w-auto" required>
-            <button class="btn btn-amber btn-sm"><span class="material-symbols-outlined text-[16px]">upload</span> Import</button>
+            <button class="btn btn-amber btn-sm"><span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Import</button>
         </form>
         <span class="text-[11px] text-secondary">Format: REF_PEMBELIAN, TANGGAL_WAKTU, SUPPLIER, JENIS_TRANSAKSI, BAYAR_DP, JATUH_TEMPO, KODE_BARANG, QTY, HARGA_BELI, DISKON_ITEM, DISKON_TOTAL, PPN.</span>
     </div>
@@ -100,7 +104,7 @@
                         </div>
                         <div class="flex items-end">
                             <button type="button" class="btn btn-secondary btn-sm text-primary" onclick="document.getElementById('modal-supplier').classList.remove('hidden')">
-                                <span class="material-symbols-outlined text-[16px]">person_add</span> Tambah Supplier +
+                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">person_add</span> Tambah Supplier +
                             </button>
                         </div>
                     </div>
@@ -109,7 +113,7 @@
                     <div class="relative">
                         <label class="label">Barcode / Kode Barang</label>
                         <div class="relative">
-                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary">search</span>
+                            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary" aria-hidden="true">search</span>
                             <input type="text" id="cari-barang" autocomplete="off" placeholder="Scan / ketik KODE_BARANG lalu pilih dari daftar…"
                                 class="input pl-10">
                         </div>
@@ -141,7 +145,10 @@
             <!-- Kanan: ringkasan biaya -->
             <div class="w-full lg:w-[340px]">
                 <div class="card-pad">
-                    <h3 class="mb-3 text-headline-sm">Ringkasan Biaya</h3>
+                    <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
+                        <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">receipt_long</span>
+                        Ringkasan Biaya
+                    </h3>
                     <div class="flex flex-col gap-3">
                         <div class="flex items-center justify-between">
                             <span class="text-body-sm text-secondary">Subtotal</span>
@@ -182,7 +189,7 @@
                                 <span class="mono text-body-md font-bold text-lunas-green" id="kembali-cash">Rp 0</span>
                             </div>
                             <button type="submit" id="btn-simpan-cash" class="btn btn-primary w-full py-2.5">
-                                <span class="material-symbols-outlined text-[18px]">shopping_cart_checkout</span> Simpan Payment
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">shopping_cart_checkout</span> Simpan Payment
                             </button>
                             <p class="hint text-danger-red hidden" id="cash-error">Bayar masih kurang dari total — tab Cash mengasumsikan lunas penuh.</p>
                         </div>
@@ -203,7 +210,7 @@
                                 <span class="mono text-body-md font-bold text-hutang-amber" id="sisa-hutang">Rp 0</span>
                             </div>
                             <button type="submit" class="btn btn-primary w-full py-2.5">
-                                <span class="material-symbols-outlined text-[18px]">shopping_cart_checkout</span> Simpan Payment
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">shopping_cart_checkout</span> Simpan Payment
                             </button>
                             <p class="hint">Stok tetap bertambah walau hutang belum lunas (barang sudah diterima).</p>
                         </div>
@@ -214,9 +221,9 @@
     </form>
 
     <!-- Modal Tambah Supplier ringkas -->
-    <div id="modal-supplier" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-        <div class="card w-full max-w-md p-6">
-            <h3 class="mb-4 text-headline-sm">Tambah Supplier (ringkas)</h3>
+    <div id="modal-supplier" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Tambah Supplier">
+        <div class="modal-card max-w-md">
+            <h3 class="mb-4 text-headline-sm text-on-surface">Tambah Supplier (ringkas)</h3>
             <form method="POST" action="{{ route('supplier.store') }}">
                 @csrf
                 <input type="hidden" name="redirect_to" value="pembelian">
@@ -285,7 +292,7 @@
                     <td><input type="number" name="items[${idx}][qty]" step="1" min="1" required value="${it.qty}" data-idx="${idx}" data-field="qty" class="input mono w-16 text-center"></td>
                     <td><input type="number" name="items[${idx}][diskon_item]" step="1" min="0" value="${it.diskon_item}" data-idx="${idx}" data-field="diskon_item" class="input mono w-24 text-right"></td>
                     <td class="mono text-right font-bold">${fmtRp(sub)}</td>
-                    <td class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus="${idx}"><span class="material-symbols-outlined text-[18px]">delete</span></button></td>
+                    <td class="text-right"><button type="button" class="btn-icon text-danger-red" data-hapus="${idx}"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span></button></td>
                 `;
                 if (it.sn === 'SN') {
                     const td = document.createElement('td');
