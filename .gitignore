@@ -25,7 +25,7 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
-# Aplikasi GenTOt — artifacts lokal
+# ReconPOS — artifacts lokal
 /database/*.sqlite
 /database/*.sqlite-journal
 /storage/app/private/export/

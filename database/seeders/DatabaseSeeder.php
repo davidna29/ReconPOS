@@ -14,10 +14,10 @@ class DatabaseSeeder extends Seeder
     {
         // 1 akun admin (PRD 1.2a / 9) — tanpa registrasi publik
         $admin = User::firstOrCreate(
-            ['email' => 'admin@gentot.local'],
-            ['name' => 'Admin Toko', 'password' => 'gentot2026'],
+            ['email' => 'admin@reconpos.local'],
+            ['name' => 'Admin Toko', 'password' => 'reconpos2026'],
         );
-        $this->command?->info('Admin: admin@gentot.local / gentot2026');
+        $this->command?->info('Admin: admin@reconpos.local / reconpos2026');
 
         // 1 baris konfigurasi toko (PRD 4.5)
         $settings = TokoSetting::utama();

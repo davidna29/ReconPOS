@@ -272,7 +272,7 @@ class ExportPosService
         // Sheet PETUNJUK (PRD 8b)
         $petunjuk = $spreadsheet->createSheet();
         $petunjuk->setTitle('PETUNJUK');
-        $petunjuk->setCellValue('A1', 'Data ini dihasilkan oleh aplikasi rekonstruksi omset (Generate Transaksi Otomatis).');
+        $petunjuk->setCellValue('A1', 'Data ini dihasilkan oleh ReconPOS (rekonstruksi omset — Generate Transaksi Otomatis).');
         $petunjuk->setCellValue('A2', 'Upload file ini lewat menu Super Kasir -> Import Penjualan pada aplikasi POS Bengkel.');
         $petunjuk->setCellValue('A3', 'Semua transaksi memakai CUSTOMER_ID 0 (Customer Umum).');
 

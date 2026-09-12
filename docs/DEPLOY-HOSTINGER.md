@@ -50,7 +50,7 @@ Mengapa begitu? Karena hanya isi folder **public/** yang boleh tampil di web; fi
 5. (Opsional tapi disarankan) cek aplikasi jalan di laptop:
 
        php artisan serve
-       # buka http://localhost:8000, login admin@gentot.local / gentot2026
+       # buka http://localhost:8000, login admin@reconpos.local / reconpos2026
 
 > Penting: `npm run build` HARUS dijalankan di laptop karena shared hosting Hostinger umumnya **tidak punya Node.js** di SSH. Folder `public/build` hasil build ikut di-upload.
 
@@ -58,7 +58,7 @@ Mengapa begitu? Karena hanya isi folder **public/** yang boleh tampil di web; fi
 
 Buat zip dari folder proyek **tanpa** folder berat/rahasia. Dari terminal di dalam folder proyek:
 
-    zip -r gentot-release.zip . \
+    zip -r reconpos-release.zip . \
       -x "node_modules/*" "vendor/*" ".git/*" ".env" \
       "storage/framework/cache/*" "storage/logs/*" ".phpunit.result.cache"
 
@@ -71,9 +71,9 @@ Catatan penting:
 
 ### Cara A (termudah): hPanel File Manager
 1. hPanel -> **Files** -> **File Manager** -> buka folder `~/domains/<DOMAIN>/` (folder induk, BUKAN public_html).
-2. Klik **Upload** -> pilih `gentot-release.zip` -> tunggu selesai.
+2. Klik **Upload** -> pilih `reconpos-release.zip` -> tunggu selesai.
 3. Klik kanan zip -> **Extract** (akan muncul folder proyek di situ).
-4. Buka folder hasil extract; **rename** jadi nama pendek misal `gentot` (opsional, memudahkan).
+4. Buka folder hasil extract; **rename** jadi nama pendek misal `reconpos` (opsional, memudahkan).
 
 ### Cara B: SFTP (FileZilla)
 1. hPanel -> **Advanced** -> **SSH Access** -> buat user + password SSH (atau aktifkan SSH).
@@ -95,10 +95,10 @@ Catatan penting:
     require __DIR__.'/../vendor/autoload.php';
     $app = require_once __DIR__.'/../bootstrap/app.php';
 
-    // SESUDAH (contoh FOLDER_PROYEK = gentot):
-    if (file_exists($maintenance = __DIR__.'/../gentot/storage/framework/maintenance.php')) {
-    require __DIR__.'/../gentot/vendor/autoload.php';
-    $app = require_once __DIR__.'/../gentot/bootstrap/app.php';
+    // SESUDAH (contoh FOLDER_PROYEK = reconpos):
+    if (file_exists($maintenance = __DIR__.'/../reconpos/storage/framework/maintenance.php')) {
+    require __DIR__.'/../reconpos/vendor/autoload.php';
+    $app = require_once __DIR__.'/../reconpos/bootstrap/app.php';
 
 4. Pastikan `public_html/.htaccess` ada (file Laravel default dari folder public/).
 5. **Izin folder**: lewat File Manager klik kanan folder `storage` dan `bootstrap/cache` di dalam folder proyek -> **Permissions** -> set **775** (atau 755; jangan 777).
@@ -106,8 +106,8 @@ Catatan penting:
 ## 5. Buat database MySQL di hPanel
 
 1. hPanel -> **Databases** -> **MySQL Databases**.
-2. **Create database**: isi nama (mis. `gentot_db`), simpan. (Hostinger sering menambahkan awalan username, mis. `u123456789_gentot_db` — pakai nama lengkapnya.)
-3. **Create user**: buat user (mis. `gentot_user`) + password kuat, simpan.
+2. **Create database**: isi nama (mis. `reconpos_db`), simpan. (Hostinger sering menambahkan awalan username, mis. `u123456789_reconpos_db` — pakai nama lengkapnya.)
+3. **Create user**: buat user (mis. `reconpos_user`) + password kuat, simpan.
 4. **Add user to database**: pilih database + user -> beri **ALL PRIVILEGES** -> tambahkan.
 5. Catat: nama database lengkap, username lengkap, password, dan **DB_HOST** (umumnya `127.0.0.1` di shared hosting).
 
@@ -166,7 +166,7 @@ Catatan penting:
 1. Buka folder proyek di File Manager -> klik kanan **.env.example** -> **Copy** -> paste di folder yang sama -> rename jadi **.env** (hapus akhiran .example).
 2. Klik kanan `.env` -> Edit, lalu isi seperti ini (ganti sesuai data Anda):
 
-    APP_NAME="Aplikasi GenTOt"
+    APP_NAME="ReconPOS"
     APP_ENV=production
     APP_KEY=
     APP_DEBUG=false
@@ -203,8 +203,8 @@ Di SSH, dari folder proyek:
 
 Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun admin:
 
-    Email: admin@gentot.local
-    Password: gentot2026
+    Email: admin@reconpos.local
+    Password: reconpos2026
 
 > **SEGERA ganti password** setelah bisa login: menu Pengaturan -> Keamanan - Ubah Password Admin. Password demo ini dipakai semua orang, jangan biarkan aktif di server publik.
 
@@ -238,7 +238,7 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 
 1. Backup database via cron di hPanel (**Advanced** -> **Cron jobs**) — contoh setiap hari 03:00:
 
-    mysqldump -u <USER_DB> -p'<PASS_DB>' <NAMA_DB> | gzip > ~/backup/gentot-$(date +%F).sql.gz
+    mysqldump -u <USER_DB> -p'<PASS_DB>' <NAMA_DB> | gzip > ~/backup/reconpos-$(date +%F).sql.gz
 
    (ganti dengan kredensial DB Anda; hapus tanda kutip jika password tak punya karakter khusus).
 2. Cadangkan juga folder proyek (File Manager -> folder -> Archive/Download) secara berkala — cukup file `.env`, `storage/app` (file export), dan `database` bila ada perubahan.
@@ -252,7 +252,7 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 | 'No application encryption key' | APP_KEY kosong | Jalankan `php artisan key:generate`. |
 | 'Class ... not found' / class vendor tidak ditemukan | composer belum jalan | `composer install --no-dev --optimize-autoloader`. |
 | halaman muat tetapi tampilan berantakan | aset belum dibuild | Jalankan `npm run build` di laptop, upload ulang folder `public/build`. |
-| Login selalu gagal | salah email/password atau seed belum jalan | `php artisan migrate --seed --force`; pastikan akun admin@gentot.local ada di tabel users. |
+| Login selalu gagal | salah email/password atau seed belum jalan | `php artisan migrate --seed --force`; pastikan akun admin@reconpos.local ada di tabel users. |
 | Error soal ekstensi (zip/gd/fileinfo) | ekstensi PHP nonaktif | Aktifkan di hPanel -> PHP (Langkah 6), lalu `php artisan optimize:clear` + reload. |
 | **Upload Excel pembelian → halaman putih/500, tapi Download Template & Export A/B jalan** | ekstensi **XML-reader** belum aktif di web PHP (CLI SSH bisa beda dgn FPM) — writer cukup `xmlwriter`+`zip`, reader butuh `simplexml`/`dom`/`xml`/`xmlreader` | hPanel -> PHP Configuration -> aktifkan `xml, dom, simplexml, xmlreader` (plus `xmlwriter, libxml, fileinfo, zip`), simpan. Cek juga `storage/logs/laravel.log` utk konfirmasi (cari "Call to undefined function simplexml_load_string" / 'Class "XMLReader" not found'). Diagnosa cepat: menu Pengaturan -> kartu "Status Lingkungan Excel". |
 | Upload file Excel ditolak tanpa masuk proses | batas upload kecil | Naikkan `upload_max_filesize` & `post_max_size` (mis. 32M) di hPanel -> PHP Configuration; aplikasi menolak file > 10 MB. |
@@ -263,7 +263,7 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 ## 14. Checklist sukses
 
 - [ ] Buka `https://<DOMAIN>` — halaman login muncul dan tampilannya rapi (CSS/ikon termuat).
-- [ ] Login `admin@gentot.local` / `gentot2026` berhasil.
+- [ ] Login `admin@reconpos.local` / `reconpos2026` berhasil.
 - [ ] **Ganti password** via Pengaturan -> Ubah Password Admin; login ulang dengan password baru.
 - [ ] Dashboard: omset, kartu hutang, SKU kritis muncul tanpa error.
 - [ ] Data Barang: daftar, kartu stok, cetak barcode (ikon barcode tampil = ekstensi gd OK).

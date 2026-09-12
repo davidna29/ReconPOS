@@ -1,4 +1,4 @@
-// Aplikasi GenTOt — sidebar mobile (drawer) & desktop (minimize), AJAX delete, & perilaku global.
+// ReconPOS — sidebar mobile (drawer) & desktop (minimize), AJAX delete, & perilaku global.
 
 document.addEventListener('DOMContentLoaded', () => {
     // ============================

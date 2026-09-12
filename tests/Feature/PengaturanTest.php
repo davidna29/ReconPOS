@@ -97,18 +97,18 @@ class PengaturanTest extends TestCase
 
         $this->post(route('pengaturan.password'), [
             'password_lama' => 'pass1234',
-            'password' => 'gentot2026x',
-            'password_confirmation' => 'gentot2026x',
+            'password' => 'reconpos2026x',
+            'password_confirmation' => 'reconpos2026x',
         ])->assertSessionHas('success');
 
-        $this->assertTrue(Hash::check('gentot2026x', $u->fresh()->password));
+        $this->assertTrue(Hash::check('reconpos2026x', $u->fresh()->password));
         $this->assertFalse(Hash::check('pass1234', $u->fresh()->password));
 
         // logout dulu (route login ber-middleware guest — user terautentikasi langsung di-redirect)
         $this->post(route('logout'))->assertRedirect(route('login'));
 
         // login dengan password baru berhasil, password lama ditolak
-        $this->post(route('login'), ['email' => $u->email, 'password' => 'gentot2026x'])
+        $this->post(route('login'), ['email' => $u->email, 'password' => 'reconpos2026x'])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('dashboard'));
         $this->post(route('logout'));
@@ -122,8 +122,8 @@ class PengaturanTest extends TestCase
 
         $this->post(route('pengaturan.password'), [
             'password_lama' => 'salah123',
-            'password' => 'gentot2026x',
-            'password_confirmation' => 'gentot2026x',
+            'password' => 'reconpos2026x',
+            'password_confirmation' => 'reconpos2026x',
         ])->assertSessionHas('error');
 
         $this->assertTrue(Hash::check('pass1234', $u->fresh()->password));
@@ -136,7 +136,7 @@ class PengaturanTest extends TestCase
         // konfirmasi tidak cocok
         $this->post(route('pengaturan.password'), [
             'password_lama' => 'pass1234',
-            'password' => 'gentot2026x',
+            'password' => 'reconpos2026x',
             'password_confirmation' => 'beda12345',
         ])->assertSessionHasErrors('password');
 

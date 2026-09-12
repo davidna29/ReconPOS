@@ -10,7 +10,7 @@ use InvalidArgumentException;
 
 /**
  * Backup & restore database (PRD tambahan).
- * Format .gentot-backup.json.gz (JSON per-tabel + manifest, di-gzip) —
+ * Format .reconpos-backup.json.gz (JSON per-tabel + manifest, di-gzip) —
  * portabel lintas driver (SQLite lokal ↔ MySQL hosting), tanpa mysqldump.
  * Tabel transient (sessions/cache/jobs) & migrations tidak ikut.
  */
@@ -62,8 +62,8 @@ class BackupService
         return $dir;
     }
 
-    /** Buat file backup dari DB saat ini. $prefix: gentot-backup | pra-restore. */
-    public function buat(string $prefix = 'gentot-backup'): array
+    /** Buat file backup dari DB saat ini. $prefix: reconpos-backup | pra-restore. */
+    public function buat(string $prefix = 'reconpos-backup'): array
     {
         $tables = [];
         $totalBaris = 0;
@@ -82,7 +82,7 @@ class BackupService
 
         $payload = [
             'manifest' => [
-                'app' => 'Aplikasi GenTOt',
+                'app' => 'ReconPOS',
                 'format' => self::FORMAT,
                 'created_at' => Carbon::now()->toDateTimeString(),
                 'source_driver' => DB::getDriverName(),
@@ -306,7 +306,7 @@ class BackupService
         }
         $data = json_decode($raw, true);
         if (! is_array($data) || ! isset($data['manifest'], $data['tables']) || ! is_array($data['tables'])) {
-            throw new InvalidArgumentException('File bukan backup Aplikasi GenTOt yang valid.');
+            throw new InvalidArgumentException('File bukan backup ReconPOS yang valid.');
         }
 
         return $data;
@@ -319,8 +319,9 @@ class BackupService
     private function validasiStruktur(array $data, bool $longgar): void
     {
         $m = $data['manifest'];
-        if (($m['app'] ?? null) !== 'Aplikasi GenTOt' || ! isset($data['tables'])) {
-            throw new InvalidArgumentException('File bukan backup Aplikasi GenTOt yang valid.');
+        // Backward compat: backup lama bermanifest 'Aplikasi GenTOt' tetap diterima.
+        if (! in_array($m['app'] ?? null, ['ReconPOS', 'Aplikasi GenTOt'], true) || ! isset($data['tables'])) {
+            throw new InvalidArgumentException('File bukan backup ReconPOS yang valid.');
         }
         if (($m['format'] ?? 0) !== self::FORMAT) {
             throw new InvalidArgumentException('Format backup tidak didukung (format ' . ($m['format'] ?? '?') . ').');

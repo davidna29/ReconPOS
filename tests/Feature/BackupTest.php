@@ -124,6 +124,30 @@ class BackupTest extends TestCase
         $this->assertSame($maxId + 1, (int) $baru->id);
     }
 
+    public function test_manifest_baru_bertulis_reconpos_dan_backup_lama_tetap_diterima(): void
+    {
+        $this->authUser();
+        $this->seedTransaksi();
+        $hasil = app(BackupService::class)->buat();
+        $path = BackupService::direktori() . '/' . $hasil['nama'];
+
+        $this->assertStringStartsWith('reconpos-backup-', $hasil['nama']);
+        $data = json_decode(gzdecode(file_get_contents($path)), true);
+        $this->assertSame('ReconPOS', $data['manifest']['app']);
+
+        // Simulasikan backup lama: ubah manifest + nama file ke format lama
+        $data['manifest']['app'] = 'Aplikasi GenTOt';
+        $lama = BackupService::direktori() . '/gentot-backup-compat-test.json.gz';
+        file_put_contents($lama, gzencode(json_encode($data)));
+
+        $inv = InvoicePembelian::first();
+        app(PembelianService::class)->hapus($inv, true);
+        $this->assertSame(0, InvoicePembelian::count());
+
+        app(BackupService::class)->restore($lama);
+        $this->assertSame(1, InvoicePembelian::count());
+    }
+
     public function test_restore_file_rusak_ditolak_tanpa_mengubah_data(): void
     {
         $this->authUser();
@@ -215,7 +239,7 @@ class BackupTest extends TestCase
             app(BackupService::class)->buat();
             sleep(1); // nama file per detik — bedakan waktu
         }
-        $files = glob(BackupService::direktori() . '/gentot-backup-*.json.gz') ?: [];
+        $files = glob(BackupService::direktori() . '/reconpos-backup-*.json.gz') ?: [];
         $this->assertCount(5, $files);
     }
 

@@ -17,7 +17,7 @@ class AuthTest extends TestCase
 
     public function test_login_page_tampil(): void
     {
-        $this->get(route('login'))->assertOk()->assertSee('Mechanic Hub');
+        $this->get(route('login'))->assertOk()->assertSee('ReconPOS');
     }
 
     public function test_login_valid_masuk_dashboard(): void

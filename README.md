@@ -1,4 +1,4 @@
-# Aplikasi GenTOt — Generate Transaksi Otomatis (Mechanic Hub)
+# ReconPOS — Automated Sales Reconstruction
 
 Web app **Laravel (PHP + MySQL-ready)** untuk rekonstruksi penjualan berbasis **target omset & stok masuk**,
 s sesuai PRD `docs/PRD-Generate-Transaksi-Otomatis.md`, dengan desain mengikuti `docs/desain/DESIGN.md`
@@ -42,8 +42,8 @@ Buka `http://localhost:8000` lalu login:
 
 | | |
 |---|---|
-| **Email** | `admin@gentot.local` |
-| **Password** | `gentot2026` |
+| **Email** | `admin@reconpos.local` |
+| **Password** | `reconpos2026` |
 
 > Ganti password lewat `php artisan tinker`:
 >     App\Models\User::first()->update(['password' => 'baru!']);
@@ -74,7 +74,7 @@ Buka `http://localhost:8000/publik` **tanpa login** — versi tampilan (read-onl
    dan sesuaikan bootstrap path di `public/index.php` (mis. proyek di `~/domains/situs/public_html/app` ->
    autoload `../app/vendor/autoload.php`). `.env` otomatis berada di luar folder publik (keamanan default Laravel).
 
-2. **Buat database MySQL** dari panel (mis. `db_gentot`, user `u_gentot`, password kuat).
+2. **Buat database MySQL** dari panel (mis. `db_reconpos`, user `u_reconpos`, password kuat).
 
 3. **`.env` produksi**:
 
@@ -84,8 +84,8 @@ Buka `http://localhost:8000/publik` **tanpa login** — versi tampilan (read-onl
         DB_CONNECTION=mysql
         DB_HOST=127.0.0.1
         DB_PORT=3306
-        DB_DATABASE=db_gentot
-        DB_USERNAME=u_gentot
+        DB_DATABASE=db_reconpos
+        DB_USERNAME=u_reconpos
         DB_PASSWORD=***RAHASIA***
         SESSION_DRIVER=database
         CACHE_STORE=database
@@ -103,7 +103,7 @@ Buka `http://localhost:8000/publik` **tanpa login** — versi tampilan (read-onl
 
 6. **Backup berkala** (CRON panel):
 
-        mysqldump -u u_gentot -p'***' db_gentot | gzip > ~/backup/gentot-$(date +%F).sql.gz
+        mysqldump -u u_reconpos -p'***' db_reconpos | gzip > ~/backup/reconpos-$(date +%F).sql.gz
 
 7. **Catatan performa shared hosting**:
    - Generate transaksi berjalan **sinkron per request** (< 5 detik utk 1 bulan; sesuai `max_execution_time`).

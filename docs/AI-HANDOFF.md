@@ -1,4 +1,4 @@
-# AI-HANDOFF — Aplikasi GenTOt (Mechanic Hub)
+# AI-HANDOFF — ReconPOS
 
 Dokumen konteks untuk AI / kontributor di sesi lain. Baca ini dulu, lalu gunakan referensi:
 - PRD fitur: `docs/PRD-Generate-Transaksi-Otomatis.md`
@@ -22,7 +22,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   npm run build                   # atau npm run dev
   php artisan serve
   ```
-- Akun admin demo: `admin@gentot.local` / `gentot2026` (1 akun, tanpa registrasi publik).
+- Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
 - Test: `php artisan test` (±115 test, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 
