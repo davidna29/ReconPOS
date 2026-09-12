@@ -11,7 +11,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 ## 2. Stack & Cara Menjalankan
 
-- Laravel 13, PHP ≥ 8.3, Composer; Vite + Tailwind v4; PhpSpreadsheet; picqer barcode.
+- Laravel 13, PHP ≥ 8.3, Composer; Vite + Tailwind v4; **Chart.js 4 (grafik dashboard, code-split 62KB gzip, hanya dimuat bila ada canvas)**; PhpSpreadsheet; picqer barcode.
 - Setup lokal:
   ```bash
   composer install
@@ -20,11 +20,12 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan migrate --seed      # admin + pengaturan + template export + data demo
   npm install
   npm run build                   # atau npm run dev
-  php artisan serve
+  php artisan serve               # http://127.0.0.1:8000 (+ vite HMR :5173)
   ```
 - Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (±115 test, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**.
+- Test: `php artisan test` (**211 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
+- Repo GitHub: `davidna29/ReconPOS` (dulu `Aplikasi-GenTOt`); rilis terakhir **v2.0.0**.
 
 ## 3. Arsitektur (folder di `app/`)
 
@@ -110,7 +111,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 
 ## 8. Status Fitur (per Agustus–Sept 2026)
 
-**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, barang terbaru), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode), **Backup & Restore database** (menu Backup admin-only; format `.json.gz` JSON-per-tabel portabel SQLite↔MySQL; retensi 5 + pra-restore 3; restore 3 langkah unggah→pratinjau→ketik RESTORE, pra-backup otomatis, atomik rollback, transient sessions/cache/jobs dikecualikan), Supplier, **Tracking Stok** (stock aging FIFO, ringkasan total + filter bulan), Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**, **AJAX delete + bulk delete**, **filter periode (bulan/tahun/rentang) + supplier di Hutang/Lunas — admin & publik**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print**, **AJAX delete + bulk delete**, **kartu omset + sisa target + filter periode sinkron kartu & tabel — default kartu Bulan Berjalan, tabel Semua bila tanpa filter; 1-100 nota/hari**), Generate (draft→review→simpan, undo batch, hapus batch draft/dibatalkan di Riwayat, rekonstruksi bisa dihapus langsung, **distribusi per-hari proporsional avail + stok awal, qty acak, nota 1–100 untuk target besar, penyesuaian agresif**), Export A/B + histori (tombol hapus per item, filter tanggal yang benar), Pengaturan (NPWP, parameter generate 1–100, ubah password admin, fix libur_dates, **terapkan margin global baru ke semua SKU otomatis** — form WAJIB di luar form utama pengaturan.update, HTML tak mengizinkan form bersarang; **kartu Status Lingkungan Excel**), **Dark mode toggle** (gelap/terang), **Mode Publik tanpa login** (read-only di `/publik`, §9 — penjualan & pembelian kini dengan kartu/filter).
+**Selesai:** login+throttle, dashboard (periode omset bulan/tahun/rentang, kartu hutang & stok, transaksi terakhir dipisah, **grafik tren omset + aging hutang + top-10 stok kritis, KPI danger-first + delta omset, strip Terbaru pindah ke Data Barang** — lihat §10), Data Barang (template prefilled+dropdown, import, update harga, kartu stok/opname, barcode, **strip Baru Ditambahkan**), **Backup & Restore database** (menu Backup admin-only; format `.json.gz` JSON-per-tabel portabel SQLite↔MySQL; retensi 5 + pra-restore 3; restore 3 langkah unggah→pratinjau→ketik RESTORE, pra-backup otomatis, atomik rollback, transient sessions/cache/jobs dikecualikan), Supplier, **Tracking Stok** (stock aging FIFO, ringkasan total + filter bulan), Pembelian (Cash/Hutang, pelunasan, import excel, tab nav dalam halaman, **bulk print/cetak terpilih**, **AJAX delete + bulk delete**, **filter periode (bulan/tahun/rentang) + supplier di Hutang/Lunas — admin & publik**), Penjualan (satu laman, edit nota, struk cetak+NPWP+footer PPN, **bulk print**, **AJAX delete + bulk delete**, **kartu omset + sisa target + filter periode sinkron kartu & tabel — default kartu Bulan Berjalan, tabel Semua bila tanpa filter; 1-100 nota/hari**), Generate (draft→review→simpan, undo batch, hapus batch draft/dibatalkan di Riwayat, rekonstruksi bisa dihapus langsung, **distribusi per-hari proporsional avail + stok awal, qty acak, nota 1–100 untuk target besar, penyesuaian agresif**), Export A/B + histori (tombol hapus per item, filter tanggal yang benar), Pengaturan (NPWP, parameter generate 1–100, ubah password admin, fix libur_dates, **terapkan margin global baru ke semua SKU otomatis** — form WAJIB di luar form utama pengaturan.update, HTML tak mengizinkan form bersarang; **kartu Status Lingkungan Excel**), **Dark mode toggle** (gelap/terang), **Mode Publik tanpa login** (read-only di `/publik`, §9 — penjualan & pembelian kini dengan kartu/filter; **tombol Login disembunyikan di sidebar publik; `/` milik publik: tamu → /publik, admin → dashboard**).
 
 **Belum/tunda:** tombol "Cetak/Kembali" di view print sengaja dihapus; penggantian footer lama menjadi "*Harga sudah termasuk PPN." sudah diterapkan di penjualan & pembelian print; untuk mode publik: **PIN akses opsional** bila data dianggap terlalu terbuka & **tautan "Lihat Mode Publik"** dari sidebar admin (belum dikerjakan).
 
@@ -129,7 +130,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   `@php($publik = $publik ?? false)` dan `@php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))`.
   - Tombol/link mutasi admin (tambah/edit/hapus/import/template/opname/stok-awal/bayar/bulk print/bulk delete/CTA dashboard) dibungkus `@if(! $publik) ... @endif` (tetap `route()` polos).
   - Link lintas-mode (index/show/print/kartuStok/barcode/tab pembelian/filter stok-tracking) memakai `$r(...)` → di admin = `route('...')`, di publik = `route('publik....')`.
-  - Layout `layouts/app.blade.php`: sidebar hanya 5 menu + link **Login** (bukan Logout), chip header "Mode Publik", subjudul brand "Mode Publik — Lihat Saja", `<meta name="robots" content="noindex, nofollow">`.
+   - Layout `layouts/app.blade.php`: sidebar hanya 5 menu (**tanpa link Login** — admin masuk via URL `/login` langsung), chip header "Mode Publik", subjudul brand "Mode Publik — Lihat Saja", `<meta name="robots" content="noindex, nofollow">`.
 - **Aturan konten publik:** label sumber (Manual/Rekonstruksi) & badge "diedit" **disembunyikan** (dashboard + penjualan); Penjualan publik = **daftar transaksi + kartu omset & filter periode** (kartu Total Omset — `labelPeriode` + `omsetPeriode` + `target/sisa` bila ada batch tersimpan, sama persis seperti admin; filter `bulan/tahun/from-to` via `periodeDariRequest`, tanpa tab sumber) tanpa kolom Sumber, tanpa edit — detail expand & cetak struk tetap ada; **Pembelian publik = daftar hutang/lunas + filter periode & supplier** (dropdown supplier, `bulan/tahun/from-to`, `q` & `entries`), tanpa bulk/bayar/edit — cetak & detail tetap ada; dashboard tanpa kartu "Aksi Cepat", tanpa CTA "Bayar Sekarang/Order Sekarang", tanpa baris "Sumber Transaksi"; pencarian/show-entries/paginasi tetap aktif.
 - **Jebakan yang sudah dikenal:**
   - `auth()->user()` bisa null saat guest → layout memakai null-safe `auth()->user()?->name` dan cabang `@if(! $publik)`.
@@ -138,4 +139,20 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   - Kolom ceklis & kolom Sumber disembunyikan → `colspan` baris detail/empty dibuat dinamis (`{{ $publik ? 5 : 7 }}`).
 - **Tidak menyentuh CSS/JS** (murni Blade+PHP) → tanpa `npm run build`; serangan ke route mutasi tetap tertahan middleware auth (guest di-redirect ke /login).
 - **Ide tambahan (belum dikerjakan):** PIN akses opsional utk mode publik; tautan "Lihat Mode Publik" dari sidebar admin; halaman landing publik terpisah.
+
+## 10. Sesi Desain A–G (sistem desain Precision Ledger v3)
+
+Sumber token tunggal: `docs/desain/DESIGN.md` (v3) — diimplementasikan di `resources/css/app.css` (Tailwind v4 `@theme` + `@layer components`).
+
+- **Batch A (fondasi):** token gap diperbaiki (`surface-tint`, keluarga `*-fixed`, `on-error-container` — sebelumnya class `bg-primary-fixed` dkk. diam-diam tak ter-generate); komponen baru `page-head/kpi-card/alert-panel/empty-state/modal-*/nav-section/badge-*-soft`; layout app/print + components/partials direstyle tanpa ubah API/hook.
+- **Batch B:** login (blob tonal + input berikon), dashboard (kpi-card + alert-panel), generate ×3 (page-head + info-box).
+- **Batch C–D (replikasi):** pola `page-head` + `table-toolbar` + panel berjudul + `tbl` + empty-state ganda admin/publik + paginasi ke 35 views; `row-overdue/row-warning` ganti wash mentah.
+- **Batch E (Bold Pass):** primary `#004AC6`→`#6D28D9` (7.1:1 vs white), secondary `#3F4756`, tertiary `#A21CAF`; radius 2/6/8/12px → 6/10/14/20px; headline 24/20/16 → 26/21/17px (Inter + JetBrains Mono tetap); `--shadow-card/pop/glow-*`; gradient brand **V1 Volt** `linear-gradient(135deg,#7C3AED,#4F46E5 55%,#0E7490)` (semua stop ≥5.3:1, disetujui via 3 varian); glass topbar; `gradient-shift` 5 dtk + `prefers-reduced-motion` guard; `card-pad` p-5→p-6. Semantik cash/hutang/lunas/danger/teal TIDAK berubah.
+- **Batch F (motion + mobile):** transisi 200ms; `.animate-rise` + `tbody.rise-rows` stagger; loading spinner via `app.js` (semua form POST kecuali GET/`data-delete-ajax`/`data-no-loading`); toast auto-dismiss 6 dtk + progress bar; modal pop; `table.tbl.tbl-cards` jadi kartu label:value <640px (pakai child-combinator agar tabel bersarang aman; sel input pakai `data-stack`); modal bottom-sheet; `.form-actions-sticky`; drawer/overlay diverifikasi di kode.
+- **Batch G (dashboard grafik):** `app/View/Composers/DashboardComposer.php` (trend harian + agregasi mingguan bila >1 thn; delta omset vs periode sama-durasi; bucket aging |jarak tempo|; `stokKritis->take(10)`) didaftarkan di `AppServiceProvider::boot` — pola "controller steril". Partial `dashboard/partials/kpi-{omset,hutang,stok}` + urutan danger-first; strip Terbaru pindah ke `barang/index` (composer closure di provider). Chart.js granular + `import()` dinamis di `app.js` (data via `window.DASHBOARD_CHARTS`).
+- **Publik & root:** `/` milik publik (tamu→`/publik`, admin→dashboard; `routes/web.php`, nama route `dashboard` tetap); tombol Login disembunyikan di sidebar publik.
+
+**Keputusan yang dipegang (jangan dilanggar diam-diam):** dark mode dipertahankan (glow lebih kuat); `barang/index` pola contoh; delta hanya kartu Omset (hutang/stok snapshot); review tanpa kartu-tabel (rowspan + form inline); transaksi tanpa sticky (JS kalkulasi); hue semantik tak tergantikan gradient; print (`.print-page/.invoice`) & baris `.tbl` steril dari gradient/glow/animasi; class/id/data-\*/string `assertSee` tidak diganti tanpa lapor per kasus + update test-nya (bukan skip). Riwayat penyesuaian test: `DashboardTest::test_sidebar_mobile_*` (blur→overlay), `test_dashboard_barang_terbaru` → grafik kritik + strip, `AuthTest` redirect `/`, `PublikTest` DontSee Login.
+
+**File kunci baru:** `app/View/Composers/DashboardComposer.php`, `resources/views/dashboard/partials/kpi-*.blade.php`, `resources/views/dashboard/partials/` — lihat `git log --oneline` (rebrand `2cc2e26`, desain `ff0ce42`, rilis v2.0.0).
 
