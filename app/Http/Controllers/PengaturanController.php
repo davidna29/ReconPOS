@@ -181,4 +181,63 @@ class PengaturanController extends Controller
 
         return redirect()->route('pengaturan.index')->with('success', 'Template export di-reset ke mapping default v1.');
     }
+
+    /** Atur PIN Mode Publik opsional (di Pengaturan — form TERPISAH). */
+    public function updatePublikPin(Request $request)
+    {
+        $data = $request->validate([
+            'publik_pin_enabled' => ['nullable', 'boolean'],
+            'publik_pin' => ['nullable', 'string', 'min:4', 'max:20'],
+            'publik_pin_confirmation' => ['nullable', 'string', 'min:4', 'max:20'],
+            'publik_pin_hapus' => ['nullable', 'boolean'],
+        ]);
+
+        $enabled = (bool) ($data['publik_pin_enabled'] ?? false);
+        $pin = trim((string) ($data['publik_pin'] ?? ''));
+        $pinConfirmation = trim((string) ($data['publik_pin_confirmation'] ?? ''));
+        $hapus = (bool) ($data['publik_pin_hapus'] ?? false);
+
+        $settings = TokoSetting::utama();
+
+        // Hapus PIN
+        if ($hapus) {
+            $settings->update([
+                'publik_pin_enabled' => false,
+                'publik_pin_hash' => null,
+            ]);
+
+            return redirect()->route('pengaturan.index')->with('success', 'PIN Mode Publik dihapus — akses publik kembali terbuka tanpa PIN.');
+        }
+
+        // Aktifkan butuh PIN baru
+        if ($enabled) {
+            // Jika belum ada hash dan tidak ada PIN baru → tolak
+            if (empty($settings->publik_pin_hash) && $pin === '') {
+                return back()->with('error', 'Aktifkan PIN butuh PIN baru (4-20 karakter). Isi PIN + konfirmasi.')->withInput();
+            }
+
+            // Jika ada PIN baru, validasi konfirmasi
+            if ($pin !== '') {
+                if ($pin !== $pinConfirmation) {
+                    return back()->with('error', 'Konfirmasi PIN tidak cocok.')->withInput();
+                }
+                $settings->update([
+                    'publik_pin_enabled' => true,
+                    'publik_pin_hash' => Hash::make($pin),
+                ]);
+
+                return redirect()->route('pengaturan.index')->with('success', 'PIN Mode Publik diaktifkan/diubah — tamu wajib memasukkan PIN untuk buka /publik.');
+            }
+
+            // PIN tidak diubah, hanya aktifkan (hash sudah ada)
+            $settings->update(['publik_pin_enabled' => true]);
+
+            return redirect()->route('pengaturan.index')->with('success', 'Akses Mode Publik dengan PIN diaktifkan.');
+        }
+
+        // Nonaktifkan (tanpa hapus hash — bisa re-aktif nanti)
+        $settings->update(['publik_pin_enabled' => false]);
+
+        return redirect()->route('pengaturan.index')->with('success', 'PIN Mode Publik dinonaktifkan — akses publik kembali terbuka tanpa PIN (PIN lama tetap tersimpan).');
+    }
 }

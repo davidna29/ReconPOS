@@ -12,6 +12,7 @@ class TokoSetting extends Model
         'nama_toko', 'alamat', 'telepon', 'npwp', 'logo',
         'margin_default', 'ppn_persen', 'jam_buka', 'jam_tutup', 'hari_libur',
         'ambang_stok_menipis', 'parameter_generate', 'template_version',
+        'publik_pin_enabled', 'publik_pin_hash',
     ];
 
     protected function casts(): array
@@ -20,6 +21,7 @@ class TokoSetting extends Model
             'hari_libur' => 'array',
             'parameter_generate' => 'array',
             'ppn_persen' => 'integer',
+            'publik_pin_enabled' => 'boolean',
         ];
     }
 

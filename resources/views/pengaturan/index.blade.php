@@ -288,6 +288,68 @@
         </p>
     </div>
 
+    <!-- Akses Mode Publik — PIN opsional (form TERPISAH — jangan di dalam form utama) -->
+    <div class="card-pad">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
+                    <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">visibility</span>
+                    Akses Mode Publik — PIN Opsional
+                </h3>
+                <p class="text-body-sm text-secondary">
+                    Lindungi <span class="mono">/publik</span> (tanpa login) dengan PIN 4-20 karakter. Bila aktif, tamu wajib masukkan PIN sebelum lihat data; Admin yang login bypass PIN. Nonaktifkan = terbuka tanpa PIN.
+                </p>
+            </div>
+            @if ($settings->publik_pin_enabled && $settings->publik_pin_hash)
+                <span class="rounded-lg bg-amber-50 px-3 py-1 text-body-sm font-medium text-amber-700">🔒 PIN Aktif</span>
+            @elseif($settings->publik_pin_hash)
+                <span class="rounded-lg bg-surface-container px-3 py-1 text-body-sm font-medium text-secondary">PIN tersimpan (nonaktif)</span>
+            @else
+                <span class="rounded-lg bg-green-50 px-3 py-1 text-body-sm font-medium text-lunas-green">✓ Tanpa PIN (terbuka)</span>
+            @endif
+        </div>
+
+        <form method="POST" action="{{ route('pengaturan.publik-pin') }}" class="flex flex-col gap-4">
+            @csrf
+            <label class="flex items-center gap-2 text-body-sm">
+                <input type="hidden" name="publik_pin_enabled" value="0">
+                <input type="checkbox" name="publik_pin_enabled" value="1" @checked($settings->publik_pin_enabled) class="rounded border-outline-variant text-primary focus:ring-primary">
+                <span class="font-medium">Aktifkan PIN untuk Mode Publik</span>
+            </label>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                    <label class="label">PIN Baru (4-20 karakter)</label>
+                    <input type="password" name="publik_pin" minlength="4" maxlength="20" class="input @error('publik_pin') input-error @enderror" placeholder="Kosongkan bila tidak ubah PIN">
+                    @error('publik_pin')<span class="hint text-danger-red">{{ $message }}</span>@enderror
+                    <span class="hint">Isi + konfirmasi untuk set/ubah PIN. Kosongkan bila hanya aktif/nonaktif tanpa ubah PIN.</span>
+                </div>
+                <div>
+                    <label class="label">Konfirmasi PIN Baru</label>
+                    <input type="password" name="publik_pin_confirmation" minlength="4" maxlength="20" class="input" placeholder="Ulangi PIN baru">
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button class="btn btn-primary shadow-sm">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">save</span> Simpan PIN Publik
+                </button>
+                @if ($settings->publik_pin_hash)
+                    <label class="ml-2 flex items-center gap-1.5 text-body-sm">
+                        <input type="checkbox" name="publik_pin_hapus" value="1" class="rounded border-outline-variant text-danger-red focus:ring-danger-red">
+                        Hapus PIN tersimpan
+                    </label>
+                @endif
+                <a href="{{ route('publik.landing') }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm ml-auto">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span> Lihat Publik
+                </a>
+                <a href="{{ route('publik.pin.form') }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">lock</span> Halaman PIN
+                </a>
+            </div>
+        </form>
+    </div>
+
     <!-- Status Lingkungan Excel (diagnosa upload/import — read-only, di luar semua form) -->
     <div class="card-pad">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">

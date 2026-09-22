@@ -38,8 +38,8 @@ class AuthTest extends TestCase
 
     public function test_halaman_terproteksi_mengarahkan_login(): void
     {
-        // Halaman utama (/) kini milik publik: tamu diarahkan ke /publik.
-        $this->get(route('dashboard'))->assertRedirect(route('publik.dashboard'));
+        // Halaman utama (/) kini milik publik: tamu diarahkan ke /publik/landing (CTA).
+        $this->get(route('dashboard'))->assertRedirect(route('publik.landing'));
         $this->get(route('barang.index'))->assertRedirect(route('login'));
     }
 

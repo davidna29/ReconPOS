@@ -116,6 +116,14 @@
                 </a>
             </li>
             @endif
+            @if (! $publik)
+            <li>
+                <a class="nav-link" href="{{ route('publik.landing') }}" target="_blank" rel="noopener" title="Lihat Mode Publik (tab baru)">
+                    <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                    <span class="nav-label">Lihat Publik</span>
+                </a>
+            </li>
+            @endif
         </ul>
 
         @if (! $publik)

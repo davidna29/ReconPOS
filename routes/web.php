@@ -13,9 +13,12 @@ use App\Http\Controllers\StokTrackingController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\Publik\BarangController as PublikBarangController;
 use App\Http\Controllers\Publik\DashboardController as PublikDashboardController;
+use App\Http\Controllers\Publik\LandingController as PublikLandingController;
 use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
 use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
+use App\Http\Controllers\Publik\PinController as PublikPinController;
 use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
+use App\Http\Middleware\PublikPinMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -25,11 +28,11 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-// Halaman utama: tamu langsung ke mode publik, admin login ke dashboard admin.
+// Halaman utama: tamu ke landing publik CTA, admin ke dashboard admin.
 Route::get('/', function () {
     return auth()->check()
         ? app(DashboardController::class)->index(request())
-        : redirect()->route('publik.dashboard');
+        : redirect()->route('publik.landing');
 })->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -132,17 +135,27 @@ Route::middleware('auth')->group(function () {
     Route::post('/pengaturan/password', [PengaturanController::class, 'updatePassword'])->name('pengaturan.password');
     Route::post('/pengaturan/template', [PengaturanController::class, 'updateTemplate'])->name('pengaturan.template');
     Route::post('/pengaturan/template/reset', [PengaturanController::class, 'resetTemplate'])->name('pengaturan.template.reset');
+    Route::post('/pengaturan/publik-pin', [PengaturanController::class, 'updatePublikPin'])->name('pengaturan.publik-pin');
 });
 
 // ============================================================================
 // MODE PUBLIK (tanpa login) — read-only.
-// Menu yang TAMPIL: Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan.
+// Menu yang TAMPIL: Landing CTA + Dashboard, Data Barang, Tracking Stok, Pembelian, Penjualan.
 // Menu yang DITUTUP: Data Supplier, Generate Transaksi, Export, Pengaturan, Backup
 //   (tidak ada route -> 404). Semua aksi mutasi TIDAK didaftarkan di sini.
 // View admin dipakai ulang dengan flag $publik = true (guard @if(! $publik)).
+// PIN opsional: bila aktif, semua route kecuali pin.* butuh session publik_authenticated
+//   (atau auth()->check() bypass untuk admin).
 // ============================================================================
 Route::prefix('publik')->name('publik.')->group(function () {
-    Route::get('/', [PublikDashboardController::class, 'index'])->name('dashboard');
+    // PIN (di luar middleware agar tidak loop)
+    Route::get('/pin', [PublikPinController::class, 'form'])->name('pin.form');
+    Route::post('/pin', [PublikPinController::class, 'verify'])->name('pin.verify');
+    Route::post('/pin/clear', [PublikPinController::class, 'clear'])->name('pin.clear');
+
+    Route::middleware(PublikPinMiddleware::class)->group(function () {
+        Route::get('/landing', [PublikLandingController::class, 'index'])->name('landing');
+        Route::get('/', [PublikDashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/barang', [PublikBarangController::class, 'index'])->name('barang.index');
     Route::get('/barang/{barang}', [PublikBarangController::class, 'show'])->name('barang.show');
@@ -156,6 +169,7 @@ Route::prefix('publik')->name('publik.')->group(function () {
     Route::get('/pembelian/{invoice}', [PublikPembelianController::class, 'show'])->name('pembelian.show');
     Route::get('/pembelian/{invoice}/print', [PublikPembelianController::class, 'print'])->name('pembelian.print');
 
-    Route::get('/penjualan', [PublikPenjualanController::class, 'index'])->name('penjualan.index');
-    Route::get('/penjualan/{transaksiPenjualan}/print', [PublikPenjualanController::class, 'print'])->name('penjualan.print');
+        Route::get('/penjualan', [PublikPenjualanController::class, 'index'])->name('penjualan.index');
+        Route::get('/penjualan/{transaksiPenjualan}/print', [PublikPenjualanController::class, 'print'])->name('penjualan.print');
+    });
 });
