@@ -161,6 +161,36 @@ Catatan penting:
        php -r "unlink('composer-setup.php');"
        php composer.phar install --no-dev --optimize-autoloader
 
+### 7a. Akses SSH spesifik reconpos.misnu.sch.id (admin — 2026-09-13)
+
+> **Kredensial live (tanpa password — ambil di hPanel → SSH Access / 1Password):**
+> Host `46.202.138.28`, Port `65002`, User `u549935065`, Path proyek `/home/u549935065/domains/reconpos.misnu.sch.id/public_html/reconpos`
+
+   ```bash
+   ssh -p 65002 u549935065@46.202.138.28
+   # password dari hPanel
+   cd /home/u549935065/domains/reconpos.misnu.sch.id/public_html/reconpos
+   pwd; ls -la
+   php -v
+   /opt/alt/php84/usr/bin/php -v
+   ```
+
+   **Perintah diagnosa 500 setelah login (pakai SATU binari PHP yang 8.3+):**
+
+   ```bash
+   /opt/alt/php84/usr/bin/php artisan optimize:clear
+   tail -n 200 storage/logs/laravel.log
+   tail -f storage/logs/laravel.log   # live, Ctrl+C keluar
+   /opt/alt/php84/usr/bin/php artisan migrate --force
+   chmod -R 775 storage bootstrap/cache
+   /opt/alt/php84/usr/bin/php artisan config:cache
+   /opt/alt/php84/usr/bin/php artisan route:cache
+   /opt/alt/php84/usr/bin/php artisan view:cache
+   composer install --no-dev --optimize-autoloader
+   ```
+
+   > **Catatan path:** proyek saat ini berada **di dalam** `public_html/reconpos`, bukan sejajar `public_html` seperti layout ideal di §0. Layout ideal: `~/domains/reconpos.misnu.sch.id/reconpos` (di luar document root) + isi `public/` di-copy ke `public_html/` & edit 3 baris `public_html/index.php`. Layout saat ini tetap jalan bila `public_html/index.php` menunjuk `__DIR__.'/reconpos/vendor/autoload.php'` dsb., tapi `.env`/`vendor` berpotensi terekspos bila `.htaccess` salah — pertimbangkan pindah saat maintenance window berikutnya.
+
 ## 8. Buat file .env produksi
 
 1. Buka folder proyek di File Manager -> klik kanan **.env.example** -> **Copy** -> paste di folder yang sama -> rename jadi **.env** (hapus akhiran .example).
