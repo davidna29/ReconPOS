@@ -14,18 +14,18 @@
 
     @if (($barangTerbaruStrip ?? collect())->count())
     <div class="card animate-rise overflow-hidden" style="--rise-delay:.04s">
-        <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-2.5">
-            <span class="material-symbols-outlined text-[18px] text-special-teal" aria-hidden="true">fiber_new</span>
-            <h3 class="text-headline-sm text-on-surface">Baru Ditambahkan</h3>
+        <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-3 py-2 md:px-4 md:py-2.5">
+            <span class="material-symbols-outlined text-[16px] text-special-teal md:text-[18px]" aria-hidden="true">fiber_new</span>
+            <h3 class="text-[13px] font-semibold text-on-surface md:text-headline-sm">Baru Ditambahkan</h3>
         </div>
-        <div class="flex gap-2 overflow-x-auto p-3">
+        <div class="flex gap-2 overflow-x-auto p-2 md:p-3 snap-x snap-mandatory">
             @foreach ($barangTerbaruStrip as $nb)
-                <a href="{{ $r('barang.show', $nb) }}" class="flex min-w-[180px] items-center gap-2 rounded-lg border border-outline-variant bg-surface-muted px-3 py-2 transition-colors hover:bg-surface-container">
+                <a href="{{ $r('barang.show', $nb) }}" class="flex min-w-[148px] md:min-w-[180px] snap-start items-center gap-2 rounded-lg border border-outline-variant bg-surface-muted px-2.5 py-2 md:px-3 transition-colors hover:bg-surface-container">
                     <div class="min-w-0 flex-1">
-                        <div class="mono text-mono-data text-secondary">{{ $nb->kode_barang }}</div>
-                        <div class="truncate text-body-sm text-on-surface">{{ $nb->nama }}</div>
+                        <div class="mono text-[11px] text-secondary md:text-mono-data">{{ $nb->kode_barang }}</div>
+                        <div class="truncate text-[12px] text-on-surface md:text-body-sm">{{ $nb->nama }}</div>
                     </div>
-                    <span class="badge {{ $nb->stock <= 0 ? 'badge-red' : 'badge-green' }}">{{ $nb->stock }}</span>
+                    <span class="badge text-[10px] md:text-label-caps {{ $nb->stock <= 0 ? 'badge-red' : 'badge-green' }}">{{ $nb->stock }}</span>
                 </a>
             @endforeach
         </div>
@@ -34,14 +34,14 @@
 
     @if (! $publik)
     @include('partials.table-toolbar', ['actions' => '
-        <a href="' . route('barang.create') . '" class="btn btn-primary">
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">add</span> Tambah Data
+        <a href="' . route('barang.create') . '" class="btn btn-primary btn-sm text-[12px] md:text-body-sm">
+            <span class="material-symbols-outlined text-[16px] md:text-[18px]" aria-hidden="true">add</span> Tambah Data
         </a>
-        <a href="' . route('barang.template.download') . '" class="btn btn-success btn-sm">
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> Template Excel
+        <a href="' . route('barang.template.download') . '" class="btn btn-success btn-sm text-[11px] md:text-body-sm">
+            <span class="material-symbols-outlined text-[14px] md:text-[16px]" aria-hidden="true">download</span> Template Excel
         </a>
-        <a href="' . route('barang.templateHarga.download') . '" class="btn btn-secondary btn-sm">
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">price_change</span> Template Update Harga
+        <a href="' . route('barang.templateHarga.download') . '" class="btn btn-secondary btn-sm text-[11px] md:text-body-sm">
+            <span class="material-symbols-outlined text-[14px] md:text-[16px]" aria-hidden="true">price_change</span> Update Harga
         </a>
     '])
     @else
@@ -49,28 +49,34 @@
     @endif
 
     @if (! $publik)
-    <div class="card animate-rise p-4" style="--rise-delay:.06s">
-        <h3 class="mb-3 flex items-center gap-2 text-headline-sm text-on-surface">
-            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">upload_file</span>
+    <div class="card animate-rise p-3 md:p-4" style="--rise-delay:.06s">
+        <h3 class="mb-2 md:mb-3 flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+            <span class="material-symbols-outlined text-[16px] text-secondary md:text-[18px]" aria-hidden="true">upload_file</span>
             Import / Update via Excel
         </h3>
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-        <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-1 flex-wrap items-center gap-2">
+        <div class="flex flex-col gap-3">
+        <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-col gap-2 md:flex-row md:items-center">
             @csrf
-            <span class="material-symbols-outlined text-secondary" aria-hidden="true">upload_file</span>
-            <input type="file" name="file" accept=".xlsx" class="input w-auto max-w-full" required>
-            <button class="btn btn-amber btn-sm">
+            <div class="flex flex-1 items-center gap-2">
+                <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">upload_file</span>
+                <input type="file" name="file" accept=".xlsx" class="input flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
+            </div>
+            <button class="btn btn-amber btn-sm w-full md:w-auto">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Upload Template Excel
             </button>
         </form>
-        <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="flex flex-1 flex-wrap items-center gap-2">
+        <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="flex flex-col gap-1.5 md:flex-row md:items-center">
             @csrf
-            <span class="material-symbols-outlined text-secondary" aria-hidden="true">sell</span>
-            <input type="file" name="file" accept=".xlsx" class="input w-auto max-w-full" required>
-            <button class="btn btn-secondary btn-sm">
-                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Update Harga Excel
-            </button>
-            <span class="text-[11px] text-secondary">hanya berlaku utk SKU mode Kunci Manual</span>
+            <div class="flex flex-1 items-center gap-2">
+                <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">sell</span>
+                <input type="file" name="file" accept=".xlsx" class="input flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="btn btn-secondary btn-sm w-full md:w-auto">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Update Harga Excel
+                </button>
+                <span class="hidden text-[11px] text-secondary md:inline">hanya berlaku utk SKU mode Kunci Manual</span>
+            </div>
         </form>
         </div>
     </div>
