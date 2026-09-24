@@ -13,12 +13,12 @@
     </div>
 
     @if (($barangTerbaruStrip ?? collect())->count())
-    <div class="card animate-rise overflow-hidden" style="--rise-delay:.04s">
+    <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.04s">
         <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-3 py-2 md:px-4 md:py-2.5">
             <span class="material-symbols-outlined text-[16px] text-special-teal md:text-[18px]" aria-hidden="true">fiber_new</span>
             <h3 class="text-[13px] font-semibold text-on-surface md:text-headline-sm">Baru Ditambahkan</h3>
         </div>
-        <div class="flex gap-2 overflow-x-auto p-2 md:p-3 snap-x snap-mandatory">
+        <div class="flex gap-2 overflow-x-auto p-2 md:p-3 snap-x snap-mandatory min-w-0 max-w-full">
             @foreach ($barangTerbaruStrip as $nb)
                 <a href="{{ $r('barang.show', $nb) }}" class="flex min-w-[148px] md:min-w-[180px] snap-start items-center gap-2 rounded-lg border border-outline-variant bg-surface-muted px-2.5 py-2 md:px-3 transition-colors hover:bg-surface-container">
                     <div class="min-w-0 flex-1">
@@ -49,30 +49,30 @@
     @endif
 
     @if (! $publik)
-    <div class="card animate-rise p-3 md:p-4" style="--rise-delay:.06s">
+    <div class="card animate-rise p-3 md:p-4 min-w-0" style="--rise-delay:.06s">
         <h3 class="mb-2 md:mb-3 flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
             <span class="material-symbols-outlined text-[16px] text-secondary md:text-[18px]" aria-hidden="true">upload_file</span>
             Import / Update via Excel
         </h3>
-        <div class="flex flex-col gap-3">
-        <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-col gap-2 md:flex-row md:items-center">
+        <div class="flex flex-col gap-3 min-w-0">
+        <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-col gap-2 md:flex-row md:items-center min-w-0">
             @csrf
-            <div class="flex flex-1 items-center gap-2">
+            <div class="flex flex-1 items-center gap-2 min-w-0 max-w-full">
                 <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">upload_file</span>
-                <input type="file" name="file" accept=".xlsx" class="input flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
+                <input type="file" name="file" accept=".xlsx" class="input w-full min-w-0 max-w-full flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
             </div>
-            <button class="btn btn-amber btn-sm w-full md:w-auto">
+            <button class="btn btn-amber btn-sm w-full min-w-0 md:w-auto md:min-w-auto">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Upload Template Excel
             </button>
         </form>
-        <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="flex flex-col gap-1.5 md:flex-row md:items-center">
+        <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="flex flex-col gap-1.5 md:flex-row md:items-center min-w-0">
             @csrf
-            <div class="flex flex-1 items-center gap-2">
+            <div class="flex flex-1 items-center gap-2 min-w-0 max-w-full">
                 <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">sell</span>
-                <input type="file" name="file" accept=".xlsx" class="input flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
+                <input type="file" name="file" accept=".xlsx" class="input w-full min-w-0 max-w-full flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
             </div>
-            <div class="flex items-center gap-2">
-                <button class="btn btn-secondary btn-sm w-full md:w-auto">
+            <div class="flex items-center gap-2 min-w-0 max-w-full">
+                <button class="btn btn-secondary btn-sm w-full min-w-0 md:w-auto md:min-w-auto">
                     <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Update Harga Excel
                 </button>
                 <span class="hidden text-[11px] text-secondary md:inline">hanya berlaku utk SKU mode Kunci Manual</span>
@@ -82,8 +82,8 @@
     </div>
     @endif
 
-    <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
-        <div class="overflow-x-auto">
+    <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.12s">
+        <div class="overflow-x-auto min-w-0 max-w-full">
             <table class="tbl tbl-cards">
                 <thead>
                     <tr>

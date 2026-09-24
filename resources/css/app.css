@@ -781,6 +781,18 @@ main {
 .dark .badge-green-soft { background-color: rgba(34, 197, 94, 0.20) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.35) !important; }
 .dark .empty-state-icon { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
 
+/* ============================
+   GUARD RESPONSIVE — cegah scroll horizontal global.
+   body flex + main flex-1 default punya min-width:auto sehingga
+   isinya (file input, tabel, strip) tak mau menyusut -> overflow.
+   ============================ */
+body {
+    overflow-x: hidden;
+}
+main {
+    min-width: 0;
+}
+
 /* Bottom nav — fixed total, never scroll */
 #bottom-nav {
     position: fixed !important;

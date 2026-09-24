@@ -140,7 +140,7 @@
     </nav>
 
     <!-- Main Content Area -->
-    <main class="flex min-h-screen flex-1 flex-col md:ml-[240px]">
+    <main class="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[240px]">
         <!-- TopNavBar -->
         <header class="sticky top-0 z-10 flex h-16 w-full items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest/85 px-4 backdrop-blur-md md:px-margin-page">
             <div class="flex min-w-0 items-center gap-3">
