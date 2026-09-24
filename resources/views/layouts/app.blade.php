@@ -173,19 +173,48 @@
         </header>
 
         <!-- Content -->
-        <div class="mx-auto w-full max-w-[1400px] flex-1 p-4 md:p-margin-page">
+        <div class="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-24 md:p-margin-page md:pb-margin-page">
             @include('partials.flash')
-            <div class="flex flex-col gap-6">
+            <div class="flex flex-col gap-4 md:gap-6">
                 @yield('content')
             </div>
         </div>
 
-        <footer class="mx-auto w-full max-w-[1400px] px-4 pb-4 md:px-margin-page">
+        <footer class="mx-auto hidden w-full max-w-[1400px] px-4 pb-4 md:block md:px-margin-page">
             <p class="border-t border-outline-variant pt-3 text-center text-body-sm text-secondary">
                 {{ \App\Models\TokoSetting::utama()->nama_toko }} · ReconPOS{{ $publik ? ' · Mode Publik' : '' }}
             </p>
         </footer>
     </main>
+
+    <!-- Bottom Navigation — mobile only (5 item tetap) -->
+    <nav id="bottom-nav" aria-label="Navigasi bawah" class="fixed inset-x-0 bottom-0 z-30 flex border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur-md md:hidden" style="padding-bottom: env(safe-area-inset-bottom)">
+        @php($isDash = request()->routeIs('dashboard', 'publik.dashboard', 'publik.landing'))
+        @php($isBarang = request()->routeIs('barang.*', 'publik.barang.*'))
+        @php($isStok = request()->routeIs('stok-tracking.*', 'publik.stok-tracking.*'))
+        @php($isBeli = request()->routeIs('pembelian.*', 'publik.pembelian.*'))
+        @php($isJual = request()->routeIs('penjualan.*', 'publik.penjualan.*'))
+        <a href="{{ route(($publik ? 'publik.' : '') . 'dashboard') }}" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-secondary {{ $isDash ? 'text-primary' : '' }}" @if($isDash) aria-current="page" @endif>
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true" style="{{ $isDash ? "font-variation-settings:'FILL' 1" : "" }}">dashboard</span>
+            <span class="text-[10px] {{ $isDash ? 'font-bold' : 'font-medium' }}">Dashboard</span>
+        </a>
+        <a href="{{ route(($publik ? 'publik.' : '') . 'barang.index') }}" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-secondary {{ $isBarang ? 'text-primary' : '' }}" @if($isBarang) aria-current="page" @endif>
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true" style="{{ $isBarang ? "font-variation-settings:'FILL' 1" : "" }}">inventory_2</span>
+            <span class="text-[10px] {{ $isBarang ? 'font-bold' : 'font-medium' }}">Barang</span>
+        </a>
+        <a href="{{ route(($publik ? 'publik.' : '') . 'stok-tracking.index') }}" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-secondary {{ $isStok ? 'text-primary' : '' }}" @if($isStok) aria-current="page" @endif>
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true" style="{{ $isStok ? "font-variation-settings:'FILL' 1" : "" }}">history</span>
+            <span class="text-[10px] {{ $isStok ? 'font-bold' : 'font-medium' }}">Stok</span>
+        </a>
+        <a href="{{ route(($publik ? 'publik.' : '') . 'pembelian.invoice-hutang') }}" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-secondary {{ $isBeli ? 'text-primary' : '' }}" @if($isBeli) aria-current="page" @endif>
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true" style="{{ $isBeli ? "font-variation-settings:'FILL' 1" : "" }}">shopping_cart</span>
+            <span class="text-[10px] {{ $isBeli ? 'font-bold' : 'font-medium' }}">Beli</span>
+        </a>
+        <a href="{{ route(($publik ? 'publik.' : '') . 'penjualan.index') }}" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-secondary {{ $isJual ? 'text-primary' : '' }}" @if($isJual) aria-current="page" @endif>
+            <span class="material-symbols-outlined text-[22px]" aria-hidden="true" style="{{ $isJual ? "font-variation-settings:'FILL' 1" : "" }}">point_of_sale</span>
+            <span class="text-[10px] {{ $isJual ? 'font-bold' : 'font-medium' }}">Jual</span>
+        </a>
+    </nav>
 
     @stack('scripts')
 </body>

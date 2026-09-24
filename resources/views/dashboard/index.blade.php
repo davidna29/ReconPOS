@@ -10,37 +10,80 @@
     @php($kritikJson = ($kritikTop ?? collect())->map(fn ($b) => ['kode' => $b->kode_barang, 'nama' => $b->nama, 'stok' => $b->stock, 'satuan' => $b->satuan])->values()->all())
     <div class="page-head animate-rise">
         <div>
-            <h2 class="page-head-title">Overview</h2>
-            <p class="page-head-subtitle">Periode aktif: <span class="font-semibold text-primary">{{ $labelPeriode }}</span></p>
+            <h2 class="page-head-title text-[20px] md:text-headline-lg">Overview</h2>
+            <p class="page-head-subtitle text-[12px] md:text-body-md">Periode: <span class="font-semibold text-primary">{{ $labelPeriode }}</span></p>
         </div>
 
-        <!-- Pemilih periode kartu omset (bulan / tahun / rentang bebas) -->
-        <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-wrap items-end gap-2">
-            <div>
-                <label class="label mb-0.5">Bulan</label>
-                <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
+        <!-- Pemilih periode — lipat di mobile, terbuka di desktop / bila ada query -->
+        @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to'))
+        <details class="w-full md:hidden" {{ $hasFilter ? 'open' : '' }}>
+            <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-outline-variant bg-white px-3 py-2 text-body-sm font-medium text-secondary hover:bg-surface-muted">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">filter_alt</span>
+                Filter Periode
+                @if ($hasFilter)
+                    <span class="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">Aktif</span>
+                @else
+                    <span class="material-symbols-outlined ml-auto text-[18px]" aria-hidden="true">expand_more</span>
+                @endif
+            </summary>
+            <div class="mt-2">
+                <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-col gap-2">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="label mb-0.5 text-[11px]">Bulan</label>
+                            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-full">
+                        </div>
+                        <div>
+                            <label class="label mb-0.5 text-[11px]">Tahun</label>
+                            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-full">
+                        </div>
+                        <div>
+                            <label class="label mb-0.5 text-[11px]">Dari</label>
+                            <input type="date" name="from" value="{{ request('from') }}" class="input w-full">
+                        </div>
+                        <div>
+                            <label class="label mb-0.5 text-[11px]">Sampai</label>
+                            <input type="date" name="to" value="{{ request('to') }}" class="input w-full">
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn btn-primary btn-sm flex-1">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
+                        </button>
+                        <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm flex-1 text-center">Reset</a>
+                    </div>
+                </form>
             </div>
-            <div>
-                <label class="label mb-0.5">Tahun</label>
-                <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
-            </div>
-            <div>
-                <label class="label mb-0.5">Dari</label>
-                <input type="date" name="from" value="{{ request('from') }}" class="input">
-            </div>
-            <div>
-                <label class="label mb-0.5">Sampai</label>
-                <input type="date" name="to" value="{{ request('to') }}" class="input">
-            </div>
-            <button class="btn btn-primary btn-sm">
-                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
-            </button>
-            <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
-        </form>
+        </details>
+        <!-- Desktop: filter selalu terbuka tanpa summary -->
+        <div class="hidden md:block">
+            <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-wrap items-end gap-2">
+                <div>
+                    <label class="label mb-0.5">Bulan</label>
+                    <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
+                </div>
+                <div>
+                    <label class="label mb-0.5">Tahun</label>
+                    <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
+                </div>
+                <div>
+                    <label class="label mb-0.5">Dari</label>
+                    <input type="date" name="from" value="{{ request('from') }}" class="input">
+                </div>
+                <div>
+                    <label class="label mb-0.5">Sampai</label>
+                    <input type="date" name="to" value="{{ request('to') }}" class="input">
+                </div>
+                <button class="btn btn-primary btn-sm">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
+                </button>
+                <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
+            </form>
+        </div>
     </div>
 
-    <!-- Bento Grid - Summary Cards (kartu warning/danger naik ke depan) -->
-    <div class="grid animate-rise grid-cols-1 gap-4 md:grid-cols-3" style="--rise-delay:.06s">
+    <!-- Bento Grid - Summary Cards (kartu warning/danger naik ke depan) — 2 kolom di mobile, padat -->
+    <div class="grid animate-rise grid-cols-2 gap-2 md:grid-cols-3 md:gap-4" style="--rise-delay:.06s">
         @if ($hutangAlert)
             @include('dashboard.partials.kpi-hutang')
         @endif
@@ -57,35 +100,35 @@
     </div>
 
     <!-- Kartu Pembelian ringkas (filter preset ?pb — independen dari filter omset) -->
-    <div class="mt-4">
+    <div class="mt-2 md:mt-4">
         @include('pembelian.partials.kartu-pembelian')
     </div>
 
     <!-- Grafik: Trend Omset + Aging Hutang -->
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div class="grid grid-cols-1 gap-2 md:gap-4 lg:grid-cols-3">
         <div class="card animate-rise overflow-hidden lg:col-span-2" style="--rise-delay:.1s">
-            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                    <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">show_chart</span>
+            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-3 md:p-4">
+                <h3 class="flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                    <span class="material-symbols-outlined text-cash-blue text-[18px] md:text-[22px]" aria-hidden="true">show_chart</span>
                     Trend Omset — {{ $labelPeriode }}
                 </h3>
             </div>
-            <div class="p-4">
-                <div class="relative h-64"><canvas id="chart-trend"></canvas></div>
+            <div class="p-3 md:p-4">
+                <div class="relative h-48 md:h-64"><canvas id="chart-trend"></canvas></div>
                 @if (($trendStep ?? 1) > 1)
                     <p class="hint mt-2">Rentang lebih dari 1 tahun — diagregasi per minggu (total tetap utuh).</p>
                 @endif
             </div>
         </div>
         <div class="card animate-rise overflow-hidden" style="--rise-delay:.14s">
-            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                    <span class="material-symbols-outlined text-hutang-amber" aria-hidden="true">hourglass_bottom</span>
+            <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-3 md:p-4">
+                <h3 class="flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                    <span class="material-symbols-outlined text-hutang-amber text-[18px] md:text-[22px]" aria-hidden="true">hourglass_bottom</span>
                     Aging Hutang
                 </h3>
             </div>
-            <div class="p-4">
-                <div class="relative h-64"><canvas id="chart-aging"></canvas></div>
+            <div class="p-3 md:p-4">
+                <div class="relative h-48 md:h-64"><canvas id="chart-aging"></canvas></div>
                 @if (($tanpaTempo ?? 0) > 0)
                     <p class="hint mt-2">{{ $tanpaTempo }} invoice tanpa jatuh tempo (tidak masuk bucket).</p>
                 @endif
@@ -93,30 +136,30 @@
         </div>
     </div>
 
-    <div class="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="flex flex-col gap-6 lg:col-span-2">
+    <div class="mt-2 grid grid-cols-1 gap-2 md:gap-4 lg:grid-cols-3">
+        <div class="flex flex-col gap-4 md:gap-6 lg:col-span-2">
             @if (! $publik)
             <!-- Quick Actions -->
-            <div class="card p-6">
-                <h3 class="mb-4 text-headline-sm text-on-surface">Aksi Cepat</h3>
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <a href="{{ route('pembelian.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary-fixed text-on-primary-fixed transition-colors group-hover:bg-primary group-hover:text-white">
-                            <span class="material-symbols-outlined" aria-hidden="true">add_shopping_cart</span>
+            <div class="card p-3 md:p-6">
+                <h3 class="mb-2 md:mb-4 text-[13px] font-semibold text-on-surface md:text-headline-sm">Aksi Cepat</h3>
+                <div class="grid grid-cols-3 gap-2 md:gap-4">
+                    <a href="{{ route('pembelian.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-2 md:p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-1 md:mb-2 flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-primary-fixed text-on-primary-fixed transition-colors group-hover:bg-primary group-hover:text-white">
+                            <span class="material-symbols-outlined text-[18px] md:text-[24px]" aria-hidden="true">add_shopping_cart</span>
                         </div>
-                        <span class="text-center text-body-sm font-medium text-on-surface">Transaksi Pembelian</span>
+                        <span class="text-center text-[11px] font-medium leading-tight text-on-surface md:text-body-sm">Transaksi Pembelian</span>
                     </a>
-                    <a href="{{ route('barang.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-secondary-fixed text-on-secondary-fixed transition-colors group-hover:bg-secondary group-hover:text-white">
-                            <span class="material-symbols-outlined" aria-hidden="true">inventory</span>
+                    <a href="{{ route('barang.create') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-2 md:p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-1 md:mb-2 flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-secondary-fixed text-on-secondary-fixed transition-colors group-hover:bg-secondary group-hover:text-white">
+                            <span class="material-symbols-outlined text-[18px] md:text-[24px]" aria-hidden="true">inventory</span>
                         </div>
-                        <span class="text-center text-body-sm font-medium text-on-surface">Data Barang Baru</span>
+                        <span class="text-center text-[11px] font-medium leading-tight text-on-surface md:text-body-sm">Data Barang Baru</span>
                     </a>
-                    <a href="{{ route('generate.index') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
-                        <div class="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-tertiary-fixed text-on-tertiary-fixed transition-colors group-hover:bg-tertiary group-hover:text-white">
-                            <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                    <a href="{{ route('generate.index') }}" class="group flex flex-col items-center justify-center rounded-lg border border-outline-variant bg-surface-muted p-2 md:p-4 transition-all hover:bg-surface-container hover:shadow-sm active:shadow-inner">
+                        <div class="mb-1 md:mb-2 flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-full bg-tertiary-fixed text-on-tertiary-fixed transition-colors group-hover:bg-tertiary group-hover:text-white">
+                            <span class="material-symbols-outlined text-[18px] md:text-[24px]" aria-hidden="true">auto_awesome</span>
                         </div>
-                        <span class="text-center text-body-sm font-medium text-on-surface">Generate Transaksi</span>
+                        <span class="text-center text-[11px] font-medium leading-tight text-on-surface md:text-body-sm">Generate Transaksi</span>
                     </a>
                 </div>
             </div>
@@ -124,15 +167,15 @@
 
             <!-- Penjualan Terakhir -->
             <div class="card overflow-hidden">
-                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-cash-blue" aria-hidden="true">point_of_sale</span>
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-3 md:p-4">
+                    <h3 class="flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                        <span class="material-symbols-outlined text-cash-blue text-[18px] md:text-[22px]" aria-hidden="true">point_of_sale</span>
                         Penjualan Terakhir
                     </h3>
-                    <a href="{{ $r('penjualan.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('penjualan.index') }}" class="text-[11px] text-primary hover:underline md:text-body-sm">Lihat Semua</a>
                 </div>
                 @if ($penjualanTerakhir->count())
-                <div class="max-h-[400px] overflow-auto">
+                <div class="max-h-[300px] overflow-auto md:max-h-[400px]">
                     <table class="tbl">
                         <thead>
                             <tr>
@@ -185,14 +228,14 @@
 
             <!-- Pembelian Terakhir -->
             <div class="card overflow-hidden">
-                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-hutang-amber" aria-hidden="true">shopping_cart</span>
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-3 md:p-4">
+                    <h3 class="flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                        <span class="material-symbols-outlined text-hutang-amber text-[18px] md:text-[22px]" aria-hidden="true">shopping_cart</span>
                         Pembelian Terakhir
                     </h3>
-                    <a href="{{ $r('pembelian.invoice-hutang') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('pembelian.invoice-hutang') }}" class="text-[11px] text-primary hover:underline md:text-body-sm">Lihat Semua</a>
                 </div>
-                <div class="max-h-[400px] overflow-auto">
+                <div class="max-h-[300px] overflow-auto md:max-h-[400px]">
                     <table class="tbl">
                         <thead>
                             <tr>
@@ -229,11 +272,11 @@
             </div>
         </div>
 
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-4 md:gap-6">
             <!-- System Status -->
-            <div class="card relative overflow-hidden p-5">
-                <h3 class="mb-4 flex items-center gap-2 text-headline-sm text-on-surface">
-                    <span class="material-symbols-outlined text-lunas-green" aria-hidden="true">monitor_heart</span>
+            <div class="card relative overflow-hidden p-3 md:p-5">
+                <h3 class="mb-2 md:mb-4 flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                    <span class="material-symbols-outlined text-lunas-green text-[18px] md:text-[22px]" aria-hidden="true">monitor_heart</span>
                     System Status
                 </h3>
                 <div class="space-y-4">
@@ -261,12 +304,12 @@
             </div>
 
             <!-- Attention Panel -->
-            <div class="card p-5">
-                <div class="mb-4 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-danger-red" aria-hidden="true">notification_important</span>
-                    <h3 class="text-headline-sm text-on-surface">Perhatian Segera</h3>
+            <div class="card p-3 md:p-5">
+                <div class="mb-2 md:mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-danger-red text-[18px] md:text-[22px]" aria-hidden="true">notification_important</span>
+                    <h3 class="text-[13px] font-semibold text-on-surface md:text-headline-sm">Perhatian Segera</h3>
                 </div>
-                <div class="alert-panel max-h-[320px] overflow-auto">
+                <div class="alert-panel max-h-[260px] overflow-auto md:max-h-[320px]">
                     @forelse ($jatuhTempo7Hari->take(3) as $inv)
                         <div class="alert-item alert-item-red">
                             <span class="material-symbols-outlined mt-0.5 text-[20px] text-danger-red" aria-hidden="true">warning</span>
@@ -303,15 +346,15 @@
 
             <!-- Top 10 SKU Stok Kritis -->
             <div class="card overflow-hidden">
-                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-4">
-                    <h3 class="flex items-center gap-2 text-headline-sm text-on-surface">
-                        <span class="material-symbols-outlined text-danger-red" aria-hidden="true">low_priority</span>
+                <div class="flex items-center justify-between border-b border-outline-variant bg-slate-50 p-3 md:p-4">
+                    <h3 class="flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
+                        <span class="material-symbols-outlined text-danger-red text-[18px] md:text-[22px]" aria-hidden="true">low_priority</span>
                         Stok Kritis: Top 10
                     </h3>
-                    <a href="{{ $r('stok-tracking.index') }}" class="text-body-sm text-primary hover:underline">Lihat Semua</a>
+                    <a href="{{ $r('stok-tracking.index') }}" class="text-[11px] text-primary hover:underline md:text-body-sm">Lihat Semua</a>
                 </div>
-                <div class="p-4">
-                    <div class="relative h-64"><canvas id="chart-kritik"></canvas></div>
+                <div class="p-3 md:p-4">
+                    <div class="relative h-48 md:h-64"><canvas id="chart-kritik"></canvas></div>
                     <p class="hint mt-2">Ambang ≤ {{ $ambang }} · stok tersedikit di atas.</p>
                 </div>
             </div>

@@ -640,6 +640,14 @@ main {
         backdrop-filter: blur(12px);
         border-top: 1px solid var(--color-outline-variant);
     }
+
+    /* Dashboard KPI compact di mobile + toast naik agar tidak tertutup bottom-nav */
+    .kpi-card {
+        min-height: 88px;
+    }
+    [data-toast] {
+        bottom: 72px !important;
+    }
 }
 
 /* ============================
@@ -772,6 +780,11 @@ main {
 .dark .badge-amber-soft { background-color: rgba(245, 158, 11, 0.20) !important; color: #fcd34d !important; border-color: rgba(245, 158, 11, 0.35) !important; }
 .dark .badge-green-soft { background-color: rgba(34, 197, 94, 0.20) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.35) !important; }
 .dark .empty-state-icon { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
+
+/* Bottom nav — safe padding sudah di inline style, shadow halus */
+#bottom-nav {
+    box-shadow: 0 -1px 8px rgba(16, 24, 64, 0.08);
+}
 
 /** Cetak invoice & barcode label (PRD 5.2 print, 4.3 cetak barcode) */
 @media print {
