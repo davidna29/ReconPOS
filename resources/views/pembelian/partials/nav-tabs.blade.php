@@ -16,7 +16,7 @@
     $jumlahHutang = \App\Models\InvoicePembelian::where('status', 'belum_lunas')->count();
     $jumlahLunas = \App\Models\InvoicePembelian::where('status', 'lunas')->count();
 @endphp
-<div class="seg-bar flex flex-wrap gap-2">
+<div class="seg-bar sticky top-16 z-20 flex flex-wrap gap-2 md:static">
     <div class="segmented">
         @if (! $publik)
         <a href="{{ route('pembelian.create') }}" class="{{ $aktif === 'transaksi' ? 'active-cash' : '' }}" title="Input pembelian baru (Cash/Hutang)">

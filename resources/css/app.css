@@ -781,9 +781,17 @@ main {
 .dark .badge-green-soft { background-color: rgba(34, 197, 94, 0.20) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.35) !important; }
 .dark .empty-state-icon { background-color: var(--color-surface-container) !important; color: var(--color-on-surface-variant) !important; }
 
-/* Bottom nav — safe padding sudah di inline style, shadow halus */
+/* Bottom nav — fixed total, never scroll */
 #bottom-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 40 !important;
     box-shadow: 0 -1px 8px rgba(16, 24, 64, 0.08);
+}
+@media print {
+    #bottom-nav { display: none !important; }
 }
 
 /** Cetak invoice & barcode label (PRD 5.2 print, 4.3 cetak barcode) */

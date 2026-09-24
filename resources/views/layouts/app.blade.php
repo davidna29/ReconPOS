@@ -187,8 +187,8 @@
         </footer>
     </main>
 
-    <!-- Bottom Navigation — mobile only (5 item tetap) -->
-    <nav id="bottom-nav" aria-label="Navigasi bawah" class="fixed inset-x-0 bottom-0 z-30 flex border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur-md md:hidden" style="padding-bottom: env(safe-area-inset-bottom)">
+    <!-- Bottom Navigation — mobile only (5 item tetap) — fixed viewport, never scroll -->
+    <nav id="bottom-nav" aria-label="Navigasi bawah" class="fixed inset-x-0 bottom-0 z-40 flex border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur-md md:hidden" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; padding-bottom: env(safe-area-inset-bottom)">
         @php($isDash = request()->routeIs('dashboard', 'publik.dashboard', 'publik.landing'))
         @php($isBarang = request()->routeIs('barang.*', 'publik.barang.*'))
         @php($isStok = request()->routeIs('stok-tracking.*', 'publik.stok-tracking.*'))

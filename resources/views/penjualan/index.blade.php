@@ -83,7 +83,7 @@
     </div>
 
     <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant p-3">
+        <div class="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest p-3 md:static">
             @if (! $publik)
             <div class="segmented">
                 <a href="{{ route('penjualan.index') }}" class="{{ ! $sumber ? 'active-cash' : '' }}">Semua @if ($jumlah['semua'])>0<span class="badge badge-slate">{{ $jumlah['semua'] }}</span>@endif</a>
