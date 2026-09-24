@@ -29,41 +29,31 @@
     </div>
 
     <!-- Filter Periode + Kartu Omset (admin & publik — read-only di publik) — sinkron dengan list -->
-    <form method="GET" action="{{ $r('penjualan.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
-        @if (! $publik && !empty($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
-        @if (request('q') !== null && request('q') !== '')<input type="hidden" name="q" value="{{ request('q') }}">@endif
-        @if (request('entries'))<input type="hidden" name="entries" value="{{ request('entries') }}">@endif
-        <div>
-            <label class="label mb-0.5">Bulan</label>
-            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
-        </div>
-        <div>
-            <label class="label mb-0.5">Tahun</label>
-            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
-        </div>
-        <div>
-            <label class="label mb-0.5">Dari</label>
-            <input type="date" name="from" value="{{ request('from') }}" class="input">
-        </div>
-        <div>
-            <label class="label mb-0.5">Sampai</label>
-            <input type="date" name="to" value="{{ request('to') }}" class="input">
-        </div>
-        <button class="btn btn-primary btn-sm shadow-sm">
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
-        </button>
-        <a href="{{ $r('penjualan.index') }}" class="btn btn-secondary btn-sm">Reset</a>
-    </form>
+    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to'))
+    <div class="mb-4">
+        <x-collapse id="filter-penjualan" label="Filter Periode" icon="filter_alt" :active="$hasFilter">
+            @include('partials.filter-periode', [
+                'action' => $r('penjualan.index'),
+                'reset' => $r('penjualan.index'),
+                'showSupplier' => false,
+                'hidden' => collect([
+                    (! $publik && filled($sumber ?? null)) ? '<input type="hidden" name="sumber" value="' . e($sumber) . '">' : null,
+                    filled(request('q')) ? '<input type="hidden" name="q" value="' . e(request('q')) . '">' : null,
+                    request('entries') ? '<input type="hidden" name="entries" value="' . e(request('entries')) . '">' : null,
+                ])->filter()->implode(''),
+            ])
+        </x-collapse>
+    </div>
 
-    <div class="kpi-card kpi-live animate-rise mb-4 h-32" style="--rise-delay:.06s">
-        <div class="absolute -bottom-4 -right-4 opacity-5" aria-hidden="true">
+    <div class="kpi-card kpi-live animate-rise mb-4 p-3 md:p-4 min-h-[92px] md:min-h-0 md:h-32" style="--rise-delay:.06s">
+        <div class="absolute -bottom-4 -right-4 hidden opacity-5 md:block" aria-hidden="true">
             <span class="material-symbols-outlined text-8xl">payments</span>
         </div>
         <div>
-            <h3 class="kpi-card-caption">Total Omset — {{ $labelPeriode }}</h3>
-            <div class="mt-2 text-headline-lg font-bold text-primary">{{ rupiah($omsetPeriode) }}</div>
+            <h3 class="kpi-card-caption text-[10px] md:text-label-caps">Total Omset — {{ $labelPeriode }}</h3>
+            <div class="mt-1 md:mt-2 text-[17px] font-bold leading-none text-primary md:text-headline-lg">{{ rupiah($omsetPeriode) }}</div>
         </div>
-        <div class="flex items-center gap-3 text-body-sm">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] md:text-body-sm">
             <span class="text-lunas-green">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">trending_up</span>
                 {{ $awal->format('d/m/Y') }} – {{ $akhir->format('d/m/Y') }}
@@ -83,41 +73,45 @@
     </div>
 
     <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
-        <div class="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-surface-container-lowest p-3 md:static">
-            @if (! $publik)
-            <div class="segmented">
-                <a href="{{ route('penjualan.index') }}" class="{{ ! $sumber ? 'active-cash' : '' }}">Semua @if ($jumlah['semua'])>0<span class="badge badge-slate">{{ $jumlah['semua'] }}</span>@endif</a>
-                <a href="{{ route('penjualan.index', ['sumber' => 'manual']) }}" class="{{ $sumber === 'manual' ? 'active-cash' : '' }}">Manual @if ($jumlah['manual'])>0<span class="badge badge-green">{{ $jumlah['manual'] }}</span>@endif</a>
-                <a href="{{ route('penjualan.index', ['sumber' => 'rekonstruksi']) }}" class="{{ $sumber === 'rekonstruksi' ? 'active-lunas' : '' }}">Rekonstruksi @if ($jumlah['rekonstruksi'])>0<span class="badge badge-blue">{{ $jumlah['rekonstruksi'] }}</span>@endif</a>
-            </div>
-            @endif
-            <div class="flex flex-wrap items-center gap-2">
+        <div class="sticky top-16 z-10 border-b border-outline-variant bg-surface-container-lowest p-3 md:static">
+            <div class="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-3">
                 @if (! $publik)
-                @include('partials.bulk-print', ['scope' => 'penjualan', 'action' => route('penjualan.print-batch')])
-                <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
-                    data-bulk-delete-btn="penjualan"
-                    data-bulk-delete-url="{{ route('penjualan.bulk-delete') }}"
-                    title="Hapus semua item terpilih dari halaman ini">
-                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
-                </button>
+                <div class="segmented">
+                    <a href="{{ route('penjualan.index') }}" class="{{ ! $sumber ? 'active-cash' : '' }}">Semua @if ($jumlah['semua'])>0<span class="badge badge-slate">{{ $jumlah['semua'] }}</span>@endif</a>
+                    <a href="{{ route('penjualan.index', ['sumber' => 'manual']) }}" class="{{ $sumber === 'manual' ? 'active-cash' : '' }}">Manual @if ($jumlah['manual'])>0<span class="badge badge-green">{{ $jumlah['manual'] }}</span>@endif</a>
+                    <a href="{{ route('penjualan.index', ['sumber' => 'rekonstruksi']) }}" class="{{ $sumber === 'rekonstruksi' ? 'active-lunas' : '' }}">Rekonstruksi @if ($jumlah['rekonstruksi'])>0<span class="badge badge-blue">{{ $jumlah['rekonstruksi'] }}</span>@endif</a>
+                </div>
                 @endif
-                <form method="GET" class="flex items-center gap-2">
-                    @if (! $publik && filled($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
-                    @if (request('bulan'))<input type="hidden" name="bulan" value="{{ request('bulan') }}">@endif
-                    @if (request('tahun'))<input type="hidden" name="tahun" value="{{ request('tahun') }}">@endif
-                    @if (request('from'))<input type="hidden" name="from" value="{{ request('from') }}">@endif
-                    @if (request('to'))<input type="hidden" name="to" value="{{ request('to') }}">@endif
-                    <select name="entries" class="input w-auto" onchange="this.form.submit()">
-                        @foreach ([10, 25, 50, 100] as $n)
-                            <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
-                        @endforeach
-                    </select>
-                    <div class="relative">
-                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary" aria-hidden="true">search</span>
-                        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari ref transaksi…" aria-label="Cari ref transaksi" class="input w-52 pl-9 shadow-sm">
+                <x-collapse id="toolbar-penjualan" label="Aksi & Pencarian" icon="list_alt">
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if (! $publik)
+                        @include('partials.bulk-print', ['scope' => 'penjualan', 'action' => route('penjualan.print-batch')])
+                        <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
+                            data-bulk-delete-btn="penjualan"
+                            data-bulk-delete-url="{{ route('penjualan.bulk-delete') }}"
+                            title="Hapus semua item terpilih dari halaman ini">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus Terpilih (<span id="bulk-delete-count-penjualan">0</span>)
+                        </button>
+                        @endif
+                        <form method="GET" class="flex flex-wrap items-center gap-2">
+                            @if (! $publik && filled($sumber ?? null))<input type="hidden" name="sumber" value="{{ $sumber }}">@endif
+                            @if (request('bulan'))<input type="hidden" name="bulan" value="{{ request('bulan') }}">@endif
+                            @if (request('tahun'))<input type="hidden" name="tahun" value="{{ request('tahun') }}">@endif
+                            @if (request('from'))<input type="hidden" name="from" value="{{ request('from') }}">@endif
+                            @if (request('to'))<input type="hidden" name="to" value="{{ request('to') }}">@endif
+                            <select name="entries" class="input w-auto" onchange="this.form.submit()">
+                                @foreach ([10, 25, 50, 100] as $n)
+                                    <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
+                                @endforeach
+                            </select>
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary" aria-hidden="true">search</span>
+                                <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari ref transaksi…" aria-label="Cari ref transaksi" class="input w-52 pl-9 shadow-sm">
+                            </div>
+                            <button class="btn btn-secondary btn-sm">Cari</button>
+                        </form>
                     </div>
-                    <button class="btn btn-secondary btn-sm">Cari</button>
-                </form>
+                </x-collapse>
             </div>
         </div>
 

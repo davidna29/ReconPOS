@@ -14,68 +14,52 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ $r('pembelian.invoice-hutang') }}" class="flex flex-wrap items-end gap-2">
-        <div>
-            <label class="label mb-0.5">Bulan</label>
-            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
-        </div>
-        <div>
-            <label class="label mb-0.5">Tahun</label>
-            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
-        </div>
-        <div>
-            <label class="label mb-0.5">Dari</label>
-            <input type="date" name="from" value="{{ request('from') }}" class="input">
-        </div>
-        <div>
-            <label class="label mb-0.5">Sampai</label>
-            <input type="date" name="to" value="{{ request('to') }}" class="input">
-        </div>
-        <div>
-            <label class="label mb-0.5">Supplier</label>
-            <select name="supplier" class="input w-48">
-                <option value="">Semua supplier</option>
-                @foreach (($suppliers ?? collect()) as $s)
-                    <option value="{{ $s->id }}" @selected((string) request('supplier') === (string) $s->id)>{{ $s->nama }}</option>
-                @endforeach
-            </select>
-        </div>
-        <button class="btn btn-primary btn-sm">
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
-        </button>
-        <a href="{{ $r('pembelian.invoice-hutang') }}" class="btn btn-secondary btn-sm">Reset</a>
-    </form>
+    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to') || request()->filled('supplier'))
+    <div class="mb-4">
+        <x-collapse id="filter-hutang" label="Filter Periode" icon="filter_alt" :active="$hasFilter">
+            @include('partials.filter-periode', [
+                'action' => $r('pembelian.invoice-hutang'),
+                'reset' => $r('pembelian.invoice-hutang'),
+                'showSupplier' => true,
+                'suppliers' => $suppliers ?? collect(),
+            ])
+        </x-collapse>
+    </div>
 
     @include('pembelian.partials.kartu-pembelian')
 
     <div class="card animate-rise overflow-hidden" style="--rise-delay:.08s">
-        <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant p-3">
-            @if (! $publik)
-            @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
-                <a href="{{ route('pembelian.bayar-bulk.index') }}" class="btn btn-success btn-sm"
-                    title="Bayar banyak invoice satu supplier sekaligus (tertua dulu)">
-                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar Bulk
-                </a>
-                <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
-                    data-bulk-delete-btn="hutang"
-                    data-bulk-delete-url="{{ route('pembelian.bulk-delete') }}"
-                    title="Hapus semua invoice terpilih">
-                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus Terpilih (<span id="bulk-delete-count-hutang">0</span>)
-                </button>
-            @endif
-            <form method="GET" class="flex items-center gap-2">
-                <select name="entries" class="input w-auto" onchange="this.form.submit()">
-                    @foreach ([10, 25, 50, 100] as $n)
-                        <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
-                    @endforeach
-                </select>
-                <div class="relative">
-                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary" aria-hidden="true">search</span>
-                    <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari invoice / supplier…" aria-label="Cari invoice / supplier" class="input w-64 pl-9 shadow-sm">
+        <div class="border-b border-outline-variant p-3">
+            <x-collapse id="toolbar-hutang" label="Aksi & Pencarian" icon="list_alt">
+                <div class="flex flex-wrap items-center gap-2">
+                    @if (! $publik)
+                    @include('partials.bulk-print', ['scope' => 'hutang', 'action' => route('pembelian.print-batch')])
+                        <a href="{{ route('pembelian.bayar-bulk.index') }}" class="btn btn-success btn-sm"
+                            title="Bayar banyak invoice satu supplier sekaligus (tertua dulu)">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar Bulk
+                        </a>
+                        <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
+                            data-bulk-delete-btn="hutang"
+                            data-bulk-delete-url="{{ route('pembelian.bulk-delete') }}"
+                            title="Hapus semua invoice terpilih">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus Terpilih (<span id="bulk-delete-count-hutang">0</span>)
+                        </button>
+                    @endif
+                    <form method="GET" class="flex flex-wrap items-center gap-2">
+                        <select name="entries" class="input w-auto" onchange="this.form.submit()">
+                            @foreach ([10, 25, 50, 100] as $n)
+                                <option value="{{ $n }}" @selected(request('entries') == $n)>{{ $n }} entri</option>
+                            @endforeach
+                        </select>
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-secondary" aria-hidden="true">search</span>
+                            <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari invoice / supplier…" aria-label="Cari invoice / supplier" class="input w-64 pl-9 shadow-sm">
+                        </div>
+                        <button class="btn btn-secondary btn-sm">Cari</button>
+                        <span class="hint mb-0 ml-2 hidden md:inline">Baris merah = jatuh tempo sudah lewat.</span>
+                    </form>
                 </div>
-                <button class="btn btn-secondary btn-sm">Cari</button>
-                <span class="hint mb-0 ml-2">Baris merah = jatuh tempo sudah lewat.</span>
-            </form>
+            </x-collapse>
         </div>
         <div class="overflow-x-auto">
             <table class="tbl tbl-cards">

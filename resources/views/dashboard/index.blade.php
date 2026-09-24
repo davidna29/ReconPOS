@@ -16,70 +16,13 @@
 
         <!-- Pemilih periode — lipat di mobile, terbuka di desktop / bila ada query -->
         @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to'))
-        <details class="w-full md:hidden" {{ $hasFilter ? 'open' : '' }}>
-            <summary class="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-outline-variant bg-white px-3 py-2 text-body-sm font-medium text-secondary hover:bg-surface-muted">
-                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">filter_alt</span>
-                Filter Periode
-                @if ($hasFilter)
-                    <span class="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">Aktif</span>
-                @else
-                    <span class="material-symbols-outlined ml-auto text-[18px]" aria-hidden="true">expand_more</span>
-                @endif
-            </summary>
-            <div class="mt-2">
-                <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-col gap-2">
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="label mb-0.5 text-[11px]">Bulan</label>
-                            <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-full">
-                        </div>
-                        <div>
-                            <label class="label mb-0.5 text-[11px]">Tahun</label>
-                            <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-full">
-                        </div>
-                        <div>
-                            <label class="label mb-0.5 text-[11px]">Dari</label>
-                            <input type="date" name="from" value="{{ request('from') }}" class="input w-full">
-                        </div>
-                        <div>
-                            <label class="label mb-0.5 text-[11px]">Sampai</label>
-                            <input type="date" name="to" value="{{ request('to') }}" class="input w-full">
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button class="btn btn-primary btn-sm flex-1">
-                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
-                        </button>
-                        <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm flex-1 text-center">Reset</a>
-                    </div>
-                </form>
-            </div>
-        </details>
-        <!-- Desktop: filter selalu terbuka tanpa summary -->
-        <div class="hidden md:block">
-            <form method="GET" action="{{ $r('dashboard') }}" class="flex flex-wrap items-end gap-2">
-                <div>
-                    <label class="label mb-0.5">Bulan</label>
-                    <input type="month" name="bulan" value="{{ request('bulan') }}" class="input w-40">
-                </div>
-                <div>
-                    <label class="label mb-0.5">Tahun</label>
-                    <input type="number" name="tahun" min="2000" max="2099" value="{{ request('tahun') }}" placeholder="{{ now()->year }}" class="input w-24">
-                </div>
-                <div>
-                    <label class="label mb-0.5">Dari</label>
-                    <input type="date" name="from" value="{{ request('from') }}" class="input">
-                </div>
-                <div>
-                    <label class="label mb-0.5">Sampai</label>
-                    <input type="date" name="to" value="{{ request('to') }}" class="input">
-                </div>
-                <button class="btn btn-primary btn-sm">
-                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
-                </button>
-                <a href="{{ $r('dashboard') }}" class="btn btn-secondary btn-sm">Reset</a>
-            </form>
-        </div>
+        <x-collapse id="filter-dashboard" label="Filter Periode" icon="filter_alt" :active="$hasFilter">
+            @include('partials.filter-periode', [
+                'action' => $r('dashboard'),
+                'reset' => $r('dashboard'),
+                'showSupplier' => false,
+            ])
+        </x-collapse>
     </div>
 
     <!-- Bento Grid - Summary Cards (kartu warning/danger naik ke depan) — 2 kolom di mobile, padat -->
