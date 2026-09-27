@@ -290,6 +290,72 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================
+    // IMPORT ERRORS MODAL (partials/import-errors-modal)
+    // Persisten: TANPA data-toast sehingga tidak ikut auto-dismiss.
+    // Auto-terbuka dari server (session import_errors); tutup eksplisit
+    // via tombol Tutup/Mengerti, klik backdrop, atau ESC.
+    // ============================
+    const ieBackdrop = document.getElementById('import-errors-backdrop');
+    if (ieBackdrop) {
+        const tutupModalError = () => ieBackdrop.remove();
+        ieBackdrop.querySelectorAll('[data-modal-close]').forEach((b) =>
+            b.addEventListener('click', tutupModalError));
+        ieBackdrop.addEventListener('click', (e) => {
+            if (e.target === ieBackdrop) tutupModalError();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.contains(ieBackdrop)) tutupModalError();
+        });
+
+        const ieSearch = document.getElementById('import-errors-search');
+        const ieItems = Array.from(ieBackdrop.querySelectorAll('[data-import-error-item]'));
+        const ieEmpty = document.getElementById('import-errors-empty');
+        const ieCount = document.getElementById('import-errors-count');
+        const perbaruiHitung = (n) => {
+            if (ieCount) ieCount.textContent = 'Menampilkan ' + n + ' dari ' + ieItems.length + ' masalah';
+        };
+        ieSearch?.addEventListener('input', () => {
+            const kunci = ieSearch.value.trim().toLowerCase();
+            let n = 0;
+            ieItems.forEach((li) => {
+                const cocok = kunci === '' || li.textContent.toLowerCase().includes(kunci);
+                li.classList.toggle('hidden', !cocok);
+                if (cocok) n++;
+            });
+            ieEmpty?.classList.toggle('hidden', n > 0);
+            perbaruiHitung(n);
+        });
+        perbaruiHitung(ieItems.length);
+
+        ieBackdrop.querySelector('[data-copy-import-errors]')?.addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            const teks = ieItems
+                .map((li, i) => (i + 1) + '. ' + li.textContent.replace(/\s+/g, ' ').trim())
+                .join('\n');
+            const umpanBalik = (ok) => {
+                const asli = btn.innerHTML;
+                btn.innerHTML = ok
+                    ? '<span class="material-symbols-outlined text-[16px]" aria-hidden="true">check</span> Tersalin!'
+                    : '<span class="material-symbols-outlined text-[16px]" aria-hidden="true">error</span> Gagal menyalin';
+                setTimeout(() => { btn.innerHTML = asli; }, 1800);
+            };
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(teks).then(() => umpanBalik(true), () => umpanBalik(false));
+            } else {
+                // Fallback browser lama: textarea sementara + execCommand.
+                const ta = document.createElement('textarea');
+                ta.value = teks;
+                document.body.appendChild(ta);
+                ta.select();
+                let ok = false;
+                try { ok = document.execCommand('copy'); } catch { ok = false; }
+                ta.remove();
+                umpanBalik(ok);
+            }
+        });
+    }
+
+    // ============================
     // SUBMIT LOADING STATE (spinner + disabled, kecuali GET/AJAX-delete/opt-out)
     // ============================
     document.querySelectorAll('form').forEach((form) => {

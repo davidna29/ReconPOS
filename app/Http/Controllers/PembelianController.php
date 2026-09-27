@@ -372,7 +372,11 @@ class PembelianController extends Controller
             return redirect()->route('pembelian.invoice-lunas')
                 ->with('success', 'Import pembelian selesai: ' . $hasil['dibuat'] . ' invoice baru, ' . $hasil['diupdate'] . ' invoice diperbarui.');
         } catch (ImportFileException $e) {
-            return back()->withErrors(['file' => $e->getMessage() . (count($e->getErrors()) ? ' Contoh: ' . implode(' | ', array_slice($e->getErrors(), 0, 5)) : '')]);
+            return back()->with('import_errors', [
+                'judul' => 'Import pembelian gagal divalidasi',
+                'ringkasan' => $e->getMessage(),
+                'errors' => $e->getErrors(),
+            ]);
         } catch (\Throwable $e) {
             // 500 putih dulu terjadi saat XlsxReader fatal di server yg ekstensi XML-reader belum aktif.
             // Tangkap & catat agar user melihat pesan ramah, bukan halaman kosong.
@@ -383,7 +387,13 @@ class PembelianController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.');
+            $pesan = 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.';
+
+            return back()->with('import_errors', [
+                'judul' => 'Gagal membaca file Excel',
+                'ringkasan' => $pesan,
+                'errors' => [$pesan],
+            ]);
         }
     }
 

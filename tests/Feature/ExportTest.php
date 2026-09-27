@@ -153,4 +153,36 @@ class ExportTest extends TestCase
             ->assertDontSee('name="bulan" value=', false)
             ->assertSee('data-export-form', false);
     }
+
+    public function test_export_gagal_prevalidasi_menampilkan_modal_rincian(): void
+    {
+        // Error pre-validasi Export kini masuk modal persisten (session import_errors),
+        // bukan error-bag 10 contoh yang hilang dalam 6 detik.
+        $this->authUser();
+
+        $mock = \Mockery::mock(ExportPosService::class);
+        $mock->shouldReceive('buildFormatA')->andReturn([
+            'ok' => false,
+            'files' => [],
+            'errors' => [
+                'KODE_BARANG 1 tidak ada di referensi barang (transaksi T-1).',
+                'Barang ber-SN S-1 wajib QTY 1 dengan NO_SN terisi (transaksi T-2).',
+            ],
+        ]);
+        $this->app->instance(ExportPosService::class, $mock);
+
+        $this->post(route('export.format-a'), [])
+            ->assertStatus(302)
+            ->assertSessionHas('import_errors', function (array $v) {
+                return ($v['judul'] ?? '') === 'Export Format A gagal'
+                    && count($v['errors'] ?? []) === 2;
+            });
+
+        $this->followingRedirects()->post(route('export.format-a'), [])
+            ->assertOk()
+            ->assertSee('import-errors-backdrop', false)
+            ->assertSee('Export Format A gagal')
+            ->assertSee('Pre-validasi gagal')
+            ->assertSee('KODE_BARANG 1 tidak ada di referensi barang');
+    }
 }

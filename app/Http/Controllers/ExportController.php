@@ -37,7 +37,11 @@ class ExportController extends Controller
             );
 
             if (! $hasil['ok']) {
-                return back()->withErrors(['export' => 'Pre-validasi gagal, file tidak dihasilkan: ' . implode(' | ', array_slice($hasil['errors'], 0, 10))]);
+                return back()->with('import_errors', [
+                    'judul' => 'Export Format A gagal',
+                    'ringkasan' => 'Pre-validasi gagal, file tidak dihasilkan.',
+                    'errors' => $hasil['errors'],
+                ]);
             }
 
             if (count($hasil['files']) === 1) {

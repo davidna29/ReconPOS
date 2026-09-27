@@ -655,17 +655,98 @@ class ExcelTemplateTest extends TestCase
 
         // Service dilempar Throwable (simulasi ekstensi hilang / file korup di server).
         $mock = \Mockery::mock(ExcelImportService::class);
-        $mock->shouldReceive('importPembelian')->once()
+        $mock->shouldReceive('importPembelian')->twice()
             ->andThrow(new \RuntimeException('Simulasi: ekstensi simplexml tidak aktif'));
         $this->app->instance(ExcelImportService::class, $mock);
-        Log::shouldReceive('error')->once();
+        Log::shouldReceive('error')->twice();
 
         $response = $this->post(route('pembelian.template.import'), ['file' => $file]);
 
         $response->assertStatus(302); // redirect, bukan 500
-        $response->assertSessionHas('error', function (string $pesan) {
-            return str_contains($pesan, 'Terjadi kesalahan membaca file Excel');
+        $response->assertSessionHas('import_errors', function (array $v) {
+            return str_contains($v['ringkasan'] ?? '', 'Terjadi kesalahan membaca file Excel')
+                && count($v['errors'] ?? []) === 1;
         });
         $this->assertSame(0, InvoicePembelian::count()); // tidak ada data berubah
+
+        // Modal rincian ikut tampil di halaman tujuan (persisten, tanpa auto-dismiss).
+        $this->followingRedirects()->post(route('pembelian.template.import'), ['file' => $file])
+            ->assertOk()
+            ->assertSee('import-errors-backdrop', false)
+            ->assertSee('Terjadi kesalahan membaca file Excel');
+    }
+
+    public function test_import_pembelian_invalid_menampilkan_modal_rincian(): void
+    {
+        // Error validasi upload template kini masuk modal persisten (session import_errors),
+        // bukan toast 6 detik — seluruh baris error ditampilkan, bukan 5 contoh.
+        $user = User::create(['name' => 'Admin', 'email' => 'excelmodal@a.id', 'password' => 'pass1234']);
+        $this->actingAs($user);
+        Supplier::create(['nama' => 'PT Modal', 'kontak' => '081']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-MODAL', 'nama' => 'Ban Modal', 'sn_atau_non_sn' => 'NON_SN', 'status' => 'Dijual']);
+
+        $p = $this->buatFilePembelian([
+            ['A' => 'R-MODAL', 'B' => '2026-09-23 10:00', 'C' => 'PT Modal', 'D' => 'CASH', 'E' => 100000, 'G' => 'X-TIDAK-ADA', 'H' => 2, 'I' => 45000, 'J' => 0, 'K' => 0],
+            ['A' => 'R-MODAL', 'B' => 'bukan-tanggal', 'C' => 'PT Modal', 'D' => 'CASH', 'E' => 100000, 'G' => 'B-MODAL', 'H' => 1, 'I' => 45000, 'J' => 0, 'K' => 0],
+            ['A' => '', 'B' => '2026-09-23 10:00', 'C' => 'PT Modal', 'D' => 'HUTANG', 'E' => 0, 'G' => 'B-MODAL', 'H' => 1, 'I' => 45000, 'J' => 0, 'K' => 0],
+        ]);
+        $file = UploadedFile::fake()->createWithContent('upload-pembelian.xlsx', (string) file_get_contents($p));
+
+        $response = $this->post(route('pembelian.template.import'), ['file' => $file]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHas('import_errors', function (array $v) {
+            return ($v['judul'] ?? '') === 'Import pembelian gagal divalidasi'
+                && count($v['errors'] ?? []) === 3;
+        });
+        $this->assertSame(0, InvoicePembelian::count()); // all-or-nothing
+
+        $html = $this->followingRedirects()->post(route('pembelian.template.import'), ['file' => $file])
+            ->assertOk()
+            ->assertSee('import-errors-backdrop', false)
+            ->assertSee('Import pembelian gagal divalidasi')
+            ->assertSee('Tidak ada data yang diubah')
+            ->assertSee('X-TIDAK-ADA')
+            ->assertSee('bukan-tanggal')
+            ->assertSee('REF_PEMBELIAN wajib diisi')
+            ->getContent();
+
+        // Modal persisten: backdrop TIDAK boleh membawa atribut data-toast (auto-dismiss 6 dtk).
+        $pos = strpos($html, 'id="import-errors-backdrop"');
+        $this->assertNotFalse($pos, 'Backdrop modal harus ada di HTML.');
+        $this->assertStringNotContainsString('data-toast', substr($html, $pos, 120), 'Modal tidak boleh auto-dismiss.');
+    }
+
+    public function test_import_barang_invalid_menampilkan_modal_rincian(): void
+    {
+        $user = User::create(['name' => 'Admin', 'email' => 'excelmodal2@a.id', 'password' => 'pass1234']);
+        $this->actingAs($user);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach (['KODE_BARANG', 'NAMA_BARANG'] as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->setCellValue('A2', 'B-NAMA-KOSONG'); // NAMA_BARANG kosong
+        $sheet->setCellValue('A3', ''); // KODE_BARANG kosong
+        $sheet->setCellValue('B3', 'Tanpa Kode');
+        $mod = sys_get_temp_dir() . '/barang-modal-invalid.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($mod);
+        $file = UploadedFile::fake()->createWithContent('upload-barang.xlsx', (string) file_get_contents($mod));
+
+        $response = $this->post(route('barang.template.import'), ['file' => $file]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHas('import_errors', function (array $v) {
+            return ($v['judul'] ?? '') === 'Import barang gagal divalidasi'
+                && count($v['errors'] ?? []) === 2;
+        });
+        $this->assertSame(0, Barang::count());
+
+        $this->followingRedirects()->post(route('barang.template.import'), ['file' => $file])
+            ->assertOk()
+            ->assertSee('import-errors-backdrop', false)
+            ->assertSee('NAMA_BARANG wajib diisi')
+            ->assertSee('KODE_BARANG wajib diisi');
     }
 }

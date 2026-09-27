@@ -175,6 +175,7 @@
         <!-- Content -->
         <div class="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-24 md:p-margin-page md:pb-margin-page">
             @include('partials.flash')
+            @include('partials.import-errors-modal')
             <div class="flex flex-col gap-4 md:gap-6">
                 @yield('content')
             </div>

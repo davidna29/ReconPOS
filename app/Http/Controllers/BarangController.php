@@ -218,7 +218,11 @@ class BarangController extends Controller
 
             return redirect()->route('barang.index')->with('success', 'Import selesai: ' . $hasil['dibuat'] . ' barang baru, ' . $hasil['diupdate'] . ' barang diperbarui.');
         } catch (ImportFileException $e) {
-            return back()->withErrors(['file' => $e->getMessage() . (count($e->getErrors()) ? ' Contoh: ' . implode(' | ', array_slice($e->getErrors(), 0, 5)) : '')]);
+            return back()->with('import_errors', [
+                'judul' => 'Import barang gagal divalidasi',
+                'ringkasan' => $e->getMessage(),
+                'errors' => $e->getErrors(),
+            ]);
         } catch (\Throwable $e) {
             Log::error('Import excel barang gagal di luar validasi', [
                 'file' => $request->file('file')?->getClientOriginalName(),
@@ -227,7 +231,13 @@ class BarangController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.');
+            $pesan = 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.';
+
+            return back()->with('import_errors', [
+                'judul' => 'Gagal membaca file Excel',
+                'ringkasan' => $pesan,
+                'errors' => [$pesan],
+            ]);
         }
     }
 
@@ -249,7 +259,11 @@ class BarangController extends Controller
             return redirect()->route('barang.index')
                 ->with('success', 'Update harga selesai: ' . $hasil['diupdate'] . ' diupdate, ' . $hasil['diabaikan'] . ' diabaikan (mode otomatis), ' . $hasil['tidak_ditemukan'] . ' kode tidak ditemukan.');
         } catch (ImportFileException $e) {
-            return back()->withErrors(['file' => $e->getMessage() . (count($e->getErrors()) ? ' Contoh: ' . implode(' | ', array_slice($e->getErrors(), 0, 5)) : '')]);
+            return back()->with('import_errors', [
+                'judul' => 'Update harga gagal divalidasi',
+                'ringkasan' => $e->getMessage(),
+                'errors' => $e->getErrors(),
+            ]);
         } catch (\Throwable $e) {
             Log::error('Update harga excel gagal di luar validasi', [
                 'file' => $request->file('file')?->getClientOriginalName(),
@@ -258,7 +272,13 @@ class BarangController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.');
+            $pesan = 'Terjadi kesalahan membaca file Excel: ' . $e->getMessage() . ' — detail lengkap ada di storage/logs/laravel.log.';
+
+            return back()->with('import_errors', [
+                'judul' => 'Gagal membaca file Excel',
+                'ringkasan' => $pesan,
+                'errors' => [$pesan],
+            ]);
         }
     }
 
