@@ -28,7 +28,7 @@
         @if ($toko->telepon)<p>Telp: {{ $toko->telepon }}</p>@endif
         @if ($toko->npwp)<p>NPWP: {{ $toko->npwp }}</p>@endif
     </div>
-    <h2>LAPORAN PENJUALAN — {{ $ringkasan['Periode'] ?? '' }}</h2>
+    <h2>LAPORAN PENJUALAN — {{ $ringkasan['Periode'] ?? '' }}@if (($totalBagian ?? 1) > 1) (Bagian {{ $bagian }} dari {{ $totalBagian }})@endif</h2>
 
     <table class="ringkasan">
         @foreach ($ringkasan as $label => $nilai)

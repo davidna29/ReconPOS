@@ -100,7 +100,12 @@ class ExportController extends Controller
                 $validated['sumber'] ?? null,
             );
 
-            return response()->download($this->service->pathFile($hasil['files'][0]), $hasil['files'][0]);
+            // Header eksplisit agar Symfony melewati penebak MIME (hemat memori).
+            return response()->download(
+                $this->service->pathFile($hasil['files'][0]),
+                $hasil['files'][0],
+                ['Content-Type' => 'application/pdf']
+            );
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }

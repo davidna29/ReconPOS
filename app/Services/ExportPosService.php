@@ -215,34 +215,85 @@ class ExportPosService
     }
 
     /**
+     * Maks nota per file PDF — dompdf membangun seluruh layout tabel di memori
+     * (±230KB/baris + ±52MB biaya tetap; 100 nota ≈ 90MB, aman di limit 128MB).
+     */
+    public const MAKS_NOTA_PER_PDF = 100;
+
+    /**
      * Format B versi PDF — data & agregat identik dgn Excel (satu query).
+     * Dipecah per 150 nota (pola chunking Format A) agar render dompdf hemat memori.
      * Tercatat di riwayat sebagai format 'B-PDF' agar unduh/hapus/tandai tetap jalan.
      */
     public function buildFormatBPdf(?string $mulai, ?string $selesai, ?string $bulan = null, ?string $sumber = null): array
     {
+        // Best-effort: naikkan bila host mengizinkan; chunking tetap jalan utama.
+        @ini_set('memory_limit', '512M');
+
         [$transaksi, $mapping, $rows, $ringkasan, $from, $to] = $this->kumpulkanFormatB($mulai, $selesai, $bulan, $sumber);
 
-        $nama = 'laporan-penjualan-' . now()->format('Ymd-His') . '.pdf';
-        $pdf = Pdf::loadView('export.format-b-pdf', [
-            'toko' => TokoSetting::utama(),
-            'mapping' => $mapping,
-            'rows' => $rows,
-            'ringkasan' => $ringkasan,
-            'sumber' => $sumber,
-        ])->setPaper('a4', 'landscape');
-        file_put_contents($this->pathFile($nama), $pdf->output());
+        $perNota = $transaksi->groupBy('id');
+        $chunks = array_chunk($perNota->keys()->all(), self::MAKS_NOTA_PER_PDF);
+        if (count($chunks) === 0) {
+            $chunks = [[]];
+        }
+
+        $stamp = now()->format('Ymd-His');
+        $files = [];
+        foreach (array_values($chunks) as $i => $ids) {
+            // Baris dibangun ulang per chunk dari transaksi chunk tsb
+            // (hemat memori: satu render dompdf hanya memuat ±150 nota).
+            $rowsChunk = [];
+            foreach ($ids as $id) {
+                foreach ($perNota[$id] ?? collect() as $trx) {
+                    foreach ($trx->items as $item) {
+                        $rowsChunk[] = [
+                            'Tanggal Transaksi' => $trx->tanggal_waktu->format('Y-m-d H:i'),
+                            'No. Nota' => $trx->ref_transaksi,
+                            'Nama Item' => $item->barang?->nama ?? '-',
+                            'Qty' => $item->qty,
+                            'Harga Satuan' => $item->harga_jual,
+                            'Subtotal' => $item->subtotal,
+                            'Total per Nota' => $trx->total,
+                            'Sumber' => $trx->sumber === 'rekonstruksi' ? 'rekonstruksi' : 'manual',
+                        ];
+                    }
+                }
+            }
+            $nama = count($chunks) > 1
+                ? "laporan-penjualan-{$stamp}-bagian-" . ($i + 1) . '-dari-' . count($chunks) . '.pdf'
+                : "laporan-penjualan-{$stamp}.pdf";
+            $this->tulisPdf($nama, $mapping, $rowsChunk, $ringkasan, $i + 1, count($chunks));
+            $files[] = $nama;
+            unset($rowsChunk);
+            gc_collect_cycles(); // bebaskan siklus dompdf antar chunk
+        }
 
         $batch = ExportBatch::create([
             'format' => 'B-PDF',
             'filter_mulai' => $from->toDateString(),
             'filter_selesai' => $to->toDateString(),
             'filter_bulan' => $bulan,
-            'jumlah_file' => 1,
-            'file_names' => [$nama],
+            'jumlah_file' => count($files),
+            'file_names' => $files,
             'status_upload_manual' => false,
         ]);
 
-        return ['ok' => true, 'files' => [$nama], 'errors' => [], 'export_batch' => $batch];
+        return ['ok' => true, 'files' => $files, 'errors' => [], 'export_batch' => $batch];
+    }
+
+    /** Render 1 file PDF bagian ke-N (dipisah agar testable & hemat memori). */
+    private function tulisPdf(string $nama, array $mapping, array $rows, array $ringkasan, int $bagian, int $totalBagian): void
+    {
+        $pdf = Pdf::loadView('export.format-b-pdf', [
+            'toko' => TokoSetting::utama(),
+            'mapping' => $mapping,
+            'rows' => $rows,
+            'ringkasan' => $ringkasan,
+            'bagian' => $bagian,
+            'totalBagian' => $totalBagian,
+        ])->setPaper('a4', 'landscape');
+        file_put_contents($this->pathFile($nama), $pdf->output());
     }
 
     private function resolvePeriode(?string $mulai, ?string $selesai, ?string $bulan): array

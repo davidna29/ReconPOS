@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Barang;
 use App\Models\ExportBatch;
 use App\Models\Supplier;
+use App\Models\TransaksiPenjualan;
 use App\Models\User;
 use App\Services\ExportPosService;
 use App\Services\PembelianService;
@@ -130,6 +131,35 @@ class ExportTest extends TestCase
         $this->get(route('export.unduh', [$batch, 0]))->assertOk();
         $this->delete(route('export.destroy', $batch))->assertSessionHas('success');
         $this->assertFileDoesNotExist($path);
+    }
+
+    public function test_format_b_pdf_dipegang_pecah_per_150_nota(): void
+    {
+        $this->authUser();
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'X-CHUNK', 'nama' => 'X', 'sn_atau_non_sn' => 'NON_SN']);
+        // 160 nota langsung via model (tanpa gerakan stok — export hanya membaca).
+        for ($i = 1; $i <= 160; $i++) {
+            $trx = TransaksiPenjualan::create([
+                'ref_transaksi' => 'INV-TEST-' . str_pad((string) $i, 4, '0', STR_PAD_LEFT),
+                'tanggal_waktu' => now()->format('Y-m-d H:i'),
+                'customer_id' => 0, 'jenis_transaksi' => 'cash', 'tipe_pembayaran' => 'cash',
+                'sumber' => 'manual', 'status' => 'tersimpan', 'total' => 60000,
+            ]);
+            $trx->items()->create(['barang_id' => $b->id, 'qty' => 1, 'harga_jual' => 60000, 'subtotal' => 60000]);
+        }
+
+        $svc = app(ExportPosService::class);
+        $hasil = $svc->buildFormatBPdf(now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d'));
+
+        $this->assertTrue($hasil['ok']);
+        $this->assertCount(2, $hasil['files']); // 100 + 60
+        foreach ($hasil['files'] as $f) {
+            $this->assertStringStartsWith('%PDF', (string) file_get_contents($svc->pathFile($f)));
+        }
+        $this->assertDatabaseHas('export_batch', [
+            'format' => 'B-PDF', 'jumlah_file' => 2,
+        ]);
+        $this->assertSame(2, count($hasil['export_batch']->file_names));
     }
 
     public function test_http_format_b_pdf_memakai_filter_yang_sama(): void
