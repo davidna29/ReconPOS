@@ -66,12 +66,14 @@ class BebanHutangController extends Controller
             ->pluck('total', 'cabang');
 
         // Urutan kartu: TB1 → TB2 → TB3 → abjad → 'Belum Dibebani' paling bawah.
+        // Hutang = total tagihan TERMASUK PPN (sebanding dgn sisa = hutang − terbayar).
+        $tagihan = fn ($items) => (int) $items->sum('total_setelah_diskon') + (int) $items->sum('ppn');
         $urutan = array_flip(InvoicePembelian::CABANG_SARAN);
         $cards = $invoices->groupBy(fn ($inv) => $inv->labelCabang())
             ->map(fn ($items, $nama) => [
                 'cabang' => $nama,
                 'lembar' => $items->count(),
-                'hutang' => (int) $items->sum('total_setelah_diskon'),
+                'hutang' => $tagihan($items),
                 'sisa' => (int) $items->sum('sisa_hutang'),
                 'dibayar' => (int) ($dibayarPerCabang[$nama] ?? 0),
                 'lunas' => $items->where('status', 'lunas')->count(),
@@ -83,7 +85,7 @@ class BebanHutangController extends Controller
 
         $grand = [
             'lembar' => $invoices->count(),
-            'hutang' => (int) $invoices->sum('total_setelah_diskon'),
+            'hutang' => $tagihan($invoices),
             'sisa' => (int) $invoices->sum('sisa_hutang'),
             'dibayar' => (int) $dibayarPerCabang->sum(),
             'lunas' => $invoices->where('status', 'lunas')->count(),

@@ -9,6 +9,7 @@
         <div>
             <h2 class="page-head-title">Beban Hutang per Cabang</h2>
             <p class="page-head-subtitle">Pemilahan faktur hutang ke TERMINAL BAN 1 / 2 / 3 — {{ $grand['lembar'] }} lembar · hutang {{ rupiah($grand['hutang']) }} · sisa {{ rupiah($grand['sisa']) }} · dibayar {{ rupiah($grand['dibayar']) }} · {{ $grand['lunas'] }} lunas</p>
+            <p class="hint mt-1">Hutang = total tagihan termasuk PPN; Sisa = Hutang − terbayar.</p>
         </div>
         @if (! $publik)
         <div class="flex flex-wrap gap-2">
@@ -65,7 +66,7 @@
     </form>
 
     @forelse ($cards as $c)
-        @php($pct = $c['hutang'] > 0 ? (int) round($c['sisa'] / $c['hutang'] * 100) : 0)
+        @php($pct = $c['hutang'] > 0 ? min(100, (int) round($c['sisa'] / $c['hutang'] * 100)) : 0)
         @php($barColor = $pct < 50 ? 'bg-lunas-green' : ($pct <= 80 ? 'bg-hutang-amber' : 'bg-danger-red'))
         <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.06s">
             <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
@@ -120,7 +121,7 @@
                                 <td data-label="Invoice" class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
                                 <td data-label="Tanggal">{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
                                 <td data-label="Supplier" class="font-medium">{{ $inv->supplier?->nama ?? '-' }}</td>
-                                <td data-label="Hutang" class="mono text-right">{{ rupiah($inv->total_setelah_diskon) }}</td>
+                                <td data-label="Hutang" class="mono text-right" title="Total + PPN">{{ rupiah($inv->total_setelah_diskon + $inv->ppn) }}</td>
                                 <td data-label="Sisa" class="mono text-right font-bold {{ $inv->sisa_hutang > 0 ? 'text-hutang-amber' : 'text-lunas-green' }}">{{ rupiah($inv->sisa_hutang) }}</td>
                                 <td data-label="Status" class="text-center">
                                     @if ($inv->status === 'lunas')

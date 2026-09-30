@@ -25,7 +25,7 @@ class BebanHutangTest extends TestCase
         return Supplier::create(['nama' => 'PT Beban', 'kontak' => '081']);
     }
 
-    private function buatFaktur(string $no, int $total, int $sisa, string $status, ?string $cabang = null, string $jenis = 'hutang', ?string $tanggal = null): InvoicePembelian
+    private function buatFaktur(string $no, int $total, int $sisa, string $status, ?string $cabang = null, string $jenis = 'hutang', ?string $tanggal = null, int $ppn = 0): InvoicePembelian
     {
         return InvoicePembelian::create([
             'no_invoice' => $no,
@@ -34,7 +34,8 @@ class BebanHutangTest extends TestCase
             'jenis' => $jenis,
             'subtotal' => $total,
             'total_setelah_diskon' => $total,
-            'bayar_atau_dp' => $total - $sisa,
+            'ppn' => $ppn,
+            'bayar_atau_dp' => $total + $ppn - $sisa,
             'sisa_hutang' => $sisa,
             'status' => $status,
             'cabang' => $cabang,
@@ -229,5 +230,31 @@ class BebanHutangTest extends TestCase
         // tanpa filter periode: all-time → terlihat
         $htmlPenuh = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
         $this->assertStringContainsString('Rp 100.000', $htmlPenuh);
+    }
+
+    public function test_invarian_sisa_sama_dengan_total_ppn_dp_bayar(): void
+    {
+        // Guard regresi insiden 2026-10-02 ( curiga revert bulk merusak sisa ):
+        // sisa HARUS selalu = total + ppn − dp − Σ pembayaran, apa pun alurnya.
+        $this->authUser();
+        $svc = app(\App\Services\PembelianService::class);
+        $murni = $this->buatFaktur('F-INV-1', 1000000, 1110000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', null, 110000);
+        $cicil = $this->buatFaktur('F-INV-2', 2000000, 2220000, 'belum_lunas', 'TERMINAL BAN 2', 'hutang', null, 220000);
+        $svc->pelunasan($cicil, 500000, now());
+        $lunas = $this->buatFaktur('F-INV-3', 500000, 555000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', null, 55000);
+        $svc->pelunasan($lunas, 555000, now());
+
+        // bulk bayar lalu batalkan (skenario user) → sisa harus kembali persis
+        $bulk = $svc->bayarBulk($murni->supplier_id, 300000, now(), null, null, 'TERMINAL BAN 1');
+        $svc->batalkanBulk($bulk['grup']);
+
+        $salah = \App\Models\InvoicePembelian::where('jenis', 'hutang')->get()->filter(
+            fn ($inv) => (int) $inv->sisa_hutang !== (int) $inv->total_setelah_diskon + (int) $inv->ppn - (int) $inv->bayar_atau_dp - (int) $inv->pembayaranHutang()->sum('nominal')
+        );
+        $this->assertCount(0, $salah, 'Sisa menyimpang: ' . $salah->pluck('no_invoice')->implode(', '));
+
+        // definisi tampilan rekap: hutang (incl PPN) selalu ≥ sisa
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('(111%)', $html);
     }
 }
