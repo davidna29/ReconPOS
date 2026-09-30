@@ -23,7 +23,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan serve               # http://127.0.0.1:8000 (+ vite HMR :5173)
   ```
 - Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (**241 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**.
+- Test: `php artisan test` (**247 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 - Repo GitHub: `davidna29/ReconPOS` (dulu `Aplikasi-GenTOt`); rilis terakhir **v2.0.0**.
 - Deploy: ikuti `docs/DEPLOY-HOSTINGER.md` — **§7a** memuat akses SSH live `reconpos.misnu.sch.id` (`ssh -p 65002 u549935065@46.202.138.28`, path `/home/u549935065/domains/reconpos.misnu.sch.id/public_html/reconpos`) + blok diagnosa 500 (`optimize:clear`, `tail -n 200 storage/logs/laravel.log`, `migrate --force`, cache dgn 1 binari PHP).
@@ -101,6 +101,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - **Data**: kolom teks bebas `invoice_pembelian.cabang` (50, nullable; saran `CABANG_SARAN`); grup `Belum Dibebani` paling bawah; beban = label saja (pembayaran/sisa tak tersentuh; hapus/bayar invoice tak terpengaruh).
 - **Pemilahan dua jalur**: bulk UI (checkbox faktur belum berbeban + dropdown → `beban-hutang.tetapkan`, atomik) + ganti per-baris (select auto-submit) + **template Excel** (`templateBebanHutang()` prefilled belum-berbeban + dropdown cabang + PETUNJUK; `importBebanHutang()` all-or-nothing → modal `import_errors`; tolak: kosong/duplikat-beda/tidak-ada/bukan-hutang).
 - **Implementasi**: `BebanHutangController::rekap()` (static bersama `Publik\BebanHutangController`) — filter periode (`tanggal_transaksi`, pola bulan>tahun>from/to) + cabang + supplier + q; route admin (`beban-hutang.*`) + publik read-only (`publik.beban-hutang.*`); item sidebar Menu Utama; metrik: hutang=Σ`total_setelah_diskon`.
+- **Sambungan Bayar Bulk (2026-10-01):** form bulk tambah dropdown cabang opsional (kosong = semua cabang, perilaku lama) → `simulasiBulk`/`bayarBulk(..., ?$cabang)` memfilter scope + header `bulk_bayar_hutang.cabang` mencatatnya (NULL = data lama/mode semua); kartu rekap tampil **Dibayar** = Σ`pembayaran_hutang.nominal` via cabang faktur (`tanggal_bayar` ikut filter periode); tombol "Bayar cabang ini" → bulk dgn `?cabang=` terpreselect; link dua arah Bayar Bulk ↔ Beban Hutang. Aturan: uang cabang X TIDAK memotong sisa cabang lain; faktur `cabang=NULL` hanya ikut mode Semua.
 
 ## 6. Jebakan Teknis yang Diketahui
 

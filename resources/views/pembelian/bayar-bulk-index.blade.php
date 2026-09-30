@@ -9,6 +9,11 @@
             <h2 class="page-head-title">Bayar Bulk Hutang</h2>
             <p class="page-head-subtitle">Bayar banyak invoice satu supplier sekaligus — dialokasikan otomatis dari yang <strong>terlama</strong>, pratinjau dulu sebelum tercatat.</p>
         </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('beban-hutang.index') }}" class="btn btn-secondary btn-sm">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">account_balance</span> Beban Hutang per Cabang
+            </a>
+        </div>
     </div>
 
     <div class="card animate-rise p-4" style="--rise-delay:.06s">
@@ -27,6 +32,16 @@
                     @endforeach
                 </select>
                 @error('supplier_id')<span class="hint text-danger-red">{{ $message }}</span>@enderror
+            </div>
+            <div>
+                <label class="label">Cabang Beban (opsional)</label>
+                <select name="cabang" class="input w-56">
+                    <option value="">Semua cabang</option>
+                    @foreach ($daftarCabang as $cb)
+                        <option value="{{ $cb }}" @selected((string) old('cabang', request('cabang')) === (string) $cb)>{{ $cb }}</option>
+                    @endforeach
+                </select>
+                <span class="hint">Kosongkan = alokasi ke semua faktur supplier (perilaku lama).</span>
             </div>
             <div>
                 <label class="label text-danger-red">Nominal Bayar (Rp) <span class="text-danger-red">*</span></label>
@@ -48,7 +63,7 @@
             </div>
             <button class="btn btn-success shadow-sm"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">preview</span> Pratinjau Alokasi</button>
         </form>
-        <p class="hint mt-2">Mencakup <strong>semua</strong> invoice belum lunas supplier tsb — dialokasikan otomatis dari yang <strong>terlama</strong>. Kelebihan di atas total = kembalian (tidak dicatat).</p>
+        <p class="hint mt-2">Mencakup <strong>semua</strong> invoice belum lunas supplier tsb — dialokasikan otomatis dari yang <strong>terlama</strong>. Isi <strong>Cabang Beban</strong> utk membatasi ke faktur satu cabang saja. Kelebihan di atas total = kembalian (tidak dicatat).</p>
     </div>
 
     <div class="card animate-rise overflow-hidden" style="--rise-delay:.12s">
@@ -63,6 +78,7 @@
                         <th>No</th>
                         <th>Tanggal Bayar</th>
                         <th>Supplier</th>
+                        <th>Cabang</th>
                         <th class="text-right">Dialokasikan</th>
                         <th class="text-right">Kembalian</th>
                         <th class="text-center">Invoice</th>
@@ -76,6 +92,7 @@
                             <td data-label="No" class="text-secondary">{{ $riwayat->firstItem() + $i }}</td>
                             <td data-label="Tanggal Bayar">{{ $h->tanggal_bayar->format('d/m/Y') }}</td>
                             <td data-label="Supplier" class="font-medium">{{ $h->supplier?->nama }}</td>
+                            <td data-label="Cabang">{{ $h->cabang ?? '-' }}</td>
                             <td data-label="Dialokasikan" class="mono text-right font-bold text-lunas-green">{{ rupiah($h->dialokasi) }}</td>
                             <td data-label="Kembalian" class="mono text-right">{{ (int) $h->kembalian > 0 ? rupiah($h->kembalian) : '-' }}</td>
                             <td data-label="Invoice" class="mono text-center">{{ (int) $h->baris_aktif }} invoice</td>
@@ -100,7 +117,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="py-10 text-center text-secondary">Belum ada pembayaran bulk.</td></tr>
+                        <tr><td colspan="9" class="py-10 text-center text-secondary">Belum ada pembayaran bulk.</td></tr>
                     @endforelse
                 </tbody>
             </table>

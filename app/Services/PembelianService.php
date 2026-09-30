@@ -292,22 +292,30 @@ class PembelianService
      *
      * @return array{invoices: \Illuminate\Support\Collection, total_hutang: int, dialokasi: int, kembalian: int, rinci: array}
      */
-    public function simulasiBulk(int $supplierId, int $nominal): array
+    public function simulasiBulk(int $supplierId, int $nominal, ?string $cabang = null): array
     {
         if ($nominal <= 0) {
             throw new InvalidArgumentException('Nominal pembayaran harus lebih dari 0.');
         }
 
-        $invoices = InvoicePembelian::where('supplier_id', $supplierId)
+        $query = InvoicePembelian::where('supplier_id', $supplierId)
             ->where('status', 'belum_lunas')
-            ->where('sisa_hutang', '>', 0)
-            ->orderBy('tanggal_transaksi')
+            ->where('sisa_hutang', '>', 0);
+        // Scope cabang (beban hutang): bila diisi, alokasi FIFO hanya ke faktur
+        // cabang tsb; faktur cabang-NULL hanya ikut dalam mode "Semua cabang".
+        if (($cabang = normalisasi_teks($cabang)) !== null) {
+            $query->where('cabang', $cabang);
+        }
+        $invoices = $query->orderBy('tanggal_transaksi')
             ->orderBy('id')
             ->get();
 
         $total = (int) $invoices->sum('sisa_hutang');
         if ($total <= 0) {
-            throw new InvalidArgumentException('Supplier ini tidak punya hutang belum lunas.');
+            throw new InvalidArgumentException(
+                'Supplier ini tidak punya hutang belum lunas'
+                . ($cabang !== null ? ' pada cabang ' . $cabang . '.' : '.')
+            );
         }
 
         // Kelebihan di atas total = kembalian (tidak dicatat sebagai kredit).
@@ -342,16 +350,19 @@ class PembelianService
     /**
      * Bayar bulk per supplier (FIFO tertua dulu) dalam 1 transaksi atomik.
      * Membuat header BulkBayarHutang + N baris pembayaran (grup = uuid header).
+     * $cabang opsional: scope beban yg dibayar (NULL = semua cabang).
      * Mengembalikan hasil alokasi + header utk tombol "Batalkan bulk ini".
      */
-    public function bayarBulk(int $supplierId, int $nominal, Carbon $tanggal, ?string $catatan = null, ?string $buktiUrl = null): array
+    public function bayarBulk(int $supplierId, int $nominal, Carbon $tanggal, ?string $catatan = null, ?string $buktiUrl = null, ?string $cabang = null): array
     {
-        return DB::transaction(function () use ($supplierId, $nominal, $tanggal, $catatan, $buktiUrl) {
+        return DB::transaction(function () use ($supplierId, $nominal, $tanggal, $catatan, $buktiUrl, $cabang) {
             // Kunci baris agar dua bulk bersamaan tidak alokasi ganda.
-            $simulasi = $this->simulasiBulk($supplierId, $nominal);
+            $cabang = normalisasi_teks($cabang);
+            $simulasi = $this->simulasiBulk($supplierId, $nominal, $cabang);
             $header = BulkBayarHutang::create([
                 'uuid' => (string) \Illuminate\Support\Str::uuid(),
                 'supplier_id' => $supplierId,
+                'cabang' => $cabang,
                 'tanggal_bayar' => $tanggal,
                 'nominal_bayar' => $nominal,
                 'dialokasi' => $simulasi['dialokasi'],

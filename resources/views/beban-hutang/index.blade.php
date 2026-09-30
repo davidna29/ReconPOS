@@ -8,8 +8,15 @@
     <div class="page-head animate-rise">
         <div>
             <h2 class="page-head-title">Beban Hutang per Cabang</h2>
-            <p class="page-head-subtitle">Pemilahan faktur hutang ke TERMINAL BAN 1 / 2 / 3 — {{ $grand['lembar'] }} lembar · hutang {{ rupiah($grand['hutang']) }} · sisa {{ rupiah($grand['sisa']) }} · {{ $grand['lunas'] }} lunas</p>
+            <p class="page-head-subtitle">Pemilahan faktur hutang ke TERMINAL BAN 1 / 2 / 3 — {{ $grand['lembar'] }} lembar · hutang {{ rupiah($grand['hutang']) }} · sisa {{ rupiah($grand['sisa']) }} · dibayar {{ rupiah($grand['dibayar']) }} · {{ $grand['lunas'] }} lunas</p>
         </div>
+        @if (! $publik)
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('pembelian.bayar-bulk.index') }}" class="btn btn-success btn-sm">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar Bulk
+            </a>
+        </div>
+        @endif
     </div>
 
     <form method="GET" action="{{ $r('beban-hutang.index') }}" class="grid grid-cols-2 gap-2 md:flex md:flex-wrap md:items-end md:gap-2">
@@ -66,8 +73,13 @@
                 <h3 class="text-headline-sm text-on-surface">{{ $c['cabang'] }}</h3>
                 <span class="badge badge-slate">{{ $c['lembar'] }} lembar</span>
                 <span class="badge {{ $c['belum_lunas'] > 0 ? 'badge-amber' : 'badge-green' }}">{{ $c['lunas'] }} lunas · {{ $c['belum_lunas'] }} belum</span>
+                @if (! $publik && $c['cabang'] !== 'Belum Dibebani')
+                <a href="{{ route('pembelian.bayar-bulk.index', ['cabang' => $c['cabang']]) }}" class="btn btn-success btn-sm ml-auto">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar cabang ini
+                </a>
+                @endif
             </div>
-            <div class="grid grid-cols-2 gap-2 p-3 md:grid-cols-4 md:gap-4 md:p-4">
+            <div class="grid grid-cols-2 gap-2 p-3 md:grid-cols-5 md:gap-4 md:p-4">
                 <div class="kpi-card p-3 md:p-4 min-h-[92px] md:min-h-0">
                     <h4 class="kpi-card-caption text-[10px] md:text-label-caps">Hutang</h4>
                     <div class="kpi-card-value text-[17px] md:text-headline-lg">{{ rupiah($c['hutang']) }}</div>
@@ -75,6 +87,10 @@
                 <div class="kpi-card p-3 md:p-4 min-h-[92px] md:min-h-0">
                     <h4 class="kpi-card-caption text-[10px] md:text-label-caps">Sisa Hutang</h4>
                     <div class="kpi-card-value text-[17px] md:text-headline-lg {{ $c['sisa'] > 0 ? 'text-hutang-amber' : 'text-lunas-green' }}">{{ rupiah($c['sisa']) }}</div>
+                </div>
+                <div class="kpi-card p-3 md:p-4 min-h-[92px] md:min-h-0">
+                    <h4 class="kpi-card-caption text-[10px] md:text-label-caps">Dibayar</h4>
+                    <div class="kpi-card-value text-[17px] md:text-headline-lg text-lunas-green">{{ rupiah($c['dibayar']) }}</div>
                 </div>
                 <div class="col-span-2 md:col-span-2">
                     <span class="mb-1 block text-label-caps font-bold text-secondary">Porsi sisa ({{ $pct }}%)</span>

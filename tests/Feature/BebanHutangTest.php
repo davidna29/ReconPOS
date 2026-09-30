@@ -141,4 +141,32 @@ class BebanHutangTest extends TestCase
         $html = $this->get(route('publik.landing'))->assertOk()->getContent();
         $this->assertStringContainsString(route('publik.beban-hutang.index'), $html);
     }
+
+    public function test_rekap_menampilkan_dibayar_per_cabang(): void
+    {
+        $this->authUser();
+        $tb1 = $this->buatFaktur('F-D1', 1000000, 600000, 'belum_lunas', 'TERMINAL BAN 1');
+        app(\App\Services\PembelianService::class)->pelunasan($tb1, 400000, now());
+        $tb2 = $this->buatFaktur('F-D2', 500000, 500000, 'belum_lunas', 'TERMINAL BAN 2');
+
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('Rp 400.000', $html); // dibayar TB1
+        $this->assertStringContainsString('Rp 0', $html); // dibayar TB2 (belum ada pembayaran)
+    }
+
+    public function test_rekap_dibayar_mengikuti_filter_periode(): void
+    {
+        $this->authUser();
+        $tb1 = $this->buatFaktur('F-P1', 1000000, 900000, 'belum_lunas', 'TERMINAL BAN 1');
+        app(\App\Services\PembelianService::class)->pelunasan($tb1, 100000, now()->subMonths(2));
+
+        // pembayaran 2 bulan lalu tak masuk filter bulan berjalan
+        $html = $this->get(route('beban-hutang.index', ['bulan' => now()->format('Y-m')]))
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('Rp 0', $html);
+
+        // tanpa filter periode: all-time → terlihat
+        $htmlPenuh = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('Rp 100.000', $htmlPenuh);
+    }
 }

@@ -9,7 +9,7 @@ class BulkBayarHutang extends Model
     protected $table = 'bulk_bayar_hutang';
 
     protected $fillable = [
-        'uuid', 'supplier_id', 'tanggal_bayar', 'nominal_bayar',
+        'uuid', 'supplier_id', 'cabang', 'tanggal_bayar', 'nominal_bayar',
         'dialokasi', 'kembalian', 'bukti_url', 'catatan',
     ];
 

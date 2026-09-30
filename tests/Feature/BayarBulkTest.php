@@ -366,4 +366,84 @@ class BayarBulkTest extends TestCase
         $this->assertSame(1000000, (int) $inv->fresh()->sisa_hutang);
         $this->assertSame(0, PembayaranHutang::count());
     }
+
+    public function test_bayar_bulk_scope_cabang_hanya_alokasi_cabang_itu(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. CB', 'kontak' => '0830']);
+        $b = $this->barang('B-CB');
+        $tb1 = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-CB1');
+        $tb1->update(['cabang' => 'TERMINAL BAN 1']);
+        $tb2 = $this->hutang1jt($s, $b, '2026-06-02 10:00', 'INV-CB2');
+        $tb2->update(['cabang' => 'TERMINAL BAN 2']);
+
+        $hasil = app(PembelianService::class)->bayarBulk($s->id, 1500000, now(), null, null, 'TERMINAL BAN 1');
+
+        $this->assertSame(1000000, $hasil['total_hutang']); // hanya TB1
+        $this->assertSame(1000000, $hasil['dialokasi']);
+        $this->assertSame(500000, $hasil['kembalian']);
+        $this->assertCount(1, $hasil['rinci']);
+        $this->assertSame('TERMINAL BAN 1', $hasil['header']->cabang);
+        // sisa TB2 utuh — uang TB1 tidak memotong cabang lain
+        $this->assertSame(1000000, (int) $tb2->fresh()->sisa_hutang);
+        $this->assertSame(0, (int) $tb1->fresh()->sisa_hutang);
+    }
+
+    public function test_bayar_bulk_mode_semua_mencakup_tanpa_cabang(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. CA', 'kontak' => '0831']);
+        $b = $this->barang('B-CA');
+        $tb1 = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-CA1');
+        $tb1->update(['cabang' => 'TERMINAL BAN 1']);
+        $nol = $this->hutang1jt($s, $b, '2026-06-02 10:00', 'INV-CA2'); // tanpa cabang
+
+        $hasil = app(PembelianService::class)->bayarBulk($s->id, 2000000, now());
+
+        $this->assertSame(2000000, $hasil['total_hutang']);
+        $this->assertCount(2, $hasil['rinci']);
+        $this->assertNull($hasil['header']->cabang);
+        $this->assertSame(0, (int) $nol->fresh()->sisa_hutang);
+    }
+
+    public function test_simulasi_bulk_cabang_kosong_error_menyebut_cabang(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. CK', 'kontak' => '0832']);
+        $b = $this->barang('B-CK');
+        $inv = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-CK');
+        $inv->update(['cabang' => 'TERMINAL BAN 2']);
+
+        try {
+            app(PembelianService::class)->simulasiBulk($s->id, 500000, 'TERMINAL BAN 1');
+            $this->fail('Harus dilempar karena cabang TB1 tidak punya hutang.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('TERMINAL BAN 1', $e->getMessage());
+        }
+    }
+
+    public function test_http_bayar_bulk_cabang_tersimpan_di_header_dan_tampil(): void
+    {
+        $this->authUser();
+        $s = Supplier::create(['nama' => 'PT. CH', 'kontak' => '0833']);
+        $b = $this->barang('B-CH');
+        $inv = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-CH');
+        $inv->update(['cabang' => 'TERMINAL BAN 3']);
+
+        // pratinjau menampilkan scope cabang
+        $this->post(route('pembelian.bayar-bulk.preview'), [
+            'supplier_id' => $s->id, 'nominal' => 400000,
+            'tanggal_bayar' => now()->format('Y-m-d'), 'cabang' => 'TERMINAL BAN 3',
+        ])->assertOk()->assertSee('TERMINAL BAN 3');
+
+        // konfirmasi menyimpan cabang di header
+        $this->post(route('pembelian.bayar-bulk.confirm'), [
+            'supplier_id' => $s->id, 'nominal' => 400000,
+            'tanggal_bayar' => now()->format('Y-m-d'), 'cabang' => 'TERMINAL BAN 3',
+        ])->assertRedirect(route('pembelian.bayar-bulk.index'))->assertSessionHas('success');
+        $this->assertSame('TERMINAL BAN 3', \App\Models\BulkBayarHutang::first()->cabang);
+
+        // riwayat menampilkan cabang; header lama (NULL) tampil '-'
+        $this->get(route('pembelian.bayar-bulk.index'))->assertOk()->assertSee('TERMINAL BAN 3');
+    }
 }

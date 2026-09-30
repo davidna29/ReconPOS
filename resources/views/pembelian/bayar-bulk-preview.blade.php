@@ -16,10 +16,14 @@
             <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">preview</span>
             Ringkasan Alokasi
         </h3>
-        <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
             <div>
                 <p class="label">Supplier</p>
                 <p class="font-medium">{{ $supplier->nama }}</p>
+            </div>
+            <div>
+                <p class="label">Cabang (scope beban)</p>
+                <p class="font-medium">{{ $cabang ?? 'Semua cabang' }}</p>
             </div>
             <div>
                 <p class="label">Nominal Bayar</p>
@@ -48,6 +52,7 @@
                     <tr>
                         <th>No</th>
                         <th>Invoice (tertua dulu)</th>
+                        <th>Cabang</th>
                         <th>Tanggal Transaksi</th>
                         <th class="text-right">Sisa Saat Ini</th>
                         <th class="text-right">Dibayar</th>
@@ -60,6 +65,7 @@
                         <tr>
                             <td data-label="No" class="text-secondary">{{ $i + 1 }}</td>
                             <td data-label="Invoice" class="mono font-semibold text-primary">{{ $r['invoice']->no_invoice }}</td>
+                            <td data-label="Cabang">{{ $r['invoice']->cabang ?? '-' }}</td>
                             <td data-label="Tanggal">{{ $r['invoice']->tanggal_transaksi->format('d/m/Y') }}</td>
                             <td data-label="Sisa Saat Ini" class="mono text-right">{{ uang($r['invoice']->sisa_hutang) }}</td>
                             <td data-label="Dibayar" class="mono text-right font-bold text-lunas-green">{{ uang($r['dibayar']) }}</td>
@@ -84,6 +90,7 @@
             <input type="hidden" name="supplier_id" value="{{ $supplier->id }}">
             <input type="hidden" name="nominal" value="{{ $nominal }}">
             <input type="hidden" name="tanggal_bayar" value="{{ $tanggalBayar }}">
+            @if ($cabang)<input type="hidden" name="cabang" value="{{ $cabang }}">@endif
             @if ($catatan)<input type="hidden" name="catatan" value="{{ $catatan }}">@endif
             @if (! empty($buktiUrl))<input type="hidden" name="bukti_url" value="{{ $buktiUrl }}">@endif
             <button class="btn btn-success shadow-sm" onclick="return confirm('Catat pembayaran bulk {{ rupiah($hasil['dialokasi']) }} ke {{ count($hasil['rinci']) }} invoice?');">

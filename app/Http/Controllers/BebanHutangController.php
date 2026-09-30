@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\ImportFileException;
 use App\Models\InvoicePembelian;
+use App\Models\PembayaranHutang;
 use App\Models\Supplier;
 use App\Services\ExcelImportService;
 use Illuminate\Http\Request;
@@ -48,6 +49,22 @@ class BebanHutangController extends Controller
 
         $invoices = $query->orderBy('tanggal_transaksi')->get();
 
+        // Total dibayar per cabang dalam periode (tanggal_bayar ikut filter;
+        // tanpa filter = sepanjang waktu). Sumber: baris pembayaran × cabang faktur.
+        $bayarQuery = PembayaranHutang::query()
+            ->join('invoice_pembelian', 'invoice_pembelian.id', '=', 'pembayaran_hutang.invoice_pembelian_id')
+            ->where('invoice_pembelian.jenis', 'hutang');
+        if ($awal && $akhir) {
+            $bayarQuery->whereBetween('pembayaran_hutang.tanggal_bayar', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
+        }
+        if (($supplierId = (int) $request->get('supplier')) > 0) {
+            $bayarQuery->where('invoice_pembelian.supplier_id', $supplierId);
+        }
+        $dibayarPerCabang = $bayarQuery
+            ->selectRaw("COALESCE(NULLIF(invoice_pembelian.cabang, ''), 'Belum Dibebani') as cabang, SUM(pembayaran_hutang.nominal) as total")
+            ->groupBy('cabang')
+            ->pluck('total', 'cabang');
+
         // Urutan kartu: TB1 → TB2 → TB3 → abjad → 'Belum Dibebani' paling bawah.
         $urutan = array_flip(InvoicePembelian::CABANG_SARAN);
         $cards = $invoices->groupBy(fn ($inv) => $inv->labelCabang())
@@ -56,6 +73,7 @@ class BebanHutangController extends Controller
                 'lembar' => $items->count(),
                 'hutang' => (int) $items->sum('total_setelah_diskon'),
                 'sisa' => (int) $items->sum('sisa_hutang'),
+                'dibayar' => (int) ($dibayarPerCabang[$nama] ?? 0),
                 'lunas' => $items->where('status', 'lunas')->count(),
                 'belum_lunas' => $items->where('status', '!=', 'lunas')->count(),
                 'items' => $items->values(),
@@ -67,6 +85,7 @@ class BebanHutangController extends Controller
             'lembar' => $invoices->count(),
             'hutang' => (int) $invoices->sum('total_setelah_diskon'),
             'sisa' => (int) $invoices->sum('sisa_hutang'),
+            'dibayar' => (int) $dibayarPerCabang->sum(),
             'lunas' => $invoices->where('status', 'lunas')->count(),
         ];
 

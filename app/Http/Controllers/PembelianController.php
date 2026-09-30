@@ -178,13 +178,16 @@ class PembelianController extends Controller
     public function bayarBulkIndex()
     {
         $suppliers = Supplier::orderBy('nama')->get();
+        $daftarCabang = InvoicePembelian::where('jenis', 'hutang')
+            ->whereNotNull('cabang')->where('cabang', '<>', '')
+            ->distinct()->orderBy('cabang')->pluck('cabang');
 
         $riwayat = \App\Models\BulkBayarHutang::with('supplier')
             ->withCount('pembayaran as baris_aktif')
             ->latest()
             ->paginate(10);
 
-        return view('pembelian.bayar-bulk-index', compact('suppliers', 'riwayat'));
+        return view('pembelian.bayar-bulk-index', compact('suppliers', 'daftarCabang', 'riwayat'));
     }
 
     /** Pratinjau alokasi bayar-bulk per supplier (read-only, tanpa menulis DB). */
@@ -196,11 +199,13 @@ class PembelianController extends Controller
             'tanggal_bayar' => ['required', 'date'],
             'catatan' => ['nullable', 'string', 'max:255'],
             'bukti_url' => ['nullable', 'url', 'max:1000'],
+            'cabang' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
             $supplier = Supplier::findOrFail((int) $data['supplier_id']);
-            $hasil = $this->service->simulasiBulk((int) $data['supplier_id'], (int) $data['nominal']);
+            $cabang = normalisasi_teks($data['cabang'] ?? null);
+            $hasil = $this->service->simulasiBulk((int) $data['supplier_id'], (int) $data['nominal'], $cabang);
 
             return view('pembelian.bayar-bulk-preview', [
                 'supplier' => $supplier,
@@ -209,6 +214,7 @@ class PembelianController extends Controller
                 'tanggalBayar' => $data['tanggal_bayar'],
                 'catatan' => $data['catatan'] ?? null,
                 'buktiUrl' => $data['bukti_url'] ?? null,
+                'cabang' => $cabang,
             ]);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage())->withInput();
@@ -224,6 +230,7 @@ class PembelianController extends Controller
             'tanggal_bayar' => ['required', 'date'],
             'catatan' => ['nullable', 'string', 'max:255'],
             'bukti_url' => ['nullable', 'url', 'max:1000'],
+            'cabang' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
@@ -232,7 +239,8 @@ class PembelianController extends Controller
                 (int) $data['nominal'],
                 Carbon::parse($data['tanggal_bayar']),
                 $data['catatan'] ?? null,
-                $data['bukti_url'] ?? null
+                $data['bukti_url'] ?? null,
+                normalisasi_teks($data['cabang'] ?? null)
             );
 
             $bagian = collect($hasil['rinci'])->map(fn ($r) => $r['invoice']->no_invoice
