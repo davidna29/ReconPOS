@@ -44,3 +44,13 @@ if (!function_exists('bulan_id')) {
         return $bulan . ' ' . $t->format('Y');
     }
 }
+
+if (!function_exists('normalisasi_teks')) {
+    /** Normalisasi teks bebas (merk/varian/ukuran): trim + spasi ganda → satu (null bila kosong). */
+    function normalisasi_teks(mixed $nilai): ?string
+    {
+        $bersih = preg_replace('/\s+/', ' ', trim((string) $nilai));
+
+        return $bersih !== '' ? $bersih : null;
+    }
+}

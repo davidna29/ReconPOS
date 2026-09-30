@@ -749,4 +749,77 @@ class ExcelTemplateTest extends TestCase
             ->assertSee('NAMA_BARANG wajib diisi')
             ->assertSee('KODE_BARANG wajib diisi');
     }
+
+    public function test_template_barang_memuat_kolom_merk_varian_ukuran(): void
+    {
+        [$a] = $this->setupData();
+        $a->update(['merk' => 'Gajah Tunggal (GT)', 'varian' => 'CHAMPIRO ECOTEC', 'ukuran_ban' => '185/70 R14']);
+        $path = app(ExcelImportService::class)->templateBarang();
+
+        $reader = new XlsxReader();
+        $reader->setReadDataOnly(true);
+        $rows = array_values($reader->load($path)->getActiveSheet()->toArray(null, true, true, true));
+
+        $this->assertSame('MERK', $rows[0]['K']);
+        $this->assertSame('VARIAN', $rows[0]['L']);
+        $this->assertSame('UKURAN_BAN', $rows[0]['M']);
+        $this->assertSame('Gajah Tunggal (GT)', $rows[1]['K']);
+        $this->assertSame('CHAMPIRO ECOTEC', $rows[1]['L']);
+        $this->assertSame('185/70 R14', $rows[1]['M']);
+    }
+
+    public function test_import_barang_menyimpan_merk_varian_ukuran_dan_abaikan_flag(): void
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach (['KODE_BARANG', 'NAMA_BARANG', 'MERK', 'VARIAN', 'UKURAN_BAN', 'FLAG'] as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->setCellValue('A2', 'BL-26570R17-SAV-MTP');
+        $sheet->setCellValue('B2', 'BAN LUAR 265/70 R17 SAVERO M/T PRO');
+        $sheet->setCellValue('C2', 'Gajah   Tunggal (GT)');
+        $sheet->setCellValue('D2', 'SAVERO M/T PRO');
+        $sheet->setCellValue('E2', '265/70 R17');
+        $sheet->setCellValue('F2', 'catatan kerja diabaikan');
+        $mod = sys_get_temp_dir() . '/barang-merk.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($mod);
+
+        $hasil = app(ExcelImportService::class)->importBarang($mod);
+        $this->assertSame(1, $hasil['dibuat']);
+        $b = Barang::where('kode_barang', 'BL-26570R17-SAV-MTP')->firstOrFail();
+        $this->assertSame('Gajah Tunggal (GT)', $b->merk); // spasi ganda ternormalisasi
+        $this->assertSame('SAVERO M/T PRO', $b->varian);
+        $this->assertSame('265/70 R17', $b->ukuran_ban);
+
+        // upload ulang dgn sel kosong = pertahankan nilai lama (non-destruktif)
+        $sheet->setCellValue('C2', '');
+        $sheet->setCellValue('D2', '');
+        $sheet->setCellValue('E2', '');
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($mod);
+        $hasil = app(ExcelImportService::class)->importBarang($mod);
+        $this->assertSame(1, $hasil['diupdate']);
+        $this->assertSame('Gajah Tunggal (GT)', $b->fresh()->merk);
+    }
+
+    public function test_import_barang_merk_kepanjangan_ditolak(): void
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach (['KODE_BARANG', 'NAMA_BARANG', 'MERK'] as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->setCellValue('A2', 'B-PANJANG');
+        $sheet->setCellValue('B2', 'Ban Panjang');
+        $sheet->setCellValue('C2', str_repeat('M', 101));
+        $mod = sys_get_temp_dir() . '/barang-merk-panjang.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($mod);
+
+        try {
+            app(ExcelImportService::class)->importBarang($mod);
+            $this->fail('Harus dilempar ImportFileException karena MERK > 100 karakter.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('MERK maksimal 100 karakter', implode(' | ', $e->getErrors()));
+        }
+        $this->assertSame(0, Barang::count());
+    }
 }

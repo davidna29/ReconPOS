@@ -43,9 +43,19 @@
         <a href="' . route('barang.templateHarga.download') . '" class="btn btn-secondary btn-sm text-[11px] md:text-body-sm">
             <span class="material-symbols-outlined text-[14px] md:text-[16px]" aria-hidden="true">price_change</span> Update Harga
         </a>
+    ', 'filters' => '
+        <select name="merk" aria-label="Filter merk" class="input w-auto py-1.5 text-[13px] shadow-sm md:py-2 md:text-body-md" onchange="this.form.submit()">
+            <option value="">Semua merk</option>
+            ' . collect($merks ?? [])->map(fn ($m) => '<option value="' . e($m) . '"' . ((string) request('merk') === (string) $m ? ' selected' : '') . '>' . e($m) . '</option>')->implode('') . '
+        </select>
     '])
     @else
-    @include('partials.table-toolbar')
+    @include('partials.table-toolbar', ['filters' => '
+        <select name="merk" aria-label="Filter merk" class="input w-auto py-1.5 text-[13px] shadow-sm md:py-2 md:text-body-md" onchange="this.form.submit()">
+            <option value="">Semua merk</option>
+            ' . collect($merks ?? [])->map(fn ($m) => '<option value="' . e($m) . '"' . ((string) request('merk') === (string) $m ? ' selected' : '') . '>' . e($m) . '</option>')->implode('') . '
+        </select>
+    '])
     @endif
 
     @if (! $publik)
@@ -90,6 +100,9 @@
                         <th>No</th>
                         <th>Kode Barang</th>
                         <th>Nama</th>
+                        <th>Merk</th>
+                        <th>Varian</th>
+                        <th>Ukuran</th>
                         <th>Kategori</th>
                         <th class="text-right">Harga Jual</th>
                         <th class="text-center">Stock</th>
@@ -108,6 +121,9 @@
                                     <x-badge color="teal" class="ml-1">SN</x-badge>
                                 @endif
                             </td>
+                            <td data-label="Merk">{{ $b->merk ?? '-' }}</td>
+                            <td data-label="Varian">{{ $b->varian ?? '-' }}</td>
+                            <td data-label="Ukuran" class="mono">{{ $b->ukuran_ban ?? '-' }}</td>
                             <td data-label="Kategori">{{ $b->kategori?->nama ?? '-' }}</td>
                             <td data-label="Harga Jual" class="mono text-right">{{ rupiah($b->harga_jual) }}</td>
                             <td data-label="Stok" class="text-center">
@@ -146,7 +162,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="py-10 text-center text-secondary">{{ $publik ? 'Belum ada barang.' : 'Belum ada barang. Klik "+ Tambah Data" atau upload template Excel.' }}</td>
+                            <td colspan="11" class="py-10 text-center text-secondary">{{ $publik ? 'Belum ada barang.' : 'Belum ada barang. Klik "+ Tambah Data" atau upload template Excel.' }}</td>
                         </tr>
                     @endforelse
                 </tbody>

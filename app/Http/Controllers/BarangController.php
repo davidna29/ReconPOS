@@ -26,16 +26,26 @@ class BarangController extends Controller
         $query = Barang::with('kategori')->where('tipe_item', 'barang');
 
         if ($s = trim((string) $request->get('q'))) {
-            $query->where(fn ($q) => $q->where('kode_barang', 'like', "%{$s}%")->orWhere('nama', 'like', "%{$s}%"));
+            $query->where(fn ($q) => $q->where('kode_barang', 'like', "%{$s}%")
+                ->orWhere('nama', 'like', "%{$s}%")
+                ->orWhere('merk', 'like', "%{$s}%")
+                ->orWhere('varian', 'like', "%{$s}%")
+                ->orWhere('ukuran_ban', 'like', "%{$s}%"));
         }
         if ($kategori = (int) $request->get('kategori')) {
             $query->where('kategori_id', $kategori);
         }
+        if (($merk = trim((string) $request->get('merk'))) !== '') {
+            $query->where('merk', $merk);
+        }
 
         $barangs = $query->orderBy('kode_barang')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $kategoris = KategoriBarang::orderBy('nama')->get();
+        $merks = Barang::where('tipe_item', 'barang')
+            ->whereNotNull('merk')->where('merk', '<>', '')
+            ->distinct()->orderBy('merk')->pluck('merk');
 
-        return view('barang.index', compact('barangs', 'kategoris'));
+        return view('barang.index', compact('barangs', 'kategoris', 'merks'));
     }
 
     public function create()
@@ -43,7 +53,8 @@ class BarangController extends Controller
         $kategoris = KategoriBarang::orderBy('nama')->get();
         $settings = TokoSetting::utama();
 
-        return view('barang.form', ['barang' => null, 'kategoris' => $kategoris, 'settings' => $settings]);
+        return view('barang.form', ['barang' => null, 'kategoris' => $kategoris, 'settings' => $settings]
+            + self::daftarTeksBebas());
     }
 
     public function store(Request $request)
@@ -66,9 +77,12 @@ class BarangController extends Controller
             'nama' => $data['nama'],
             'deskripsi' => $data['deskripsi'] ?? null,
             'kategori_id' => $kategoriId,
+            'merk' => self::normalisasiTeks($data['merk'] ?? null),
+            'varian' => self::normalisasiTeks($data['varian'] ?? null),
+            'ukuran_ban' => self::normalisasiTeks($data['ukuran_ban'] ?? null),
             'satuan' => $data['satuan'] ?? 'pcs',
             'sn_atau_non_sn' => $data['sn_atau_non_sn'],
-            'margin_override' => $data['margin_override'] !== '' && $data['margin_override'] !== null ? (int) $data['margin_override'] : null,
+            'margin_override' => ($data['margin_override'] ?? null) !== '' && ($data['margin_override'] ?? null) !== null ? (int) $data['margin_override'] : null,
             'mode_harga_jual' => $data['mode_harga_jual'],
             'harga_jual' => (int) ($data['harga_jual'] ?? 0),
             'lokasi_rak' => $data['lokasi_rak'] ?? null,
@@ -101,7 +115,8 @@ class BarangController extends Controller
         $settings = TokoSetting::utama();
         $terkunci = $barang->sudahDipakaiTransaksi();
 
-        return view('barang.form', compact('barang', 'kategoris', 'settings', 'terkunci'));
+        return view('barang.form', compact('barang', 'kategoris', 'settings', 'terkunci')
+            + self::daftarTeksBebas());
     }
 
     public function update(Request $request, Barang $barang)
@@ -117,10 +132,13 @@ class BarangController extends Controller
             'nama' => $data['nama'],
             'deskripsi' => $data['deskripsi'] ?? null,
             'kategori_id' => $kategoriId,
+            'merk' => self::normalisasiTeks($data['merk'] ?? null),
+            'varian' => self::normalisasiTeks($data['varian'] ?? null),
+            'ukuran_ban' => self::normalisasiTeks($data['ukuran_ban'] ?? null),
             'satuan' => $data['satuan'] ?? 'pcs',
             'lokasi_rak' => $data['lokasi_rak'] ?? null,
             'status' => $data['status'],
-            'margin_override' => $data['margin_override'] !== '' && $data['margin_override'] !== null ? (int) $data['margin_override'] : null,
+            'margin_override' => ($data['margin_override'] ?? null) !== '' && ($data['margin_override'] ?? null) !== null ? (int) $data['margin_override'] : null,
             'mode_harga_jual' => $data['mode_harga_jual'],
         ]);
 
@@ -308,6 +326,9 @@ class BarangController extends Controller
             'nama' => ['required', 'string', 'max:190'],
             'deskripsi' => ['nullable', 'string'],
             'kategori' => ['nullable', 'string', 'max:100'],
+            'merk' => ['nullable', 'string', 'max:100'],
+            'varian' => ['nullable', 'string', 'max:100'],
+            'ukuran_ban' => ['nullable', 'string', 'max:50'],
             'satuan' => ['nullable', 'string', 'max:20'],
             'sn_atau_non_sn' => ['required', 'in:SN,NON_SN'],
             'margin_override' => ['nullable', 'integer', 'min:0', 'max:1000'],
@@ -340,4 +361,22 @@ class BarangController extends Controller
         // kategori baru otomatis dibuat bila belum ada (PRD 4.3c)
         return KategoriBarang::firstOrCreate(['nama' => $nama])->id;
     }
-}
+
+    /** Daftar nilai distinct merk/varian/ukuran utk datalist form (hindari typo). */
+    public static function daftarTeksBebas(): array
+    {
+        $distinct = fn (string $kolom) => Barang::where('tipe_item', 'barang')
+            ->whereNotNull($kolom)->where($kolom, '<>', '')
+            ->distinct()->orderBy($kolom)->pluck($kolom);
+
+        return [
+            'merks' => $distinct('merk'),
+            'varians' => $distinct('varian'),
+            'ukurans' => $distinct('ukuran_ban'),
+        ];
+    }
+    /** Normalisasi teks bebas merk/varian/ukuran (delegasi ke helper global). */
+    public static function normalisasiTeks(?string $nilai): ?string
+    {
+        return normalisasi_teks($nilai);
+    }}

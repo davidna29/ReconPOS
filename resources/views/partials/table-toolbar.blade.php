@@ -16,7 +16,7 @@
             <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari..." aria-label="Cari..."
                 class="input w-full md:w-48 pl-9 py-1.5 text-[13px] shadow-sm md:py-2 md:text-body-md">
         </div>
-        @if (request()->has('kategori') || request()->has('q') || request()->has('entries'))
+        @if (request()->has('kategori') || request()->has('merk') || request()->has('q') || request()->has('entries'))
             <a href="{{ url()->current() }}" class="btn btn-secondary btn-sm py-1.5 md:py-2">
                 <span class="material-symbols-outlined text-[16px]">refresh</span> Reset
             </a>

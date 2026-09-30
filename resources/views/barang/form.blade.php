@@ -47,6 +47,36 @@
             </div>
 
             <div>
+                <label class="label">Merk</label>
+                <input list="merk-list" name="merk" value="{{ old('merk', $barang?->merk) }}" placeholder="mis. Gajah Tunggal (GT)" maxlength="100" class="input">
+                <datalist id="merk-list">
+                    @foreach (($merks ?? collect()) as $m)
+                        <option value="{{ $m }}"></option>
+                    @endforeach
+                </datalist>
+            </div>
+
+            <div>
+                <label class="label">Varian</label>
+                <input list="varian-list" name="varian" value="{{ old('varian', $barang?->varian) }}" placeholder="mis. SAVERO M/T PRO" maxlength="100" class="input">
+                <datalist id="varian-list">
+                    @foreach (($varians ?? collect()) as $v)
+                        <option value="{{ $v }}"></option>
+                    @endforeach
+                </datalist>
+            </div>
+
+            <div>
+                <label class="label">Ukuran Ban</label>
+                <input list="ukuran-list" name="ukuran_ban" value="{{ old('ukuran_ban', $barang?->ukuran_ban) }}" placeholder="mis. 265/70 R17" maxlength="50" class="input">
+                <datalist id="ukuran-list">
+                    @foreach (($ukurans ?? collect()) as $u)
+                        <option value="{{ $u }}"></option>
+                    @endforeach
+                </datalist>
+            </div>
+
+            <div>
                 <label class="label">Satuan</label>
                 <input type="text" name="satuan" value="{{ old('satuan', $barang?->satuan ?? 'pcs') }}" class="input">
             </div>

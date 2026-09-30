@@ -63,6 +63,12 @@
                     <span class="nav-label">Tracking Stok</span>
                 </a>
             </li>
+            <li>
+                <a class="nav-link {{ request()->routeIs('rekap-stok.*', 'publik.rekap-stok.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'rekap-stok.index') }}" title="Rekap Stok per Merk" @if (request()->routeIs('rekap-stok.*', 'publik.rekap-stok.*')) aria-current="page" @endif>
+                    <span class="material-symbols-outlined" aria-hidden="true">summarize</span>
+                    <span class="nav-label">Rekap Stok</span>
+                </a>
+            </li>
             @if (! $publik)
             <li class="nav-section" aria-hidden="true">Admin</li>
             <li>

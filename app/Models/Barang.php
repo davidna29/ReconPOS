@@ -10,9 +10,18 @@ class Barang extends Model
 
     protected $fillable = [
         'tipe_item', 'kode_barang', 'nama', 'deskripsi', 'kategori_id',
+        'merk', 'varian', 'ukuran_ban',
         'satuan', 'sn_atau_non_sn', 'harga_beli_terakhir', 'margin_override',
         'mode_harga_jual', 'harga_jual', 'stock', 'lokasi_rak', 'status',
     ];
+
+    /** Label merk utk grouping Rekap Stok (NULL/'' → 'Tanpa Merk'). */
+    public function labelMerk(): string
+    {
+        $merk = trim((string) $this->merk);
+
+        return $merk !== '' ? $merk : 'Tanpa Merk';
+    }
 
     public function kategori()
     {

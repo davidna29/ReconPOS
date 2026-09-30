@@ -12,6 +12,9 @@
                 @if ($barang->isSn())<span class="badge badge-teal">SN</span>@else<span class="badge badge-slate">NON_SN</span>@endif
                 <span class="badge badge-slate">{{ $barang->status }}</span>
             </p>
+            @if ($barang->merk || $barang->varian || $barang->ukuran_ban)
+            <p class="page-head-subtitle mt-1">{{ $barang->merk ?? '-' }} · {{ $barang->varian ?? '-' }} · {{ $barang->ukuran_ban ?? '-' }}</p>
+            @endif
         </div>
         @if (! $publik)
         <a href="{{ route('barang.edit', $barang) }}" class="btn btn-primary">
@@ -29,6 +32,9 @@
             <div class="grid grid-cols-1 gap-x-6 gap-y-3 p-5 sm:grid-cols-2">
                 <div><span class="text-label-caps font-bold text-secondary">Kode Barang</span><div class="mono text-body-md">{{ $barang->kode_barang }}</div></div>
                 <div><span class="text-label-caps font-bold text-secondary">Satuan</span><div class="text-body-md">{{ $barang->satuan }}</div></div>
+                <div><span class="text-label-caps font-bold text-secondary">Merk</span><div class="text-body-md">{{ $barang->merk ?? '-' }}</div></div>
+                <div><span class="text-label-caps font-bold text-secondary">Varian</span><div class="text-body-md">{{ $barang->varian ?? '-' }}</div></div>
+                <div><span class="text-label-caps font-bold text-secondary">Ukuran Ban</span><div class="mono text-body-md">{{ $barang->ukuran_ban ?? '-' }}</div></div>
                 <div><span class="text-label-caps font-bold text-secondary">Harga Beli Terakhir</span><div class="text-body-md">{{ rupiah($barang->harga_beli_terakhir) }}</div></div>
                 <div><span class="text-label-caps font-bold text-secondary">Harga Jual</span><div class="text-body-md font-semibold text-primary">{{ rupiah($barang->harga_jual) }}</div></div>
                 <div><span class="text-label-caps font-bold text-secondary">Margin</span><div class="text-body-md">{{ $barang->margin_override !== null ? $barang->margin_override . '% (override)' : 'Global' }}</div></div>

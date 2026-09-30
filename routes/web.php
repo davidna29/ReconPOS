@@ -9,6 +9,7 @@ use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\PembelianController;
 use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\PenjualanController;
+use App\Http\Controllers\RekapStokController;
 use App\Http\Controllers\StokTrackingController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\Publik\BarangController as PublikBarangController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Publik\LandingController as PublikLandingController;
 use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
 use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
 use App\Http\Controllers\Publik\PinController as PublikPinController;
+use App\Http\Controllers\Publik\RekapStokController as PublikRekapStokController;
 use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
 use App\Http\Middleware\PublikPinMiddleware;
 use Illuminate\Support\Facades\Route;
@@ -56,6 +58,9 @@ Route::middleware('auth')->group(function () {
 
     // ---- Tracking Stok ----
     Route::get('/stok-tracking', [StokTrackingController::class, 'index'])->name('stok-tracking.index');
+
+    // ---- Rekap Stok per Merk (Merk → Varian → Ukuran) ----
+    Route::get('/rekap-stok', [RekapStokController::class, 'index'])->name('rekap-stok.index');
 
     // ---- Data Supplier (PRD 4.4) ----
     Route::get('/supplier', [SupplierController::class, 'index'])->name('supplier.index');
@@ -163,6 +168,8 @@ Route::prefix('publik')->name('publik.')->group(function () {
     Route::get('/barang/{barang}/barcode', [PublikBarangController::class, 'cetakBarcode'])->name('barang.barcode');
 
     Route::get('/stok-tracking', [PublikStokTrackingController::class, 'index'])->name('stok-tracking.index');
+
+    Route::get('/rekap-stok', [PublikRekapStokController::class, 'index'])->name('rekap-stok.index');
 
     Route::get('/pembelian/hutang', [PublikPembelianController::class, 'hutang'])->name('pembelian.invoice-hutang');
     Route::get('/pembelian/lunas', [PublikPembelianController::class, 'lunas'])->name('pembelian.invoice-lunas');

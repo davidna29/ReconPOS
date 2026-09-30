@@ -103,7 +103,7 @@ class ExcelImportService
 
     private function tulisTemplateBarang($barangs): string
     {
-        $headers = ['KODE_BARANG', 'NAMA_BARANG', 'DESKRIPSI', 'KATEGORI', 'SATUAN', 'SN_ATAU_NON_SN', 'HARGA_JUAL', 'STOCK_AWAL', 'LOKASI_RAK', 'STATUS'];
+        $headers = ['KODE_BARANG', 'NAMA_BARANG', 'DESKRIPSI', 'KATEGORI', 'SATUAN', 'SN_ATAU_NON_SN', 'HARGA_JUAL', 'STOCK_AWAL', 'LOKASI_RAK', 'STATUS', 'MERK', 'VARIAN', 'UKURAN_BAN'];
         $col = fn (string $h) => chr(ord('A') + array_search($h, $headers, true));
 
         $spreadsheet = new Spreadsheet();
@@ -125,6 +125,9 @@ class ExcelImportService
             $sheet->setCellValue($col('STOCK_AWAL') . $row, ''); // hanya utk barang baru
             $sheet->setCellValue($col('LOKASI_RAK') . $row, $b->lokasi_rak ?? '');
             $sheet->setCellValue($col('STATUS') . $row, $b->status);
+            $sheet->setCellValue($col('MERK') . $row, $b->merk ?? '');
+            $sheet->setCellValue($col('VARIAN') . $row, $b->varian ?? '');
+            $sheet->setCellValue($col('UKURAN_BAN') . $row, $b->ukuran_ban ?? '');
             $row++;
         }
 
@@ -138,6 +141,8 @@ class ExcelImportService
         $petunjuk->setCellValue('A3', 'Tambah baris di bawah utk SKU baru; kolom STOCK_AWAL hanya berlaku utk barang baru.');
         $petunjuk->setCellValue('A4', 'HARGA_JUAL hanya dipakai utk SKU mode "Kunci Manual"; mode otomatis dihitung dari margin.');
         $petunjuk->setCellValue('A5', 'KATEGORI: pilih dari dropdown (kategori baru bisa dibuat lewat aplikasi).');
+        $petunjuk->setCellValue('A6', 'MERK / VARIAN / UKURAN_BAN: teks bebas (maks 100/100/50 karakter), dipakai laman Rekap Stok per Merk. Sel kosong = pertahankan nilai lama saat update.');
+        $petunjuk->setCellValue('A7', 'Kolom lain di luar daftar header (mis. FLAG/catatan kerja) diabaikan saat upload.');
         $petunjuk->getColumnDimension('A')->setWidth(120);
 
         return $this->simpanSpreadsheet($spreadsheet, 'template-barang');
@@ -448,8 +453,24 @@ class ExcelImportService
                 $errors[] = 'Baris ' . $no . ': STATUS tidak dikenal (' . $status . ').';
                 continue;
             }
-            $hargaJual = $r['HARGA_JUAL'] !== '' && $r['HARGA_JUAL'] !== null ? (int) round((float) $r['HARGA_JUAL']) : null;
-            $stokAwal = $r['STOCK_AWAL'] !== '' && $r['STOCK_AWAL'] !== null ? (int) round((float) $r['STOCK_AWAL']) : null;
+            // Atribut ban: teks bebas, normalisasi spasi (kolom lain spt FLAG diabaikan).
+            $merk = normalisasi_teks($r['MERK'] ?? null);
+            $varian = normalisasi_teks($r['VARIAN'] ?? null);
+            $ukuran = normalisasi_teks($r['UKURAN_BAN'] ?? null);
+            if ($merk !== null && mb_strlen($merk) > 100) {
+                $errors[] = 'Baris ' . $no . ': MERK maksimal 100 karakter.';
+                continue;
+            }
+            if ($varian !== null && mb_strlen($varian) > 100) {
+                $errors[] = 'Baris ' . $no . ': VARIAN maksimal 100 karakter.';
+                continue;
+            }
+            if ($ukuran !== null && mb_strlen($ukuran) > 50) {
+                $errors[] = 'Baris ' . $no . ': UKURAN_BAN maksimal 50 karakter.';
+                continue;
+            }
+            $hargaJual = ($r['HARGA_JUAL'] ?? '') !== '' && ($r['HARGA_JUAL'] ?? null) !== null ? (int) round((float) $r['HARGA_JUAL']) : null;
+            $stokAwal = ($r['STOCK_AWAL'] ?? '') !== '' && ($r['STOCK_AWAL'] ?? null) !== null ? (int) round((float) $r['STOCK_AWAL']) : null;
             if ($stokAwal !== null && $stokAwal < 0) {
                 $errors[] = 'Baris ' . $no . ': STOCK_AWAL tidak boleh negatif.';
                 continue;
@@ -461,6 +482,9 @@ class ExcelImportService
                 'nama' => $nama,
                 'deskripsi' => trim((string) ($r['DESKRIPSI'] ?? '')),
                 'kategori' => $kategori,
+                'merk' => $merk,
+                'varian' => $varian,
+                'ukuran_ban' => $ukuran,
                 'satuan' => trim((string) ($r['SATUAN'] ?? 'pcs')) ?: 'pcs',
                 'sn' => $sn,
                 'harga_jual' => $hargaJual,
@@ -487,10 +511,14 @@ class ExcelImportService
                 $barang = Barang::whereRaw('UPPER(kode_barang) = ?', [$r['kode_unik']])->first();
                 if ($barang) {
                     // update non-destruktif: Harga Beli tidak berubah lewat jalur ini (PRD 4.3c)
+                    // sel MERK/VARIAN/UKURAN kosong = pertahankan nilai lama
                     $barang->update([
                         'nama' => $r['nama'],
                         'deskripsi' => $r['deskripsi'] ?: $barang->deskripsi,
                         'kategori_id' => $kategoriId ?: $barang->kategori_id,
+                        'merk' => $r['merk'] ?? $barang->merk,
+                        'varian' => $r['varian'] ?? $barang->varian,
+                        'ukuran_ban' => $r['ukuran_ban'] ?? $barang->ukuran_ban,
                         'satuan' => $r['satuan'],
                         'sn_atau_non_sn' => $r['sn'],
                         'lokasi_rak' => $r['lokasi'] ?: $barang->lokasi_rak,
@@ -515,6 +543,9 @@ class ExcelImportService
                         'nama' => $r['nama'],
                         'deskripsi' => $r['deskripsi'] ?: null,
                         'kategori_id' => $kategoriId,
+                        'merk' => $r['merk'],
+                        'varian' => $r['varian'],
+                        'ukuran_ban' => $r['ukuran_ban'],
                         'satuan' => $r['satuan'],
                         'sn_atau_non_sn' => $r['sn'],
                         'mode_harga_jual' => $mode,

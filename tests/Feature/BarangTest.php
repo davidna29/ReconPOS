@@ -88,4 +88,51 @@ class BarangTest extends TestCase
         $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-MD', 'nama' => 'M', 'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis']);
         $this->get(route('barang.edit', $b))->assertSee('harga-jual-input', false);
     }
+
+    public function test_store_menyimpan_merk_varian_ukuran_dengan_normalisasi(): void
+    {
+        $this->authUser();
+        $this->post(route('barang.store'), [
+            'kode_barang' => 'BL-26570R17-SAV-MTP', 'nama' => 'BAN LUAR 265/70 R17 SAVERO M/T PRO',
+            'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis', 'status' => 'Dijual & Untuk Servis',
+            'merk' => '  Gajah Tunggal   (GT) ', 'varian' => 'SAVERO  M/T PRO', 'ukuran_ban' => '265/70  R17',
+        ])->assertSessionHas('success');
+
+        $b = Barang::where('kode_barang', 'BL-26570R17-SAV-MTP')->firstOrFail();
+        $this->assertSame('Gajah Tunggal (GT)', $b->merk);
+        $this->assertSame('SAVERO M/T PRO', $b->varian);
+        $this->assertSame('265/70 R17', $b->ukuran_ban);
+        $this->get(route('barang.index'))->assertSee('Gajah Tunggal (GT)');
+    }
+
+    public function test_update_merk_varian_ukuran_dan_validasi_maks(): void
+    {
+        $this->authUser();
+        $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-MVU', 'nama' => 'Ban', 'sn_atau_non_sn' => 'NON_SN']);
+        $this->put(route('barang.update', $b), [
+            'nama' => 'Ban', 'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis', 'status' => 'Dijual',
+            'merk' => 'HANKOOK', 'varian' => 'VANTRA', 'ukuran_ban' => '195 R15',
+        ])->assertSessionHas('success');
+        $this->assertSame('HANKOOK', $b->fresh()->merk);
+
+        $this->put(route('barang.update', $b), [
+            'nama' => 'Ban', 'sn_atau_non_sn' => 'NON_SN', 'mode_harga_jual' => 'otomatis', 'status' => 'Dijual',
+            'merk' => str_repeat('M', 101),
+        ])->assertSessionHasErrors('merk');
+    }
+
+    public function test_index_filter_merk_dan_cari_kena_ukuran(): void
+    {
+        $this->authUser();
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-GT', 'nama' => 'Ban GT', 'sn_atau_non_sn' => 'NON_SN', 'merk' => 'Gajah Tunggal (GT)', 'ukuran_ban' => '265/70 R17']);
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-HK', 'nama' => 'Ban HK', 'sn_atau_non_sn' => 'NON_SN', 'merk' => 'HANKOOK', 'ukuran_ban' => '195 R15']);
+
+        // strip "Baru Ditambahkan" tidak ikut filter → assert pada sel tabel (markup unik per baris)
+        $selGT = '<td data-label="Kode Barang" class="mono text-secondary">B-GT</td>';
+        $selHK = '<td data-label="Kode Barang" class="mono text-secondary">B-HK</td>';
+
+        $this->get(route('barang.index', ['merk' => 'HANKOOK']))->assertOk()->assertSee($selHK, false)->assertDontSee($selGT, false);
+        $this->get(route('barang.index', ['q' => '265/70']))->assertOk()->assertSee($selGT, false)->assertDontSee($selHK, false);
+        $this->get(route('barang.index'))->assertOk()->assertSee('Semua merk');
+    }
 }
