@@ -29,6 +29,20 @@ class PenjualanService
     }
 
     /**
+     * Nomor nota gabungan manual+rekonstruksi: INV-YYYYMMDD-NNNN, urut per hari
+     * lintas semua sumber (maks global hari itu + 1). Prefix lama (TRX-/GEN-)
+     * tetap valid utk riwayat; hanya nota BARU yg memakai INV-.
+     */
+    public function buatNoRefInv(Carbon $tgl): string
+    {
+        $prefix = 'INV-' . $tgl->format('Ymd') . '-';
+        $last = TransaksiPenjualan::where('ref_transaksi', 'like', $prefix . '%')->max('ref_transaksi');
+        $seq = $last ? ((int) substr($last, -4)) + 1 : 1;
+
+        return $prefix . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Simpan penjualan manual (kasir-lite): langsung tersimpan, customer_id = 0 (PRD 4.2).
      * @param array $items [{barang_id, qty, harga_jual}]
      */
@@ -85,7 +99,7 @@ class PenjualanService
             }
 
             $trx = TransaksiPenjualan::create([
-                'ref_transaksi' => $this->buatNoRef($tanggal, 'TRX'),
+                'ref_transaksi' => $this->buatNoRefInv($tanggal),
                 'tanggal_waktu' => $tanggal,
                 'customer_id' => 0,
                 'jenis_transaksi' => 'cash',

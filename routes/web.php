@@ -128,6 +128,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/export', [ExportController::class, 'index'])->name('export.index');
     Route::post('/export/format-a', [ExportController::class, 'downloadFormatA'])->name('export.format-a');
     Route::post('/export/format-b', [ExportController::class, 'downloadFormatB'])->name('export.format-b');
+    Route::post('/export/format-b-pdf', [ExportController::class, 'downloadFormatBPdf'])->name('export.format-b-pdf');
     Route::post('/export/{exportBatch}/tandai', [ExportController::class, 'tandaiUpload'])->name('export.tandai');
     Route::delete('/export/{exportBatch}', [ExportController::class, 'destroy'])->name('export.destroy');
     Route::get('/export/{exportBatch}/unduh/{index}', [ExportController::class, 'unduh'])->name('export.unduh');

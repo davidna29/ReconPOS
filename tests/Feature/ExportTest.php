@@ -71,6 +71,79 @@ class ExportTest extends TestCase
         $this->assertFileExists($path);
     }
 
+    public function test_format_b_memuat_identitas_toko_dan_warna_header(): void
+    {
+        $this->authUser();
+        \App\Models\TokoSetting::utama()->update([
+            'nama_toko' => 'Terminal Ban 1', 'alamat' => 'Jl. Raya No. 1',
+            'telepon' => '0811', 'npwp' => '01.234.567.8-901.000',
+        ]);
+        $this->buatPenjualan();
+        $svc = app(ExportPosService::class);
+        $hasil = $svc->buildFormatB(now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d'));
+
+        $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+        $sheet = $reader->load($svc->pathFile($hasil['files'][0]))->getActiveSheet();
+        $teks = static function ($cell) use ($sheet) {
+            $max = $sheet->getHighestRow();
+            for ($r = 1; $r <= $max; $r++) {
+                if (str_contains((string) $sheet->getCell($cell[0] . $r)->getValue(), $cell[1])) {
+                    return $r;
+                }
+            }
+            return 0;
+        };
+
+        // identitas toko + judul + NPWP tampil
+        $this->assertGreaterThan(0, $teks(['A', 'Terminal Ban 1']));
+        $this->assertGreaterThan(0, $teks(['A', 'Jl. Raya No. 1']));
+        $this->assertGreaterThan(0, $teks(['A', '01.234.567.8-901.000']));
+        $this->assertGreaterThan(0, $teks(['A', 'LAPORAN PENJUALAN']));
+
+        // baris header ber-fill ungu brand + font putih bold
+        $barisHeader = $teks(['A', 'Tanggal Transaksi']);
+        $this->assertGreaterThan(0, $barisHeader);
+        $style = $sheet->getStyle('A' . $barisHeader);
+        $this->assertSame('FF6D28D9', $style->getFill()->getStartColor()->getARGB());
+        $this->assertTrue($style->getFont()->getBold());
+        $this->assertSame('FFFFFFFF', $style->getFont()->getColor()->getARGB());
+
+        // baris TOTAL di kaki tabel
+        $this->assertGreaterThan($barisHeader, $teks(['A', 'TOTAL']));
+    }
+
+    public function test_format_b_pdf_menghasilkan_pdf_dan_tercatat(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+        $svc = app(ExportPosService::class);
+        $hasil = $svc->buildFormatBPdf(now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d'));
+
+        $this->assertTrue($hasil['ok']);
+        $path = $svc->pathFile($hasil['files'][0]);
+        $this->assertFileExists($path);
+        $this->assertStringStartsWith('%PDF', (string) file_get_contents($path));
+        $this->assertDatabaseHas('export_batch', ['format' => 'B-PDF', 'status_upload_manual' => false]);
+
+        // unduh ulang via riwayat + hapus ikut menghapus file fisik
+        $batch = \App\Models\ExportBatch::where('format', 'B-PDF')->firstOrFail();
+        $this->get(route('export.unduh', [$batch, 0]))->assertOk();
+        $this->delete(route('export.destroy', $batch))->assertSessionHas('success');
+        $this->assertFileDoesNotExist($path);
+    }
+
+    public function test_http_format_b_pdf_memakai_filter_yang_sama(): void
+    {
+        $this->authUser();
+        $this->buatPenjualan();
+
+        $this->post(route('export.format-b-pdf'), [
+            'periode_mulai' => now()->startOfMonth()->format('Y-m-d'),
+            'periode_selesai' => now()->endOfMonth()->format('Y-m-d'),
+        ])->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertDatabaseHas('export_batch', ['format' => 'B-PDF']);
+    }
+
     public function test_tandai_upload_manual(): void
     {
         $this->authUser();

@@ -62,7 +62,7 @@
                 <h3 class="text-headline-sm text-on-surface">Format B — Laporan / Arsip Internal</h3>
             </div>
             <p class="mb-4 text-body-sm text-secondary">
-                Laporan manusiawi dengan baris ringkasan (total omset, jumlah nota, jumlah item). Excel (.xlsx).
+                Laporan manusiawi dengan baris ringkasan (total omset, jumlah nota, jumlah item). Excel (.xlsx) atau PDF.
             </p>
             <form method="POST" action="{{ route('export.format-b') }}" data-export-form class="flex flex-col gap-3">
                 @csrf
@@ -89,9 +89,14 @@
                         <option value="rekonstruksi">Rekonstruksi saja</option>
                     </select>
                 </div>
-                <button class="btn btn-success self-start shadow-sm">
-                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span> Unduh Format B (XLSX)
-                </button>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-success shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span> Unduh Format B (XLSX)
+                    </button>
+                    <button class="btn btn-secondary shadow-sm" formaction="{{ route('export.format-b-pdf') }}">
+                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">picture_as_pdf</span> Unduh Format B (PDF)
+                    </button>
+                </div>
             </form>
         </div>
     </div>

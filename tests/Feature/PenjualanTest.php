@@ -391,4 +391,22 @@ class PenjualanTest extends TestCase
             ->assertOk()
             ->assertSee('data-delete-ajax', false);
     }
+
+    public function test_nomor_inv_gabungan_manual_urut_per_hari(): void
+    {
+        $this->authUser();
+        $this->beliDanJual('P-INV', 10, 50000, 1, 60000);
+        $trx = TransaksiPenjualan::where('sumber', 'manual')->firstOrFail();
+        $tgl = $trx->tanggal_waktu->format('Ymd');
+
+        // manual memakai prefix INV- + urut per hari
+        $this->assertStringStartsWith('INV-' . $tgl . '-', $trx->ref_transaksi);
+
+        // nota manual berikutnya di hari yg sama naik 1 nomor
+        $berikut = app(PenjualanService::class)->buatNoRefInv($trx->tanggal_waktu);
+        $this->assertSame('INV-' . $tgl . '-' . str_pad((string) ((int) substr($trx->ref_transaksi, -4) + 1), 4, '0', STR_PAD_LEFT), $berikut);
+        // hari beda mulai lagi dari 0001
+        $lain = app(PenjualanService::class)->buatNoRefInv($trx->tanggal_waktu->copy()->addDay());
+        $this->assertStringEndsWith('-0001', $lain);
+    }
 }

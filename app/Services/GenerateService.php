@@ -1202,12 +1202,13 @@ class GenerateService
     /**
      * Generate REF_TRANSAKSI unik global: naikkan seq sampai tidak ada ref yang sama
      * (termasuk ref milik batch yang dibatalkan — tetap tersimpan utk audit).
+     * Prefix INV- dipakai bersama penjualan manual (gabungan, urut per hari).
      */
     private function refBebas(string $dayKey, int &$seq): string
     {
         do {
             $seq++;
-            $ref = 'GEN-' . $dayKey . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+            $ref = 'INV-' . $dayKey . '-' . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
         } while (TransaksiPenjualan::where('ref_transaksi', $ref)->exists());
 
         return $ref;

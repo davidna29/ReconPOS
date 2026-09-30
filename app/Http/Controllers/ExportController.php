@@ -82,6 +82,30 @@ class ExportController extends Controller
         }
     }
 
+    /** Export Format B versi PDF — laporan arsip internal siap cetak. */
+    public function downloadFormatBPdf(Request $request)
+    {
+        $validated = $request->validate([
+            'periode_mulai' => ['nullable', 'date'],
+            'periode_selesai' => ['nullable', 'date'],
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'sumber' => ['nullable', 'in:manual,rekonstruksi'],
+        ]);
+
+        try {
+            $hasil = $this->service->buildFormatBPdf(
+                $validated['periode_mulai'] ?? null,
+                $validated['periode_selesai'] ?? null,
+                $validated['bulan'] ?? null,
+                $validated['sumber'] ?? null,
+            );
+
+            return response()->download($this->service->pathFile($hasil['files'][0]), $hasil['files'][0]);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
     /** Unduh file export tertentu (divalidasi terhadap export_batch — PRD 5.5 keamanan file). */
     public function unduh(ExportBatch $exportBatch, int $index)
     {

@@ -8,7 +8,12 @@ use App\Models\TokoSetting;
 use App\Models\TransaksiPenjualan;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
+use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
@@ -133,7 +138,12 @@ class ExportPosService
     /**
      * Export Format B — laporan/arsip internal + ringkasan (PRD 8c).
      */
-    public function buildFormatB(?string $mulai, ?string $selesai, ?string $bulan = null, ?string $sumber = null): array
+    /**
+     * Kumpulkan data Format B (dipakai Excel & PDF agar query/agregat identik).
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: array, 3: Carbon, 4: Carbon}
+     */
+    private function kumpulkanFormatB(?string $mulai, ?string $selesai, ?string $bulan, ?string $sumber): array
     {
         [$from, $to] = $this->resolvePeriode($mulai, $selesai, $bulan);
 
@@ -176,16 +186,54 @@ class ExportPosService
         $jumlahNota = $transaksi->count();
         $jumlahItem = (int) $transaksi->sum(fn ($t) => $t->items->sum('qty'));
 
-        $nama = 'laporan-penjualan-' . now()->format('Ymd-His') . '.xlsx';
-        $this->tulisLaporan($nama, $mapping, $rows, [
+        return [$transaksi, $mapping, $rows, [
             'Total Omset Periode' => $totalOmset,
             'Jumlah Nota' => $jumlahNota,
             'Jumlah Item Terjual' => $jumlahItem,
             'Periode' => $from->format('d/m/Y') . ' - ' . $to->format('d/m/Y'),
-        ]);
+        ], $from, $to];
+    }
+
+    public function buildFormatB(?string $mulai, ?string $selesai, ?string $bulan = null, ?string $sumber = null): array
+    {
+        [$transaksi, $mapping, $rows, $ringkasan, $from, $to] = $this->kumpulkanFormatB($mulai, $selesai, $bulan, $sumber);
+
+        $nama = 'laporan-penjualan-' . now()->format('Ymd-His') . '.xlsx';
+        $this->tulisLaporan($nama, $mapping, $rows, $ringkasan);
 
         $batch = ExportBatch::create([
             'format' => 'B',
+            'filter_mulai' => $from->toDateString(),
+            'filter_selesai' => $to->toDateString(),
+            'filter_bulan' => $bulan,
+            'jumlah_file' => 1,
+            'file_names' => [$nama],
+            'status_upload_manual' => false,
+        ]);
+
+        return ['ok' => true, 'files' => [$nama], 'errors' => [], 'export_batch' => $batch];
+    }
+
+    /**
+     * Format B versi PDF — data & agregat identik dgn Excel (satu query).
+     * Tercatat di riwayat sebagai format 'B-PDF' agar unduh/hapus/tandai tetap jalan.
+     */
+    public function buildFormatBPdf(?string $mulai, ?string $selesai, ?string $bulan = null, ?string $sumber = null): array
+    {
+        [$transaksi, $mapping, $rows, $ringkasan, $from, $to] = $this->kumpulkanFormatB($mulai, $selesai, $bulan, $sumber);
+
+        $nama = 'laporan-penjualan-' . now()->format('Ymd-His') . '.pdf';
+        $pdf = Pdf::loadView('export.format-b-pdf', [
+            'toko' => TokoSetting::utama(),
+            'mapping' => $mapping,
+            'rows' => $rows,
+            'ringkasan' => $ringkasan,
+            'sumber' => $sumber,
+        ])->setPaper('a4', 'landscape');
+        file_put_contents($this->pathFile($nama), $pdf->output());
+
+        $batch = ExportBatch::create([
+            'format' => 'B-PDF',
             'filter_mulai' => $from->toDateString(),
             'filter_selesai' => $to->toDateString(),
             'filter_bulan' => $bulan,
@@ -286,32 +334,102 @@ class ExportPosService
         $sheet->setTitle('LAPORAN_PENJUALAN');
 
         $headers = array_column($mapping, 'nama_kolom');
-        $colAwal = 'A';
-        $barisHeader = 1;
+        $kolomAkhir = chr(ord('A') + count($headers) - 1);
+        $toko = TokoSetting::utama();
 
-        // baris ringkasan di awal
-        $barisRingkasanMulai = 1;
-        $barisHeader = $barisRingkasanMulai + count($ringkasan) + 1;
+        $ungu = '6D28D9';
+        $abuMuda = 'F3F3FE';
+        $hijauMuda = 'E6F4EA';
+        $borderTipis = [
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FFC3C6D7']]],
+        ];
 
+        $baris = 1;
+        // Kop identitas toko
+        $sheet->setCellValue('A' . $baris, $toko->nama_toko ?: 'ReconPOS');
+        $sheet->getStyle('A' . $baris)->getFont()->setBold(true)->setSize(16)->getColor()->setARGB('FF' . $ungu);
+        foreach (array_filter([$toko->alamat, $toko->telepon ? 'Telp: ' . $toko->telepon : null, $toko->npwp ? 'NPWP: ' . $toko->npwp : null]) as $info) {
+            $sheet->setCellValue('A' . ++$baris, $info);
+            $sheet->getStyle('A' . $baris)->getFont()->setSize(11)->getColor()->setARGB('FF3F4756');
+        }
+        $sheet->setCellValue('A' . ++$baris, 'LAPORAN PENJUALAN — ' . ($ringkasan['Periode'] ?? ''));
+        $sheet->getStyle('A' . $baris)->getFont()->setBold(true)->setSize(13);
+        $baris++;
+
+        // Ringkasan
+        $barisRingkasan = $baris;
         foreach ($ringkasan as $label => $nilai) {
-            $sheet->setCellValue('A' . $barisRingkasanMulai++, $label);
-            $sheet->setCellValue('B' . ($barisRingkasanMulai - 1), $nilai);
+            if ($label === 'Periode') {
+                continue; // sudah di judul
+            }
+            $sheet->setCellValue('A' . $baris, $label);
+            $sheet->setCellValue('B' . $baris, $nilai);
+            $sheet->getStyle('A' . $baris)->getFont()->setBold(true);
+            $baris++;
         }
+        $sheet->getStyle('A' . $barisRingkasan . ':B' . ($baris - 1))->applyFromArray($borderTipis);
+        $sheet->getStyle('A' . $barisRingkasan . ':B' . ($baris - 1))->getFill()
+            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF' . $hijauMuda);
+        $baris++;
 
+        // Header tabel: ungu brand + putih bold + border
+        $barisHeader = $baris;
         foreach ($headers as $i => $h) {
-            $sheet->setCellValue(chr(ord($colAwal) + $i) . $barisHeader, $h);
+            $sheet->setCellValue(chr(ord('A') + $i) . $barisHeader, $h);
         }
-        $sheet->getStyle('A' . $barisHeader . ':' . chr(ord($colAwal) + count($headers) - 1) . $barisHeader)->getFont()->setBold(true);
+        $rentangHeader = 'A' . $barisHeader . ':' . $kolomAkhir . $barisHeader;
+        $sheet->getStyle($rentangHeader)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle($rentangHeader)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF' . $ungu);
+        $sheet->getStyle($rentangHeader)->applyFromArray($borderTipis);
+        $sheet->getStyle($rentangHeader)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
+        // Isi: zebra + border + format angka ribuan utk kolom int
+        $kolomInt = [];
+        foreach ($mapping as $i => $m) {
+            if (($m['format'] ?? '') === 'int') {
+                $kolomInt[] = chr(ord('A') + $i);
+            }
+        }
         $rowIdx = $barisHeader + 1;
-        foreach ($rows as $row) {
+        foreach ($rows as $n => $row) {
             $col = 0;
             foreach ($headers as $h) {
-                $sheet->setCellValue(chr(ord($colAwal) + $col) . $rowIdx, $row[$h] ?? '');
+                $sheet->setCellValue(chr(ord('A') + $col) . $rowIdx, $row[$h] ?? '');
                 $col++;
+            }
+            $rentangBaris = 'A' . $rowIdx . ':' . $kolomAkhir . $rowIdx;
+            $sheet->getStyle($rentangBaris)->applyFromArray($borderTipis);
+            if ($n % 2 === 1) {
+                $sheet->getStyle($rentangBaris)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF' . $abuMuda);
             }
             $rowIdx++;
         }
+        foreach ($kolomInt as $kolom) {
+            if ($rowIdx > $barisHeader + 1) {
+                $sheet->getStyle($kolom . ($barisHeader + 1) . ':' . $kolom . ($rowIdx - 1))
+                    ->getNumberFormat()->setFormatCode('#,##0');
+            }
+        }
+
+        // Baris total omset di kaki tabel
+        $sheet->setCellValue('A' . $rowIdx, 'TOTAL');
+        $sheet->setCellValue('B' . $rowIdx, $ringkasan['Total Omset Periode'] ?? 0);
+        $sheet->getStyle('A' . $rowIdx . ':' . $kolomAkhir . $rowIdx)->getFont()->setBold(true);
+        $sheet->getStyle('A' . $rowIdx . ':' . $kolomAkhir . $rowIdx)->getFill()
+            ->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF' . $hijauMuda);
+        $sheet->getStyle('B' . $rowIdx)->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getStyle('A' . $rowIdx . ':' . $kolomAkhir . $rowIdx)->applyFromArray($borderTipis);
+
+        // Lebar kolom, bekukan header, setelan cetak
+        $lebar = [22, 20, 34, 10, 16, 16, 18, 14];
+        foreach ($headers as $i => $h) {
+            $sheet->getColumnDimension(chr(ord('A') + $i))->setWidth($lebar[$i] ?? 18);
+        }
+        $sheet->freezePane('A' . ($barisHeader + 1));
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+        $sheet->getPageSetup()->setFitToPage(true);
+        $sheet->getPageSetup()->setFitToWidth(1);
+        $sheet->getPageSetup()->setFitToHeight(0);
 
         $this->simpanXlsx($spreadsheet, $nama);
     }

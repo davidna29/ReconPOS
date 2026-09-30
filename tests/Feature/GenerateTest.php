@@ -379,7 +379,7 @@ class GenerateTest extends TestCase
         $this->get(route('generate.riwayat'))
             ->assertOk()
             ->assertSee('Detail Nota')
-            ->assertSee('GEN-');
+            ->assertSee('INV-');
     }
 
     public function test_index_penjualan_menyatu_manual_dan_rekonstruksi(): void
