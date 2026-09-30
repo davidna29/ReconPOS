@@ -69,6 +69,12 @@
                     <span class="nav-label">Rekap Stok</span>
                 </a>
             </li>
+            <li>
+                <a class="nav-link {{ request()->routeIs('beban-hutang.*', 'publik.beban-hutang.*') ? 'nav-link-active' : '' }}" href="{{ route(($publik ? 'publik.' : '') . 'beban-hutang.index') }}" title="Beban Hutang per Cabang" @if (request()->routeIs('beban-hutang.*', 'publik.beban-hutang.*')) aria-current="page" @endif>
+                    <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
+                    <span class="nav-label">Beban Hutang</span>
+                </a>
+            </li>
             @if (! $publik)
             <li class="nav-section" aria-hidden="true">Admin</li>
             <li>

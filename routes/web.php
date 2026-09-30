@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BarangController;
+use App\Http\Controllers\BebanHutangController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\GenerateController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Publik\LandingController as PublikLandingController;
 use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
 use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
 use App\Http\Controllers\Publik\PinController as PublikPinController;
+use App\Http\Controllers\Publik\BebanHutangController as PublikBebanHutangController;
 use App\Http\Controllers\Publik\RekapStokController as PublikRekapStokController;
 use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
 use App\Http\Middleware\PublikPinMiddleware;
@@ -61,6 +63,12 @@ Route::middleware('auth')->group(function () {
 
     // ---- Rekap Stok per Merk (Merk → Varian → Ukuran) ----
     Route::get('/rekap-stok', [RekapStokController::class, 'index'])->name('rekap-stok.index');
+
+    // ---- Beban Hutang per Cabang (pemilahan + rekap, hutang saja) ----
+    Route::get('/beban-hutang', [BebanHutangController::class, 'index'])->name('beban-hutang.index');
+    Route::post('/beban-hutang/tetapkan', [BebanHutangController::class, 'tetapkan'])->name('beban-hutang.tetapkan');
+    Route::get('/beban-hutang/template/download', [BebanHutangController::class, 'downloadTemplate'])->name('beban-hutang.template.download');
+    Route::post('/beban-hutang/template/import', [BebanHutangController::class, 'importTemplate'])->name('beban-hutang.template.import');
 
     // ---- Data Supplier (PRD 4.4) ----
     Route::get('/supplier', [SupplierController::class, 'index'])->name('supplier.index');
@@ -170,6 +178,8 @@ Route::prefix('publik')->name('publik.')->group(function () {
     Route::get('/stok-tracking', [PublikStokTrackingController::class, 'index'])->name('stok-tracking.index');
 
     Route::get('/rekap-stok', [PublikRekapStokController::class, 'index'])->name('rekap-stok.index');
+
+    Route::get('/beban-hutang', [PublikBebanHutangController::class, 'index'])->name('beban-hutang.index');
 
     Route::get('/pembelian/hutang', [PublikPembelianController::class, 'hutang'])->name('pembelian.invoice-hutang');
     Route::get('/pembelian/lunas', [PublikPembelianController::class, 'lunas'])->name('pembelian.invoice-lunas');

@@ -11,7 +11,14 @@ class InvoicePembelian extends Model
     protected $fillable = [
         'no_invoice', 'supplier_id', 'tanggal_transaksi', 'jenis',
         'diskon_total', 'ppn', 'subtotal', 'total_setelah_diskon',
-        'bayar_atau_dp', 'jatuh_tempo', 'sisa_hutang', 'status', 'sumber',
+        'bayar_atau_dp', 'jatuh_tempo', 'sisa_hutang', 'status', 'sumber', 'cabang',
+    ];
+
+    /** Saran cabang utk datalist/dropdown (teks bebas, boleh bertambah tanpa migrasi). */
+    public const CABANG_SARAN = [
+        'TERMINAL BAN 1',
+        'TERMINAL BAN 2',
+        'TERMINAL BAN 3',
     ];
 
     protected function casts(): array
@@ -46,5 +53,13 @@ class InvoicePembelian extends Model
     public function sudahLunas(): bool
     {
         return $this->status === 'lunas';
+    }
+
+    /** Label cabang utk grouping Rekap Beban Hutang (NULL/'' → 'Belum Dibebani'). */
+    public function labelCabang(): string
+    {
+        $cabang = trim((string) $this->cabang);
+
+        return $cabang !== '' ? $cabang : 'Belum Dibebani';
     }
 }

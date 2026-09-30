@@ -669,11 +669,154 @@ class ExcelTemplateTest extends TestCase
         });
         $this->assertSame(0, InvoicePembelian::count()); // tidak ada data berubah
 
-        // Modal rincian ikut tampil di halaman tujuan (persisten, tanpa auto-dismiss).
+        // Modal rincian ikut tampil (persisten, tanpa auto-dismiss).
         $this->followingRedirects()->post(route('pembelian.template.import'), ['file' => $file])
             ->assertOk()
             ->assertSee('import-errors-backdrop', false)
             ->assertSee('Terjadi kesalahan membaca file Excel');
+    }
+
+
+    // ----------------------------------------------------------------------
+    // Template beban hutang: NO_INVOICE → CABANG (hutang saja)
+    // ----------------------------------------------------------------------
+
+    /** Buat file xlsx beban hutang dari baris asso [kolom alfabet => nilai]. */
+    private function buatFileBeban(array $rows): string
+    {
+        $headers = ['NO_INVOICE', 'TANGGAL', 'SUPPLIER', 'JENIS', 'TOTAL', 'SISA', 'CABANG'];
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        foreach ($rows as $r => $row) {
+            foreach ($row as $cell => $val) {
+                $sheet->setCellValue($cell . ($r + 2), $val);
+            }
+        }
+        $p = sys_get_temp_dir() . '/import-beban-' . uniqid() . '.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($p);
+
+        return $p;
+    }
+
+    private function buatFakturBeban(string $no, string $jenis = 'hutang', ?string $cabang = null): InvoicePembelian
+    {
+        return InvoicePembelian::create([
+            'no_invoice' => $no,
+            'supplier_id' => Supplier::create(['nama' => 'PT Beban ' . $no, 'kontak' => '08' . $no])->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => $jenis,
+            'subtotal' => 100000,
+            'total_setelah_diskon' => 100000,
+            'bayar_atau_dp' => 0,
+            'sisa_hutang' => $jenis === 'hutang' ? 100000 : 0,
+            'status' => $jenis === 'hutang' ? 'belum_lunas' : 'lunas',
+            'cabang' => $cabang,
+        ]);
+    }
+
+    public function test_template_beban_hanya_muat_hutang_belum_berbeban(): void
+    {
+        $this->buatFakturBeban('BEBAN-1');
+        $this->buatFakturBeban('BEBAN-2', 'hutang', 'TERMINAL BAN 1');
+        $this->buatFakturBeban('BEBAN-3', 'cash');
+
+        $path = app(ExcelImportService::class)->templateBebanHutang();
+        $reader = new XlsxReader();
+        $reader->setReadDataOnly(true);
+        $rows = array_values($reader->load($path)->getActiveSheet()->toArray(null, true, true, true));
+
+        $this->assertSame('NO_INVOICE', $rows[0]['A']);
+        $this->assertSame('CABANG', $rows[0]['G']);
+        $this->assertCount(2, $rows); // header + 1 (yg sudah berbeban & cash dikecualikan)
+        $this->assertSame('BEBAN-1', $rows[1]['A']);
+        $this->assertTrue(empty($rows[1]['G']));
+    }
+
+    public function test_import_beban_menetapkan_cabang(): void
+    {
+        $this->buatFakturBeban('BEBAN-10');
+        $this->buatFakturBeban('BEBAN-11');
+
+        $p = $this->buatFileBeban([
+            ['A' => 'BEBAN-10', 'G' => 'TERMINAL BAN 1'],
+            ['A' => 'BEBAN-11', 'G' => 'TERMINAL BAN 3'],
+        ]);
+        $hasil = app(ExcelImportService::class)->importBebanHutang($p);
+
+        $this->assertSame(2, $hasil['diperbarui']);
+        $this->assertSame('TERMINAL BAN 1', InvoicePembelian::where('no_invoice', 'BEBAN-10')->first()->cabang);
+        $this->assertSame('TERMINAL BAN 3', InvoicePembelian::where('no_invoice', 'BEBAN-11')->first()->cabang);
+    }
+
+    public function test_import_beban_all_or_nothing_dan_tolak_non_hutang(): void
+    {
+        $this->buatFakturBeban('BEBAN-20');
+        $this->buatFakturBeban('BEBAN-21', 'cash');
+
+        $p = $this->buatFileBeban([
+            ['A' => 'BEBAN-20', 'G' => 'TERMINAL BAN 2'],
+            ['A' => 'BEBAN-21', 'G' => 'TERMINAL BAN 2'], // cash → ditolak
+            ['A' => 'TIDAK-ADA', 'G' => 'TERMINAL BAN 2'], // tidak ditemukan → ditolak
+            ['A' => '', 'G' => 'TERMINAL BAN 2'], // kosong → ditolak
+        ]);
+
+        try {
+            app(ExcelImportService::class)->importBebanHutang($p);
+            $this->fail('Harus dilempar ImportFileException.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $semua = implode(' | ', $e->getErrors());
+            $this->assertStringContainsString('bukan invoice hutang', $semua);
+            $this->assertStringContainsString('tidak ditemukan', $semua);
+            $this->assertStringContainsString('NO_INVOICE wajib diisi', $semua);
+        }
+        $this->assertNull(InvoicePembelian::where('no_invoice', 'BEBAN-20')->first()->cabang); // rollback penuh
+    }
+
+    public function test_import_beban_duplikat_cabang_beda_ditolak(): void
+    {
+        $this->buatFakturBeban('BEBAN-30');
+        $p = $this->buatFileBeban([
+            ['A' => 'BEBAN-30', 'G' => 'TERMINAL BAN 1'],
+            ['A' => 'BEBAN-30', 'G' => 'TERMINAL BAN 2'],
+        ]);
+
+        try {
+            app(ExcelImportService::class)->importBebanHutang($p);
+            $this->fail('Harus dilempar ImportFileException karena duplikat cabang berbeda.');
+        } catch (\App\Exceptions\ImportFileException $e) {
+            $this->assertStringContainsString('duplikat dengan cabang berbeda', implode(' | ', $e->getErrors()));
+        }
+    }
+
+    public function test_import_beban_http_menampilkan_modal_rincian(): void
+    {
+        $user = User::create(['name' => 'Admin', 'email' => 'bebanhttp@a.id', 'password' => 'pass1234']);
+        $this->actingAs($user);
+        $this->buatFakturBeban('BEBAN-40');
+
+        $p = $this->buatFileBeban([['A' => 'BEBAN-40', 'G' => 'TERMINAL BAN 1']]);
+        $file = UploadedFile::fake()->createWithContent('beban.xlsx', (string) file_get_contents($p));
+
+        $this->post(route('beban-hutang.template.import'), ['file' => $file])
+            ->assertStatus(302)
+            ->assertSessionHas('success');
+        $this->assertSame('TERMINAL BAN 1', InvoicePembelian::where('no_invoice', 'BEBAN-40')->first()->cabang);
+
+        $p2 = $this->buatFileBeban([['A' => 'SALAH', 'G' => 'TERMINAL BAN 1']]);
+        $file2 = UploadedFile::fake()->createWithContent('beban-salah.xlsx', (string) file_get_contents($p2));
+        $this->post(route('beban-hutang.template.import'), ['file' => $file2])
+            ->assertStatus(302)
+            ->assertSessionHas('import_errors', function (array $v) {
+                return ($v['judul'] ?? '') === 'Import beban hutang gagal divalidasi'
+                    && count($v['errors'] ?? []) === 1;
+            });
+        $this->followingRedirects()->post(route('beban-hutang.template.import'), ['file' => $file2])
+            ->assertOk()
+            ->assertSee('import-errors-backdrop', false)
+            ->assertSee('tidak ditemukan');
     }
 
     public function test_import_pembelian_invalid_menampilkan_modal_rincian(): void

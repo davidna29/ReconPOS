@@ -885,6 +885,142 @@ class ExcelImportService
         ];
     }
 
+    /**
+     * Download template pemilahan Beban Hutang — prefilled faktur HUTANG yang
+     * belum berbeban (kolom CABANG kosong + dropdown 3 cabang + PETUNJUK).
+     */
+    public function templateBebanHutang(): string
+    {
+        $this->pastikanEkstensiExcel();
+
+        $headers = ['NO_INVOICE', 'TANGGAL', 'SUPPLIER', 'JENIS', 'TOTAL', 'SISA', 'CABANG'];
+        $col = fn (string $h) => chr(ord('A') + array_search($h, $headers, true));
+
+        $invoices = InvoicePembelian::with('supplier')
+            ->where('jenis', 'hutang')
+            ->whereNull('cabang')
+            ->orderBy('tanggal_transaksi')
+            ->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('DATA');
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue(chr(ord('A') + $i) . '1', $h);
+        }
+        $sheet->getStyle('A1:' . chr(ord('A') + count($headers) - 1) . '1')->getFont()->setBold(true);
+
+        $row = 2;
+        foreach ($invoices as $inv) {
+            $sheet->setCellValue($col('NO_INVOICE') . $row, $inv->no_invoice);
+            $sheet->setCellValue($col('TANGGAL') . $row, $inv->tanggal_transaksi->format('Y-m-d H:i'));
+            $sheet->setCellValue($col('SUPPLIER') . $row, $inv->supplier?->nama ?? '');
+            $sheet->setCellValue($col('JENIS') . $row, strtoupper($inv->jenis));
+            $sheet->setCellValue($col('TOTAL') . $row, $inv->total_setelah_diskon);
+            $sheet->setCellValue($col('SISA') . $row, $inv->sisa_hutang);
+            $sheet->setCellValue($col('CABANG') . $row, '');
+            $row++;
+        }
+
+        // Dropdown CABANG dari daftar saran (sheet hidden 'Daftar')
+        $daftar = $spreadsheet->createSheet();
+        $daftar->setTitle('Daftar');
+        foreach (InvoicePembelian::CABANG_SARAN as $i => $nama) {
+            $daftar->setCellValue('A' . ($i + 1), $nama);
+        }
+        $daftar->setSheetState(Worksheet::SHEETSTATE_VERYHIDDEN);
+        $v = new DataValidation();
+        $v->setSqref($col('CABANG') . '2:' . $col('CABANG') . '1000');
+        $v->setType(DataValidation::TYPE_LIST);
+        $v->setFormula1("'Daftar'!\$A\$1:\$A\$" . count(InvoicePembelian::CABANG_SARAN));
+        $v->setAllowBlank(true);
+        $v->setShowDropDown(false);
+        $sheet->setDataValidation($col('CABANG') . '2', $v);
+
+        $petunjuk = $spreadsheet->createSheet();
+        $petunjuk->setTitle('PETUNJUK');
+        $petunjuk->getColumnDimension('A')->setWidth(140);
+        foreach ([
+            'PANDUAN PEMILAHAN BEBAN HUTANG (Agar Berhasil)',
+            'Isi kolom CABANG utk tiap faktur: TERMINAL BAN 1 / TERMINAL BAN 2 / TERMINAL BAN 3 (pilih dari dropdown, JANGAN ketik manual bila ragu ejaan).',
+            'Hanya faktur HUTANG yang belum berbeban yg dimuat di template ini.',
+            'ATURAN ALL-OR-NOTHING: 1 baris salah → SELURUH file dibatalkan (tidak ada cabang yg berubah).',
+            'Upload: menu Beban Hutang → Upload Template Beban.',
+        ] as $i => $teks) {
+            $petunjuk->setCellValue('A' . ($i + 1), $teks);
+        }
+        $petunjuk->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return $this->simpanSpreadsheet($spreadsheet, 'template-beban-hutang');
+    }
+
+    /**
+     * Import pemilahan Beban Hutang (NO_INVOICE → CABANG). All-or-nothing.
+     * Hanya label cabang yg berubah — pembayaran & sisa hutang tak tersentuh.
+     */
+    public function importBebanHutang(string $path): array
+    {
+        $this->pastikanEkstensiExcel();
+
+        $rows = $this->bacaSheet($path);
+        if (count($rows) === 0) {
+            throw new ImportFileException([], 'File kosong — tidak ada baris data.');
+        }
+        $this->cekHeader($rows, ['NO_INVOICE', 'CABANG'], 'beban hutang');
+
+        $errors = [];
+        $barisOk = [];
+        $seen = [];
+        foreach ($rows as $i => $r) {
+            $no = $i + 2;
+            $noInvoice = trim((string) ($r['NO_INVOICE'] ?? ''));
+            $cabang = normalisasi_teks($r['CABANG'] ?? null);
+            if ($noInvoice === '') {
+                $errors[] = 'Baris ' . $no . ': NO_INVOICE wajib diisi.';
+                continue;
+            }
+            if ($cabang === null) {
+                $errors[] = 'Baris ' . $no . ': CABANG wajib diisi (TERMINAL BAN 1 / 2 / 3).';
+                continue;
+            }
+            if (mb_strlen($cabang) > 50) {
+                $errors[] = 'Baris ' . $no . ': CABANG maksimal 50 karakter.';
+                continue;
+            }
+            if (isset($seen[$noInvoice]) && $seen[$noInvoice] !== $cabang) {
+                $errors[] = 'Baris ' . $no . ': NO_INVOICE "' . $noInvoice . '" duplikat dengan cabang berbeda ("' . $seen[$noInvoice] . '" vs "' . $cabang . '").';
+                continue;
+            }
+            $seen[$noInvoice] = $cabang;
+            $inv = InvoicePembelian::where('no_invoice', $noInvoice)->first();
+            if (! $inv) {
+                $errors[] = 'Baris ' . $no . ': NO_INVOICE "' . $noInvoice . '" tidak ditemukan.';
+                continue;
+            }
+            if ($inv->jenis !== 'hutang') {
+                $errors[] = 'Baris ' . $no . ': NO_INVOICE "' . $noInvoice . '" bukan invoice hutang (jenis: ' . $inv->jenis . ') — hanya hutang yg bisa dibebani.';
+                continue;
+            }
+            $barisOk[$noInvoice] = $cabang;
+        }
+
+        if (count($errors) > 0) {
+            throw new ImportFileException(array_slice($errors, 0, 50));
+        }
+
+        $diperbarui = 0;
+        DB::transaction(function () use ($barisOk, &$diperbarui) {
+            foreach ($barisOk as $noInvoice => $cabang) {
+                InvoicePembelian::where('no_invoice', $noInvoice)->update(['cabang' => $cabang]);
+                $diperbarui++;
+            }
+        });
+
+        return ['diperbarui' => $diperbarui];
+    }
+
     private function cobaParseTanggal(string $tgl): ?Carbon
     {
         $tgl = trim($tgl);
