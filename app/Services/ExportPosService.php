@@ -232,6 +232,12 @@ class ExportPosService
 
         [$transaksi, $mapping, $rows, $ringkasan, $from, $to] = $this->kumpulkanFormatB($mulai, $selesai, $bulan, $sumber);
 
+        // PDF tanpa kolom Sumber (keputusan user) — Excel tidak berubah.
+        $mapping = array_values(array_filter(
+            $mapping,
+            fn ($m) => ($m['nama_kolom'] ?? '') !== 'Sumber'
+        ));
+
         $perNota = $transaksi->groupBy('id');
         $chunks = array_chunk($perNota->keys()->all(), self::MAKS_NOTA_PER_PDF);
         if (count($chunks) === 0) {

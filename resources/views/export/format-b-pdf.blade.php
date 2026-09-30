@@ -60,7 +60,7 @@
                 </tr>
             @endforeach
             <tr class="total">
-                <td colspan="6">TOTAL OMSET</td>
+                <td colspan="{{ count($mapping) - 2 }}">TOTAL OMSET</td>
                 <td class="num">{{ number_format((int) ($ringkasan['Total Omset Periode'] ?? 0), 0, ',', '.') }}</td>
                 <td></td>
             </tr>

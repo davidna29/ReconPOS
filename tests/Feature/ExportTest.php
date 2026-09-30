@@ -133,7 +133,33 @@ class ExportTest extends TestCase
         $this->assertFileDoesNotExist($path);
     }
 
-    public function test_format_b_pdf_dipegang_pecah_per_150_nota(): void
+    public function test_format_b_pdf_view_tanpa_kolom_sumber(): void
+    {
+        // Kolom Sumber (manual/rekonstruksi) disembunyikan di PDF (Excel tetap ada).
+        $mapping = [
+            ['nama_kolom' => 'Tanggal Transaksi', 'format' => 'Y-m-d H:i'],
+            ['nama_kolom' => 'No. Nota', 'format' => 'text'],
+            ['nama_kolom' => 'Sumber', 'format' => 'text'],
+        ];
+        $html = view('export.format-b-pdf', [
+            'toko' => \App\Models\TokoSetting::utama(),
+            'mapping' => array_values(array_filter($mapping, fn ($m) => $m['nama_kolom'] !== 'Sumber')),
+            'rows' => [[
+                'Tanggal Transaksi' => '2026-10-02 10:00', 'No. Nota' => 'INV-X',
+                'Sumber' => 'rekonstruksi',
+            ]],
+            'ringkasan' => ['Total Omset Periode' => 100000, 'Jumlah Nota' => 1, 'Jumlah Item Terjual' => 1, 'Periode' => 'x'],
+            'bagian' => 1, 'totalBagian' => 1,
+        ])->render();
+
+        $this->assertStringNotContainsString('>Sumber<', $html);
+        $this->assertStringNotContainsString('rekonstruksi', $html);
+        $this->assertStringContainsString('No. Nota', $html);
+        $this->assertStringContainsString('TOTAL OMSET', $html);
+        $this->assertSame(2, substr_count($html, '<th>')); // 2 kolom tersisa
+    }
+
+    public function test_format_b_pdf_dipegang_pecah_per_100_nota(): void
     {
         $this->authUser();
         $b = Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'X-CHUNK', 'nama' => 'X', 'sn_atau_non_sn' => 'NON_SN']);
