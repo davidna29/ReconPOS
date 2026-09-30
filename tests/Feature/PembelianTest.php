@@ -719,4 +719,101 @@ class PembelianTest extends TestCase
             ->assertSee('PPN otomatis', false)
             ->assertSee('ppn-otomatis', false);
     }
+
+    /** Data edit lengkap dari invoice existing (helper utk uji koreksi nomor). */
+    private function dataEditDari(InvoicePembelian $inv, array $ganti = []): array
+    {
+        return array_merge([
+            'supplier_id' => $inv->supplier_id,
+            'tanggal_transaksi' => $inv->tanggal_transaksi->format('Y-m-d H:i'),
+            'jenis' => $inv->jenis,
+            'diskon_total' => $inv->diskon_total,
+            'bayar_atau_dp' => $inv->bayar_atau_dp,
+            'items' => $inv->items->map(fn ($it) => [
+                'barang_id' => $it->barang_id,
+                'harga_beli' => $it->harga_beli,
+                'qty' => $it->qty,
+                'diskon_item' => $it->diskon_item,
+            ])->all(),
+        ], $ganti);
+    }
+
+    public function test_edit_bisa_koreksi_nomor_invoice(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-REN');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id,
+            'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $stokSebelum = $b->fresh()->stock;
+        $kartuSebelum = \App\Models\KartuStok::where('invoice_pembelian_id', $inv->id)->count();
+        $this->assertGreaterThan(0, $kartuSebelum);
+
+        $svc->edit($inv, $this->dataEditDari($inv, ['no_invoice' => '04002600286651629']));
+
+        $baru = $inv->fresh();
+        $this->assertSame('04002600286651629', $baru->no_invoice);
+        // relasi utuh (by id): item, kartu stok, dan stok tak berubah
+        $this->assertSame(1, $baru->items()->count());
+        $this->assertSame($kartuSebelum, \App\Models\KartuStok::where('invoice_pembelian_id', $inv->id)->count());
+        $this->assertSame($stokSebelum, $b->fresh()->stock);
+        $this->assertSame($inv->sisa_hutang, $baru->sisa_hutang);
+    }
+
+    public function test_edit_nomor_kembar_ditolak(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-REN2');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $a = $svc->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 1, 'diskon_item' => 0]],
+        ]);
+        $b2 = $this->barang('B-REN3');
+        $c = $svc->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b2->id, 'harga_beli' => 40000, 'qty' => 1, 'diskon_item' => 0]],
+        ]);
+
+        try {
+            $svc->edit($a, $this->dataEditDari($a, ['no_invoice' => $c->no_invoice]));
+            $this->fail('Harus ditolak karena nomor dipakai invoice lain.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('sudah dipakai invoice lain', $e->getMessage());
+        }
+        $this->assertNotSame($c->no_invoice, $a->fresh()->no_invoice);
+    }
+
+    public function test_edit_nomor_kosong_atau_kepanjangan_ditolak(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-REN4');
+        $s = $this->supplier();
+        $svc = app(PembelianService::class);
+        $inv = $svc->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 1, 'diskon_item' => 0]],
+        ]);
+        $nomorAwal = $inv->no_invoice;
+
+        // string kosong = diabaikan (nomor tetap), bukan error
+        $svc->edit($inv, $this->dataEditDari($inv, ['no_invoice' => '']));
+        $this->assertSame($nomorAwal, $inv->fresh()->no_invoice);
+
+        try {
+            $svc->edit($inv, $this->dataEditDari($inv, ['no_invoice' => str_repeat('9', 41)]));
+            $this->fail('Harus ditolak karena > 40 karakter.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('maksimal 40 karakter', $e->getMessage());
+        }
+    }
 }

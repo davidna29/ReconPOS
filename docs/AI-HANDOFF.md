@@ -23,7 +23,8 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan serve               # http://127.0.0.1:8000 (+ vite HMR :5173)
   ```
 - Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (**251 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**.
+- Test: `php artisan test` (**254 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**.
+- **Edit invoice boleh koreksi `no_invoice` (2026-10-02):** `PembelianService::edit()` dulu mengabaikannya diam-diam ("tanpa mengubah no_invoice") — kini divalidasi (isi, ≤40 char, unik kecuali diri sendiri) lalu disimpan; relasi aman karena semua memakai `invoice_id`. Guard lain (histori bayar, qty terjual) tetap berlaku.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 - Repo GitHub: `davidna29/ReconPOS` (dulu `Aplikasi-GenTOt`); rilis terakhir **v2.0.0**.
 - Deploy: ikuti `docs/DEPLOY-HOSTINGER.md` — **§7a** memuat akses SSH live `reconpos.misnu.sch.id` (`ssh -p 65002 u549935065@46.202.138.28`, path `/home/u549935065/domains/reconpos.misnu.sch.id/public_html/reconpos`) + blok diagnosa 500 (`optimize:clear`, `tail -n 200 storage/logs/laravel.log`, `migrate --force`, cache dgn 1 binari PHP).

@@ -505,7 +505,18 @@ class PembelianService
             ReferensiSn::where('invoice_pembelian_id', $invoice->id)->where('status', 'tersedia')->delete();
             $invoice->items()->delete();
 
-            // 2) terapkan efek baru (tanpa mengubah no_invoice)
+            // 2) terapkan efek baru (no_invoice boleh dikoreksi — netral uang/stok)
+            $baru = trim((string) ($data['no_invoice'] ?? ''));
+            if ($baru !== '' && $baru !== $invoice->no_invoice) {
+                if (mb_strlen($baru) > 40) {
+                    throw new InvalidArgumentException('Nomor invoice maksimal 40 karakter.');
+                }
+                if (InvoicePembelian::where('no_invoice', $baru)->where('id', '!=', $invoice->id)->exists()) {
+                    throw new InvalidArgumentException('Nomor "' . $baru . '" sudah dipakai invoice lain.');
+                }
+                $invoice->no_invoice = $baru;
+            }
+
             return $this->terapkanUlang($invoice, $data);
         });
     }
