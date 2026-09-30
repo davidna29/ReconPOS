@@ -134,6 +134,7 @@
                                         @csrf
                                         <input type="hidden" name="ids[]" value="{{ $inv->id }}">
                                         <select name="cabang" aria-label="Pindah cabang {{ $inv->no_invoice }}" class="input w-40 py-1 text-[12px]" onchange="this.form.submit()">
+                                            <option value="">— Belum Dibebani —</option>
                                             @foreach (\App\Models\InvoicePembelian::CABANG_SARAN as $cb)
                                                 <option value="{{ $cb }}" @selected($inv->cabang === $cb)>{{ str_replace('TERMINAL BAN ', 'TB ', $cb) }}</option>
                                             @endforeach
@@ -161,10 +162,11 @@
     @endforelse
 
     @if (! $publik)
+    <x-collapse id="collapse-tetapkan-beban" label="Tetapkan Beban ({{ $belumDibebaniTotal }} faktur belum berbeban)" icon="checklist">
     <div class="card animate-rise overflow-hidden min-w-0">
         <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
             <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">checklist</span>
-            <h3 class="text-headline-sm text-on-surface">Tetapkan Beban ({{ $belumDibebani->total() }} faktur belum berbeban)</h3>
+            <h3 class="text-headline-sm text-on-surface">Tetapkan Beban ({{ $belumDibebaniTotal }} faktur belum berbeban)</h3>
         </div>
         <form method="POST" action="{{ route('beban-hutang.tetapkan') }}">
             @csrf
@@ -178,7 +180,7 @@
                 <button class="btn btn-primary btn-sm">
                     <span class="material-symbols-outlined text-[16px]" aria-hidden="true">done_all</span> Tetapkan ke yg dipilih
                 </button>
-                <span class="hint mb-0">Centang faktur di bawah. Untuk ratusan faktur sekaligus, gunakan template Excel.</span>
+                <span class="hint mb-0">Centang faktur di bawah. Menampilkan 10 terbaru dari {{ $belumDibebaniTotal }} — untuk massal gunakan template Excel.</span>
             </div>
             <div class="overflow-x-auto min-w-0 max-w-full">
                 <table class="tbl tbl-cards">
@@ -206,13 +208,9 @@
                     </tbody>
                 </table>
             </div>
-            @if ($belumDibebani->hasPages())
-            <div class="border-t border-outline-variant p-3">
-                {{ $belumDibebani->withQueryString()->links() }}
-            </div>
-            @endif
         </form>
     </div>
+    </x-collapse>
 
     <div class="card animate-rise p-3 md:p-4 min-w-0">
         <h3 class="mb-2 md:mb-3 flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">

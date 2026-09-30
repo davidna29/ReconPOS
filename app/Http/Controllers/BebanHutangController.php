@@ -17,17 +17,17 @@ class BebanHutangController extends Controller
 
     public function index(Request $request)
     {
-        [$cards, $grand, $belumDibebani, $daftarCabang] = self::rekap($request);
+        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang] = self::rekap($request);
         $suppliers = Supplier::orderBy('nama')->get();
 
-        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'daftarCabang', 'suppliers'));
+        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'suppliers'));
     }
 
     /**
      * Rekap beban hutang bersama utk admin & publik (lihat Publik\BebanHutangController).
      * Hanya invoice jenis=hutang. Filter periode memakai tanggal_transaksi.
      *
-     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: \Illuminate\Support\Collection}
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Support\Collection, 3: int, 4: \Illuminate\Support\Collection}
      */
     public static function rekap(Request $request): array
     {
@@ -89,32 +89,37 @@ class BebanHutangController extends Controller
             'lunas' => $invoices->where('status', 'lunas')->count(),
         ];
 
+        // Preview ringkas: 10 terbaru saja (lengkapnya via template Excel massal).
+        $belumDibebaniTotal = (int) InvoicePembelian::where('jenis', 'hutang')
+            ->whereNull('cabang')
+            ->count();
         $belumDibebani = InvoicePembelian::with('supplier')
             ->where('jenis', 'hutang')
             ->whereNull('cabang')
-            ->orderBy('tanggal_transaksi')
-            ->paginate(25, ['*'], 'halaman_belum');
+            ->latest('tanggal_transaksi')
+            ->limit(10)
+            ->get();
 
         $daftarCabang = InvoicePembelian::where('jenis', 'hutang')
             ->whereNotNull('cabang')->where('cabang', '<>', '')
             ->distinct()->orderBy('cabang')->pluck('cabang');
 
-        return [$cards, $grand, $belumDibebani, $daftarCabang];
+        return [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang];
     }
 
-    /** Tetapkan/ubah beban cabang utk 1..N faktur hutang (label saja — pembayaran tak tersentuh). */
+    /**
+     * Tetapkan/ubah/kosongkan beban cabang utk 1..N faktur hutang
+     * (label saja — pembayaran tak tersentuh). Cabang kosong = kembali Belum Dibebani.
+     */
     public function tetapkan(Request $request)
     {
         $data = $request->validate([
-            'cabang' => ['required', 'string', 'max:50'],
+            'cabang' => ['nullable', 'string', 'max:50'],
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer', 'exists:invoice_pembelian,id'],
         ]);
 
-        $cabang = normalisasi_teks($data['cabang']);
-        if ($cabang === null) {
-            return back()->with('error', 'Cabang wajib diisi.')->withInput();
-        }
+        $cabang = normalisasi_teks($data['cabang'] ?? null);
 
         $bukanHutang = InvoicePembelian::whereIn('id', $data['ids'])->where('jenis', '!=', 'hutang')->count();
         if ($bukanHutang > 0) {
@@ -126,7 +131,9 @@ class BebanHutangController extends Controller
             $jumlah = InvoicePembelian::whereIn('id', $data['ids'])->update(['cabang' => $cabang]);
         });
 
-        return back()->with('success', 'Beban "' . $cabang . '" ditetapkan ke ' . $jumlah . ' faktur.');
+        return $cabang === null
+            ? back()->with('success', 'Beban ' . $jumlah . ' faktur dikosongkan (kembali Belum Dibebani).')
+            : back()->with('success', 'Beban "' . $cabang . '" ditetapkan ke ' . $jumlah . ' faktur.');
     }
 
     public function downloadTemplate()

@@ -67,7 +67,7 @@ class BebanHutangTest extends TestCase
         $this->assertSame(100000, (int) $a->fresh()->sisa_hutang);
     }
 
-    public function test_tetapkan_menolak_invoice_cash_dan_cabang_kosong(): void
+    public function test_tetapkan_menolak_invoice_cash(): void
     {
         $this->authUser();
         $cash = $this->buatFaktur('F-C', 100000, 0, 'lunas', null, 'cash');
@@ -75,11 +75,28 @@ class BebanHutangTest extends TestCase
         $this->post(route('beban-hutang.tetapkan'), ['cabang' => 'TERMINAL BAN 1', 'ids' => [$cash->id]])
             ->assertSessionHas('error');
         $this->assertNull($cash->fresh()->cabang);
+    }
 
-        $hutang = $this->buatFaktur('F-H', 100000, 100000, 'belum_lunas');
-        $this->post(route('beban-hutang.tetapkan'), ['cabang' => '  ', 'ids' => [$hutang->id]])
-            ->assertSessionHasErrors('cabang'); // ditolak validasi required (spasi di-trim)
-        $this->assertNull($hutang->fresh()->cabang);
+    public function test_tetapkan_bisa_mengosongkan_kembali(): void
+    {
+        $this->authUser();
+        $a = $this->buatFaktur('F-K1', 100000, 100000, 'belum_lunas', 'TERMINAL BAN 1');
+        $b = $this->buatFaktur('F-K2', 200000, 200000, 'belum_lunas', 'TERMINAL BAN 2');
+
+        // per-baris: pilih opsi kosong → kembali NULL
+        $this->post(route('beban-hutang.tetapkan'), ['cabang' => '', 'ids' => [$a->id]])
+            ->assertSessionHas('success');
+        $this->assertNull($a->fresh()->cabang);
+
+        // bulk: cabang spasi (di-trim) → dikosongkan juga
+        $this->post(route('beban-hutang.tetapkan'), ['cabang' => '  ', 'ids' => [$b->id]])
+            ->assertSessionHas('success');
+        $this->assertNull($b->fresh()->cabang);
+
+        // keduanya kembali muncul di daftar belum berbeban
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('F-K1', $html);
+        $this->assertStringContainsString('F-K2', $html);
     }
 
     public function test_rekap_angka_benar_dan_terfilter(): void
@@ -96,6 +113,25 @@ class BebanHutangTest extends TestCase
         $this->get(route('beban-hutang.index', ['cabang' => 'TERMINAL BAN 1']))
             ->assertOk()->assertSee('F-TB1-1')->assertSee('F-TB1-2')
             ->assertDontSee('F-TB2-1');
+    }
+
+    public function test_daftar_tetapkan_hanya_10_terbaru(): void
+    {
+        $this->authUser();
+        for ($i = 1; $i <= 12; $i++) {
+            $this->buatFaktur(
+                'F-PRE-' . str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                100000, 100000, 'belum_lunas', null, 'hutang',
+                now()->subDays(30 - $i)->format('Y-m-d H:i')
+            );
+        }
+
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        // checkbox assignment hanya utk 10 terbaru (kartu rincian tetap penuh — di luar scope)
+        $this->assertStringNotContainsString('aria-label="Pilih F-PRE-01"', $html);
+        $this->assertStringNotContainsString('aria-label="Pilih F-PRE-02"', $html);
+        $this->assertStringContainsString('aria-label="Pilih F-PRE-12"', $html);
+        $this->assertStringContainsString('10 terbaru dari 12', $html);
     }
 
     public function test_rekap_filter_bulan(): void
