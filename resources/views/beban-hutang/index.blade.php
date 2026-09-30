@@ -114,7 +114,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($c['items'] as $inv)
+                        @php($tampil = ($rinciSemua ?? false) ? $c['items'] : $c['items']->take(10))
+                        @foreach ($tampil as $inv)
                             <tr @class(['row-overdue' => $inv->sisa_hutang > 0])>
                                 <td data-label="Invoice" class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
                                 <td data-label="Tanggal">{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
@@ -147,6 +148,20 @@
                                 @endif
                             </tr>
                         @endforeach
+                        @if (! ($rinciSemua ?? false) && $c['items']->count() > $tampil->count())
+                            <tr>
+                                <td colspan="{{ $publik ? 6 : 7 }}" class="py-3 text-center text-body-sm text-secondary">
+                                    +{{ $c['items']->count() - $tampil->count() }} lainnya —
+                                    <a href="{{ request()->fullUrlWithQuery(['rinci_semua' => 1]) }}" class="font-semibold text-primary hover:underline">Tampilkan semua</a>
+                                </td>
+                            </tr>
+                        @elseif (($rinciSemua ?? false) && $c['items']->count() > 10)
+                            <tr>
+                                <td colspan="{{ $publik ? 6 : 7 }}" class="py-3 text-center text-body-sm text-secondary">
+                                    <a href="{{ request()->fullUrlWithQuery(['rinci_semua' => null]) }}" class="font-semibold text-primary hover:underline">Ringkas kembali (10 baris)</a>
+                                </td>
+                            </tr>
+                        @endif
                     </tbody>
                 </table>
             </div>
@@ -180,7 +195,7 @@
                 <button class="btn btn-primary btn-sm">
                     <span class="material-symbols-outlined text-[16px]" aria-hidden="true">done_all</span> Tetapkan ke yg dipilih
                 </button>
-                <span class="hint mb-0">Centang faktur di bawah. Menampilkan 10 terbaru dari {{ $belumDibebaniTotal }} — untuk massal gunakan template Excel.</span>
+                <span class="hint mb-0">Centang faktur di bawah (10/halaman dari {{ $belumDibebaniTotal }}). Untuk massal gunakan template Excel.</span>
             </div>
             <div class="overflow-x-auto min-w-0 max-w-full">
                 <table class="tbl tbl-cards">
@@ -208,6 +223,11 @@
                     </tbody>
                 </table>
             </div>
+            @if ($belumDibebani->hasPages())
+            <div class="border-t border-outline-variant p-3">
+                {{ $belumDibebani->withQueryString()->links() }}
+            </div>
+            @endif
         </form>
     </div>
     </x-collapse>

@@ -17,17 +17,17 @@ class BebanHutangController extends Controller
 
     public function index(Request $request)
     {
-        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang] = self::rekap($request);
+        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua] = self::rekap($request);
         $suppliers = Supplier::orderBy('nama')->get();
 
-        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'suppliers'));
+        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'suppliers', 'rinciSemua'));
     }
 
     /**
      * Rekap beban hutang bersama utk admin & publik (lihat Publik\BebanHutangController).
      * Hanya invoice jenis=hutang. Filter periode memakai tanggal_transaksi.
      *
-     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Support\Collection, 3: int, 4: \Illuminate\Support\Collection}
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: int, 4: \Illuminate\Support\Collection, 5: bool}
      */
     public static function rekap(Request $request): array
     {
@@ -89,22 +89,22 @@ class BebanHutangController extends Controller
             'lunas' => $invoices->where('status', 'lunas')->count(),
         ];
 
-        // Preview ringkas: 10 terbaru saja (lengkapnya via template Excel massal).
-        $belumDibebaniTotal = (int) InvoicePembelian::where('jenis', 'hutang')
-            ->whereNull('cabang')
-            ->count();
+        // Daftar Tetapkan: paginasi 10/halaman (massal via template Excel).
         $belumDibebani = InvoicePembelian::with('supplier')
             ->where('jenis', 'hutang')
             ->whereNull('cabang')
             ->latest('tanggal_transaksi')
-            ->limit(10)
-            ->get();
+            ->paginate(10, ['*'], 'halaman_belum');
+        $belumDibebaniTotal = (int) $belumDibebani->total();
 
         $daftarCabang = InvoicePembelian::where('jenis', 'hutang')
             ->whereNotNull('cabang')->where('cabang', '<>', '')
             ->distinct()->orderBy('cabang')->pluck('cabang');
 
-        return [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang];
+        // Rincian tiap kartu dibatasi 10 baris kecuali ?rinci_semua=1.
+        $rinciSemua = $request->boolean('rinci_semua');
+
+        return [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua];
     }
 
     /**

@@ -115,7 +115,7 @@ class BebanHutangTest extends TestCase
             ->assertDontSee('F-TB2-1');
     }
 
-    public function test_daftar_tetapkan_hanya_10_terbaru(): void
+    public function test_daftar_tetapkan_paginasi_10_per_halaman(): void
     {
         $this->authUser();
         for ($i = 1; $i <= 12; $i++) {
@@ -127,11 +127,36 @@ class BebanHutangTest extends TestCase
         }
 
         $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
-        // checkbox assignment hanya utk 10 terbaru (kartu rincian tetap penuh — di luar scope)
+        // halaman 1: 10 terbaru + pager ke halaman 2
         $this->assertStringNotContainsString('aria-label="Pilih F-PRE-01"', $html);
         $this->assertStringNotContainsString('aria-label="Pilih F-PRE-02"', $html);
         $this->assertStringContainsString('aria-label="Pilih F-PRE-12"', $html);
-        $this->assertStringContainsString('10 terbaru dari 12', $html);
+        $this->assertStringContainsString('halaman_belum=2', $html);
+        $this->assertStringContainsString('(12 faktur belum berbeban)', $html);
+    }
+
+    public function test_rincian_kartu_dibatasi_dan_bisa_dibuka_penuh(): void
+    {
+        $this->authUser();
+        for ($i = 1; $i <= 12; $i++) {
+            $this->buatFaktur(
+                'F-RIN-' . str_pad((string) $i, 2, '0', STR_PAD_LEFT),
+                100000, 100000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang',
+                now()->subDays(30 - $i)->format('Y-m-d H:i')
+            );
+        }
+
+        // default: 10 tertua + catatan "+2 lainnya" + link buka penuh
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('+2 lainnya', $html);
+        $this->assertStringContainsString('Tampilkan semua', $html);
+        $this->assertStringContainsString('F-RIN-01', $html);
+        $this->assertStringNotContainsString('F-RIN-12', $html);
+
+        // mode penuh: semua tampil + link ringkas kembali
+        $htmlPenuh = $this->get(route('beban-hutang.index', ['rinci_semua' => 1]))->assertOk()->getContent();
+        $this->assertStringContainsString('F-RIN-01', $htmlPenuh);
+        $this->assertStringContainsString('Ringkas kembali', $htmlPenuh);
     }
 
     public function test_rekap_filter_bulan(): void
