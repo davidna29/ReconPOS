@@ -60,35 +60,53 @@
 
     @if (! $publik)
     <div class="card animate-rise p-3 md:p-4 min-w-0" style="--rise-delay:.06s">
-        <h3 class="mb-2 md:mb-3 flex items-center gap-2 text-[13px] font-semibold text-on-surface md:text-headline-sm">
-            <span class="material-symbols-outlined text-[16px] text-secondary md:text-[18px]" aria-hidden="true">upload_file</span>
+        <h3 class="hidden md:flex mb-3 items-center gap-2 text-headline-sm text-on-surface">
+            <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">upload_file</span>
             Import / Update via Excel
         </h3>
-        <div class="flex flex-col gap-3 min-w-0">
-        <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="flex flex-col gap-2 md:flex-row md:items-center min-w-0">
-            @csrf
-            <div class="flex flex-1 items-center gap-2 min-w-0 max-w-full">
-                <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">upload_file</span>
-                <input type="file" name="file" accept=".xlsx" class="input w-full min-w-0 max-w-full flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
+        <x-collapse id="collapse-import-barang" label="Import / Update via Excel" icon="upload_file">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0">
+                <form method="POST" action="{{ route('barang.template.import') }}" enctype="multipart/form-data" class="rounded-lg border border-outline-variant p-3 min-w-0">
+                    @csrf
+                    <p class="mb-2 flex items-center gap-1.5 text-body-sm font-semibold text-on-surface">
+                        <span class="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">upload_file</span>
+                        Upload Template Barang
+                    </p>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <label class="btn btn-secondary btn-sm shrink-0 cursor-pointer">
+                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">folder_open</span> Pilih File
+                                <input type="file" name="file" accept=".xlsx" class="sr-only" required>
+                            </label>
+                            <span data-filename class="min-w-0 flex-1 truncate text-body-sm text-secondary">Belum ada file dipilih</span>
+                        </div>
+                        <button class="btn btn-amber btn-sm w-full">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Upload Template Excel
+                        </button>
+                    </div>
+                </form>
+                <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="rounded-lg border border-outline-variant p-3 min-w-0">
+                    @csrf
+                    <p class="mb-2 flex items-center gap-1.5 text-body-sm font-semibold text-on-surface">
+                        <span class="material-symbols-outlined text-[16px] text-secondary" aria-hidden="true">sell</span>
+                        Update Harga Massal
+                    </p>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <label class="btn btn-secondary btn-sm shrink-0 cursor-pointer">
+                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">folder_open</span> Pilih File
+                                <input type="file" name="file" accept=".xlsx" class="sr-only" required>
+                            </label>
+                            <span data-filename class="min-w-0 flex-1 truncate text-body-sm text-secondary">Belum ada file dipilih</span>
+                        </div>
+                        <button class="btn btn-secondary btn-sm w-full">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Update Harga Excel
+                        </button>
+                        <span class="text-[11px] text-secondary">hanya berlaku utk SKU mode Kunci Manual</span>
+                    </div>
+                </form>
             </div>
-            <button class="btn btn-amber btn-sm w-full min-w-0 md:w-auto md:min-w-auto">
-                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Upload Template Excel
-            </button>
-        </form>
-        <form method="POST" action="{{ route('barang.templateHarga.import') }}" enctype="multipart/form-data" class="flex flex-col gap-1.5 md:flex-row md:items-center min-w-0">
-            @csrf
-            <div class="flex flex-1 items-center gap-2 min-w-0 max-w-full">
-                <span class="material-symbols-outlined hidden text-secondary md:inline" aria-hidden="true">sell</span>
-                <input type="file" name="file" accept=".xlsx" class="input w-full min-w-0 max-w-full flex-1 py-1.5 text-[13px] md:w-auto md:max-w-[260px] md:py-2 md:text-body-md" required>
-            </div>
-            <div class="flex items-center gap-2 min-w-0 max-w-full">
-                <button class="btn btn-secondary btn-sm w-full min-w-0 md:w-auto md:min-w-auto">
-                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Update Harga Excel
-                </button>
-                <span class="hidden text-[11px] text-secondary md:inline">hanya berlaku utk SKU mode Kunci Manual</span>
-            </div>
-        </form>
-        </div>
+        </x-collapse>
     </div>
     @endif
 

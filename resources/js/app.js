@@ -356,6 +356,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================
+    // FILE PICKER (label-button + nama file; input file sr-only)
+    // ============================
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest?.('input[type="file"]');
+        if (!input) return;
+        const nameEl = input.closest('form')?.querySelector('[data-filename]');
+        if (!nameEl) return;
+        nameEl.textContent = input.files?.length
+            ? Array.from(input.files).map((f) => f.name).join(', ')
+            : 'Belum ada file dipilih';
+    });
+
+    // ============================
     // SUBMIT LOADING STATE (spinner + disabled, kecuali GET/AJAX-delete/opt-out)
     // ============================
     document.querySelectorAll('form').forEach((form) => {

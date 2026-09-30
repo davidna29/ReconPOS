@@ -135,4 +135,20 @@ class BarangTest extends TestCase
         $this->get(route('barang.index', ['q' => '265/70']))->assertOk()->assertSee($selGT, false)->assertDontSee($selHK, false);
         $this->get(route('barang.index'))->assertOk()->assertSee('Semua merk');
     }
+
+    public function test_index_import_section_bisa_dilipat_dan_file_picker_rapi(): void
+    {
+        $this->authUser();
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'PB-BA', 'nama' => 'Ban Uji', 'sn_atau_non_sn' => 'NON_SN']);
+
+        $html = $this->get(route('barang.index'))->assertOk()->getContent();
+        // collapse: label mobile + konten; file input sr-only + penampung nama file
+        $this->assertStringContainsString('collapse-import-barang', $html);
+        $this->assertStringContainsString('data-filename', $html);
+        // kedua form + tombol lama tetap ada (tidak merusak alur upload)
+        $this->assertStringContainsString(route('barang.template.import'), $html);
+        $this->assertStringContainsString(route('barang.templateHarga.import'), $html);
+        $this->assertStringContainsString('Upload Template Excel', $html);
+        $this->assertStringContainsString('Update Harga Excel', $html);
+    }
 }

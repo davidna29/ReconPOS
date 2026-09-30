@@ -56,9 +56,13 @@
             <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">upload_file</span>
             Import Transaksi Excel
         </h3>
-        <form method="POST" action="{{ route('pembelian.template.import') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2">
+        <form method="POST" action="{{ route('pembelian.template.import') }}" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2 min-w-0">
             @csrf
-            <input type="file" name="file" accept=".xlsx" class="input w-auto" required>
+            <label class="btn btn-secondary btn-sm shrink-0 cursor-pointer">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">folder_open</span> Pilih File
+                <input type="file" name="file" accept=".xlsx" class="sr-only" required>
+            </label>
+            <span data-filename class="min-w-0 max-w-full truncate text-body-sm text-secondary">Belum ada file dipilih</span>
             <button class="btn btn-amber btn-sm"><span class="material-symbols-outlined text-[16px]" aria-hidden="true">upload</span> Import</button>
         </form>
         <span class="text-[11px] text-secondary">Format: REF_PEMBELIAN, TANGGAL_WAKTU, SUPPLIER, JENIS_TRANSAKSI, BAYAR_DP, JATUH_TEMPO, KODE_BARANG, QTY, HARGA_BELI, DISKON_ITEM, DISKON_TOTAL, PPN.</span>
