@@ -65,6 +65,32 @@
         </div>
     </form>
 
+    @if (($komposisi ?? collect())->isNotEmpty())
+        <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.04s">
+            <div class="flex items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
+                <span class="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">donut_large</span>
+                <h3 class="text-headline-sm text-on-surface">Komposisi Beban (nominal hutang)</h3>
+            </div>
+            <div class="p-3 md:p-4">
+                <div class="flex h-4 w-full overflow-hidden rounded-full bg-slate-200" role="img" aria-label="Komposisi beban per cabang">
+                    @foreach ($komposisi as $k)
+                        <div class="{{ $k['warna'] }}" style="width: {{ $k['porsi'] }}%" title="{{ $k['cabang'] }}: {{ $k['porsi'] }}%"></div>
+                    @endforeach
+                </div>
+                <div class="mt-2 flex flex-col gap-1.5 md:flex-row md:flex-wrap md:gap-x-5">
+                    @foreach ($komposisi as $k)
+                        <span class="flex items-center gap-1.5 text-body-sm">
+                            <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $k['warna'] }}" aria-hidden="true"></span>
+                            <span class="font-semibold text-on-surface">{{ $k['cabang'] }}</span>
+                            <span class="mono font-bold text-primary">{{ $k['porsi'] }}%</span>
+                            <span class="text-secondary">· {{ rupiah($k['hutang']) }} · {{ $k['lembar'] }} lembar</span>
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
     @forelse ($cards as $c)
         @php($pct = $c['hutang'] > 0 ? min(100, (int) round($c['sisa'] / $c['hutang'] * 100)) : 0)
         @php($barColor = $pct < 50 ? 'bg-lunas-green' : ($pct <= 80 ? 'bg-hutang-amber' : 'bg-danger-red'))

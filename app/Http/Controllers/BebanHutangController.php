@@ -17,17 +17,17 @@ class BebanHutangController extends Controller
 
     public function index(Request $request)
     {
-        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua] = self::rekap($request);
+        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua, $komposisi] = self::rekap($request);
         $suppliers = Supplier::orderBy('nama')->get();
 
-        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'suppliers', 'rinciSemua'));
+        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'suppliers', 'rinciSemua', 'komposisi'));
     }
 
     /**
      * Rekap beban hutang bersama utk admin & publik (lihat Publik\BebanHutangController).
      * Hanya invoice jenis=hutang. Filter periode memakai tanggal_transaksi.
      *
-     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: int, 4: \Illuminate\Support\Collection, 5: bool}
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: int, 4: \Illuminate\Support\Collection, 5: bool, 6: \Illuminate\Support\Collection}
      */
     public static function rekap(Request $request): array
     {
@@ -105,7 +105,27 @@ class BebanHutangController extends Controller
         // Rincian tiap kartu dibatasi 10 baris kecuali ?rinci_semua=1.
         $rinciSemua = $request->boolean('rinci_semua');
 
-        return [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua];
+        // Komposisi gabungan: porsi nominal hutang tiap cabang berbeban
+        // (Belum Dibebani tidak ikut 100%). Warna tetap per cabang.
+        $warnaTetap = [
+            'TERMINAL BAN 1' => 'bg-primary',
+            'TERMINAL BAN 2' => 'bg-special-teal',
+            'TERMINAL BAN 3' => 'bg-hutang-amber',
+        ];
+        $paletCadangan = ['bg-cash-blue', 'bg-lunas-green', 'bg-danger-red'];
+        $berbeban = $cards->filter(fn ($c) => $c['cabang'] !== 'Belum Dibebani')->values();
+        $totalBerbeban = (int) $berbeban->sum('hutang');
+        $komposisi = $berbeban->map(function ($c, $i) use ($totalBerbeban, $warnaTetap, $paletCadangan) {
+            return [
+                'cabang' => $c['cabang'],
+                'hutang' => $c['hutang'],
+                'lembar' => $c['lembar'],
+                'porsi' => $totalBerbeban > 0 ? (int) round($c['hutang'] / $totalBerbeban * 100) : 0,
+                'warna' => $warnaTetap[$c['cabang']] ?? $paletCadangan[$i % count($paletCadangan)],
+            ];
+        });
+
+        return [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua, $komposisi];
     }
 
     /**

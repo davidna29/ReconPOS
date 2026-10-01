@@ -136,6 +136,28 @@ class BebanHutangTest extends TestCase
         $this->assertStringContainsString('(12 faktur belum berbeban)', $html);
     }
 
+    public function test_komposisi_mengikuti_filter_basis_nominal_tanpa_belum_dibebani(): void
+    {
+        $this->authUser();
+        // nominal 50/30/20 → porsi 50/30/20
+        $this->buatFaktur('F-K1', 500000, 500000, 'belum_lunas', 'TERMINAL BAN 1');
+        $this->buatFaktur('F-K2', 300000, 300000, 'belum_lunas', 'TERMINAL BAN 2');
+        $this->buatFaktur('F-K3', 200000, 200000, 'belum_lunas', 'TERMINAL BAN 3');
+        $this->buatFaktur('F-K0', 999000000, 999000000, 'belum_lunas', null); // tak ikut 100%
+
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('Komposisi Beban', $html);
+        $this->assertStringContainsString('50%', $html);
+        $this->assertStringContainsString('30%', $html);
+        $this->assertStringContainsString('20%', $html);
+
+        // filter satu cabang → 100%, tanpa cabang lain
+        $htmlSatu = $this->get(route('beban-hutang.index', ['cabang' => 'TERMINAL BAN 2']))->assertOk()->getContent();
+        $this->assertStringContainsString('100%', $htmlSatu);
+        $this->assertStringContainsString('Komposisi Beban', $htmlSatu);
+        $this->assertStringNotContainsString('TERMINAL BAN 1</span>', $htmlSatu);
+    }
+
     public function test_rincian_kartu_dibatasi_dan_bisa_dibuka_penuh(): void
     {
         $this->authUser();

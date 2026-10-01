@@ -14,8 +14,8 @@ class BebanHutangController extends Controller
 {
     public function index(Request $request)
     {
-        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua] = AdminBebanHutangController::rekap($request);
+        [$cards, $grand, $belumDibebani, $belumDibebaniTotal, $daftarCabang, $rinciSemua, $komposisi] = AdminBebanHutangController::rekap($request);
 
-        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'rinciSemua') + ['publik' => true]);
+        return view('beban-hutang.index', compact('cards', 'grand', 'belumDibebani', 'belumDibebaniTotal', 'daftarCabang', 'rinciSemua', 'komposisi') + ['publik' => true]);
     }
 }
