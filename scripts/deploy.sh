@@ -156,6 +156,12 @@ log "--- izin + cache ---"
 run_remote "chmod -R 775 storage bootstrap/cache"
 run_remote "$DEPLOY_PHP artisan optimize:clear && $DEPLOY_PHP artisan config:cache && $DEPLOY_PHP artisan route:cache && $DEPLOY_PHP artisan view:cache"
 
+# 9b. Guard agregasi: latih query sensitif ONLY_FULL_GROUP_BY di DB hosting
+# (SELECT saja, tanpa tulis). Gagal = pola GROUP BY tak portabel di MariaDB
+# (insiden 1055 /beban-hutang 500: 2026-10-01). Trap tetap menaikkan `up`.
+log "--- db:cek-agregasi (guard ONLY_FULL_GROUP_BY) ---"
+run_remote "$DEPLOY_PHP artisan db:cek-agregasi" || { log "GAGAL: query agregat tak jalan di MariaDB hosting. Situs dinaikkan kembali — perbaiki pola GROUP BY lalu deploy ulang."; exit 1; }
+
 # 10. Verifikasi HTTP (ikut redirect: root tamu 302 ke publik/login itu normal).
 KODE=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 30 "$DEPLOY_URL")
 log "HTTP $DEPLOY_URL => $KODE"

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\ImportFileException;
 use App\Models\InvoicePembelian;
-use App\Models\PembayaranHutang;
 use App\Models\Supplier;
 use App\Services\ExcelImportService;
 use Illuminate\Http\Request;
@@ -55,12 +54,18 @@ class BebanHutangController extends Controller
         // Dihitung dari himpunan faktur terfilter yg sama (bukan query terpisah).
         // Atribusi cicilan memakai SNAPSHOT cabang baris bayar (bukan cabang faktur
         // terkini) agar riwayat tak bergeser bila cabang faktur diubah kemudian.
+        // ATURAN PORTABEL (MariaDB strict ONLY_FULL_GROUP_BY menolak GROUP BY
+        // ekspresi mentah walau identik dgn SELECT — pernah 500 di hosting):
+        // agregasi cabang WAJIB via derived table + GROUP BY kolom polos,
+        // atau agregasi di PHP. Jangan kembalikan ke groupByRaw ekspresi.
         $cabangSnapshot = "COALESCE(NULLIF(pembayaran_hutang.cabang, ''), NULLIF(invoice_pembelian.cabang, ''), 'Belum Dibebani')";
-        $cicilanPerCabang = PembayaranHutang::query()
+        $perBayar = DB::table('pembayaran_hutang')
             ->join('invoice_pembelian', 'invoice_pembelian.id', '=', 'pembayaran_hutang.invoice_pembelian_id')
             ->whereIn('pembayaran_hutang.invoice_pembelian_id', $invoices->pluck('id'))
-            ->selectRaw("{$cabangSnapshot} as cabang, SUM(pembayaran_hutang.nominal) as total")
-            ->groupByRaw($cabangSnapshot)
+            ->selectRaw("{$cabangSnapshot} as cabang, pembayaran_hutang.nominal as nominal");
+        $cicilanPerCabang = DB::query()->fromSub($perBayar, 'bayar_per_cabang')
+            ->selectRaw('cabang, SUM(nominal) as total')
+            ->groupBy('cabang')
             ->pluck('total', 'cabang');
 
         // Urutan kartu: TB1 → TB2 → TB3 → abjad → 'Belum Dibebani' paling bawah.
