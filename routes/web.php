@@ -147,6 +147,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/kirim-hosting', [DeployController::class, 'index'])->name('deploy.index');
     Route::post('/kirim-hosting', [DeployController::class, 'kirim'])->name('deploy.kirim');
     Route::get('/kirim-hosting/status', [DeployController::class, 'status'])->name('deploy.status');
+    Route::post('/kirim-hosting/reset', [DeployController::class, 'reset'])->name('deploy.reset');
     Route::post('/kirim-hosting/test-koneksi', [DeployController::class, 'testKoneksi'])->name('deploy.test-koneksi');
 
     // ---- Pengaturan (PRD 4.5) ----

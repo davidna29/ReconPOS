@@ -28,11 +28,25 @@ class DeployController extends Controller
         return config('deploy.ssh_user') . '@' . config('deploy.ssh_host') . ':' . config('deploy.ssh_port');
     }
 
+    /** Marker basi (>30 mnt) dianggap mati (proses yatim/OS restart). */
+    public static function sedangBerjalan(): bool
+    {
+        $file = (string) config('deploy.running');
+        if (! file_exists($file)) {
+            return false;
+        }
+        if (time() - (int) filemtime($file) > 1800) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function index()
     {
         $this->gate();
         $log = @file_get_contents((string) config('deploy.log')) ?: '';
-        $running = file_exists((string) config('deploy.running'));
+        $running = self::sedangBerjalan();
 
         return view('deploy.index', [
             'log' => $log,
@@ -45,8 +59,8 @@ class DeployController extends Controller
     public function kirim(Request $request)
     {
         $this->gate();
-        if (file_exists((string) config('deploy.running'))) {
-            return back()->with('error', 'Deploy sedang berjalan. Tunggu selesai dulu.');
+        if (self::sedangBerjalan()) {
+            return back()->with('error', 'Deploy sedang berjalan. Tunggu selesai dulu (satu klik cukup — jangan klik berulang).');
         }
         $data = $request->validate([
             'konfirmasi' => ['required', 'string'],
@@ -67,9 +81,24 @@ class DeployController extends Controller
             ! empty($data['backup']) ? '--backup' : null,
             ! empty($data['tanpa_maintenance']) ? '--tanpa-maintenance' : null,
         ]);
+        // Tulis marker LEBIH DULU secara sinkron (tutup race: cek-vs-tulis
+        // antar-klik beruntun); anak menimpa + menghapusnya saat selesai.
+        file_put_contents(
+            (string) config('deploy.running'),
+            json_encode(['diminta' => now()->toDateTimeString(), 'oleh' => $request->user()?->email])
+        );
         app(\App\Services\DeployRunner::class)->luncurkan($args);
 
-        return redirect()->route('deploy.index')->with('success', 'Deploy dimulai di background. Pantau log di bawah (refresh otomatis).');
+        return redirect()->route('deploy.index')->with('success', 'Deploy dimulai di background. Pantau log di bawah (refresh otomatis). Satu klik cukup — jangan klik ulang.');
+    }
+
+    /** Hapus paksa penanda berjalan (bila proses yatim/OS restart). */
+    public function reset(Request $request)
+    {
+        $this->gate();
+        @unlink((string) config('deploy.running'));
+
+        return back()->with('success', 'Penanda deploy direset. Pastikan tak ada proses deploy yg hidup sebelum klik Kirim lagi.');
     }
 
     /** Uji koneksi SSH ke hosting (20 detik, tanpa mengubah apa pun). */
@@ -97,7 +126,7 @@ class DeployController extends Controller
         $this->gate();
 
         return response()->json([
-            'running' => file_exists((string) config('deploy.running')),
+            'running' => self::sedangBerjalan(),
             'log' => @file_get_contents((string) config('deploy.log')) ?: '',
         ]);
     }

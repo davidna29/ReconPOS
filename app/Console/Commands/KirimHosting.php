@@ -175,13 +175,26 @@ class KirimHosting extends Command
 
     private function proc(array $cmd, int $timeout): ?string
     {
-        $r = Process::timeout($timeout)->run($cmd);
+        // Streaming: tiap baris output ditulis ke log SAAT ITU JUGA agar loading
+        // terlihat hidup (buffered run membuat log beku selama suite test).
         $this->catat('$ ' . implode(' ', array_map(fn ($a) => str_contains($a, ' ') ? "'$a'" : $a, $cmd)));
-        $out = trim($r->output() . "\n" . $r->errorOutput());
-        if ($out !== '') {
-            foreach (explode("\n", $out) as $l) {
-                $this->catat('  | ' . $l);
+        $penyangga = '';
+        $tulis = function (string $teks) use (&$penyangga): void {
+            $penyangga .= $teks;
+            while (($pos = strpos($penyangga, "\n")) !== false) {
+                $baris = substr($penyangga, 0, $pos);
+                $penyangga = substr($penyangga, $pos + 1);
+                if (trim($baris) !== '') {
+                    $this->catat('  | ' . $baris);
+                }
             }
+        };
+        $r = Process::timeout($timeout)->run($cmd, function (string $tipe, string $buffer) use ($tulis): void {
+            $tulis($buffer);
+        });
+        $sisa = trim($penyangga);
+        if ($sisa !== '') {
+            $this->catat('  | ' . $sisa);
         }
         if (! $r->successful()) {
             $this->catat('  ! exit ' . $r->exitCode());
@@ -328,7 +341,7 @@ class KirimHosting extends Command
 
     private function cekTest(): bool
     {
-        $this->catat('Menjalankan php artisan test (bisa ~1 menit)...');
+        $this->catat('Menjalankan php artisan test (bisa ±1 menit — JANGAN klik Kirim lagi, pantau baris di bawah)...');
 
         return $this->proc([PHP_BINARY, base_path() . '/artisan', 'test'], 900) !== null;
     }

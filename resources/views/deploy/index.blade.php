@@ -59,11 +59,19 @@
                 <input type="text" name="konfirmasi" required autocomplete="off" class="input mono" placeholder="KIRIM">
                 @error('konfirmasi')<span class="hint text-danger-red">{{ $message }}</span>@enderror
             </div>
-            <div>
-                <button class="btn btn-primary shadow-sm">
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-kirim" class="btn btn-primary shadow-sm" @if ($running) disabled @endif>
                     <span class="material-symbols-outlined text-[18px]" aria-hidden="true">rocket_launch</span> Kirim Sekarang
                 </button>
+                <span class="hint mb-0">Satu klik cukup — log mengalir di bawah, jangan klik ulang.</span>
             </div>
+        </form>
+        <form method="POST" action="{{ route('deploy.reset') }}" class="mt-2" data-no-loading
+            onsubmit="return confirm('Hapus penanda berjalan? Pastikan tak ada deploy yg hidup (cek via terminal: ps aux | grep kirim-hosting).');">
+            @csrf
+            <button class="btn btn-secondary btn-sm">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">restart_alt</span> Reset penanda
+            </button>
         </form>
     </div>
 
@@ -86,7 +94,13 @@
         (function () {
             const box = document.getElementById('deploy-log');
             const st = document.getElementById('deploy-status');
+            const btn = document.getElementById('btn-kirim');
             if (!box) return;
+            const aturTombol = (jalan) => {
+                if (!btn) return;
+                btn.disabled = !!jalan;
+                btn.classList.toggle('opacity-50', !!jalan);
+            };
             box.scrollTop = box.scrollHeight;
             setInterval(async () => {
                 try {
@@ -97,8 +111,12 @@
                     box.scrollTop = box.scrollHeight;
                     st.textContent = d.running ? '● Berjalan…' : '● Menganggur';
                     st.className = 'text-body-sm font-medium ' + (d.running ? 'text-hutang-amber' : 'text-lunas-green');
+                    aturTombol(d.running);
                 } catch (e) { /* abaikan, coba lagi 3 dtk berikut */ }
             }, 3000);
+            aturTombol(@json($running));
+            const form = btn?.closest('form');
+            form?.addEventListener('submit', () => aturTombol(true));
         })();
     </script>
 @endpush

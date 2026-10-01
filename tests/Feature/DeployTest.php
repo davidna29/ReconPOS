@@ -53,6 +53,9 @@ class DeployTest extends TestCase
     {
         config(['deploy.allow_remote' => true]);
         $this->authUser();
+        $run = tempnam(sys_get_temp_dir(), 'dpl-run');
+        @unlink($run);
+        config(['deploy.running' => $run]);
         $this->mock(\App\Services\DeployRunner::class, function ($m) {
             $m->shouldReceive('luncurkan')->once()->with(['--dry-run'])->andReturnNull();
         });
@@ -60,6 +63,9 @@ class DeployTest extends TestCase
         $this->post(route('deploy.kirim'), ['konfirmasi' => 'KIRIM', 'dry_run' => '1'])
             ->assertRedirect(route('deploy.index'))
             ->assertSessionHas('success');
+        // marker ditulis sinkron SEBELUM spawn (tutup race klik beruntun)
+        $this->assertFileExists($run);
+        @unlink($run);
     }
 
     public function test_perintah_detached_selamat_dari_akhir_request(): void
@@ -106,6 +112,28 @@ class DeployTest extends TestCase
             ->assertSessionHas('error');
 
         @unlink((string) config('deploy.running'));
+    }
+
+    public function test_marker_basi_diabaikan_dan_bisa_reset(): void
+    {
+        config(['deploy.allow_remote' => true]);
+        $this->authUser();
+        $run = tempnam(sys_get_temp_dir(), 'dpl-run');
+        // marker berumur 1 jam = basi (proses yatim/OS restart)
+        touch($run, time() - 3600);
+        config(['deploy.running' => $run]);
+        $this->mock(\App\Services\DeployRunner::class, function ($m) {
+            $m->shouldReceive('luncurkan')->once()->andReturnNull();
+        });
+
+        $this->post(route('deploy.kirim'), ['konfirmasi' => 'KIRIM'])
+            ->assertRedirect(route('deploy.index'))
+            ->assertSessionHas('success');
+
+        file_put_contents($run, '{}');
+        $this->post(route('deploy.reset'))->assertSessionHas('success');
+        $this->assertFileDoesNotExist($run);
+        @unlink($run);
     }
 
     // ---------- pure helpers ----------
