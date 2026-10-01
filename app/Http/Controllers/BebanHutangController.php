@@ -49,18 +49,13 @@ class BebanHutangController extends Controller
 
         $invoices = $query->orderBy('tanggal_transaksi')->get();
 
-        // Total dibayar per cabang dalam periode (tanggal_bayar ikut filter;
-        // tanpa filter = sepanjang waktu). Sumber: baris pembayaran × cabang faktur.
-        $bayarQuery = PembayaranHutang::query()
+        // Makna kohort + kini: filter memilih FAKTUR-nya (via tanggal_transaksi);
+        // semua angka uang = kondisi terkini. Dibayar = uang muka + SELURUH cicilan
+        // kapan pun (tanpa batas tanggal_bayar) sehingga Hutang = Sisa + Dibayar.
+        // Dihitung dari himpunan faktur terfilter yg sama (bukan query terpisah).
+        $cicilanPerCabang = PembayaranHutang::query()
             ->join('invoice_pembelian', 'invoice_pembelian.id', '=', 'pembayaran_hutang.invoice_pembelian_id')
-            ->where('invoice_pembelian.jenis', 'hutang');
-        if ($awal && $akhir) {
-            $bayarQuery->whereBetween('pembayaran_hutang.tanggal_bayar', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
-        }
-        if (($supplierId = (int) $request->get('supplier')) > 0) {
-            $bayarQuery->where('invoice_pembelian.supplier_id', $supplierId);
-        }
-        $dibayarPerCabang = $bayarQuery
+            ->whereIn('pembayaran_hutang.invoice_pembelian_id', $invoices->pluck('id'))
             ->selectRaw("COALESCE(NULLIF(invoice_pembelian.cabang, ''), 'Belum Dibebani') as cabang, SUM(pembayaran_hutang.nominal) as total")
             ->groupBy('cabang')
             ->pluck('total', 'cabang');
@@ -70,16 +65,20 @@ class BebanHutangController extends Controller
         $tagihan = fn ($items) => (int) $items->sum('total_setelah_diskon') + (int) $items->sum('ppn');
         $urutan = array_flip(InvoicePembelian::CABANG_SARAN);
         $cards = $invoices->groupBy(fn ($inv) => $inv->labelCabang())
-            ->map(fn ($items, $nama) => [
-                'cabang' => $nama,
-                'lembar' => $items->count(),
-                'hutang' => $tagihan($items),
-                'sisa' => (int) $items->sum('sisa_hutang'),
-                'dibayar' => (int) ($dibayarPerCabang[$nama] ?? 0),
-                'lunas' => $items->where('status', 'lunas')->count(),
-                'belum_lunas' => $items->where('status', '!=', 'lunas')->count(),
-                'items' => $items->values(),
-            ])
+            ->map(function ($items, $nama) use ($tagihan, $urutan, $cicilanPerCabang) {
+                $dibayar = (int) $items->sum('bayar_atau_dp') + (int) ($cicilanPerCabang[$nama] ?? 0);
+
+                return [
+                    'cabang' => $nama,
+                    'lembar' => $items->count(),
+                    'hutang' => $tagihan($items),
+                    'sisa' => (int) $items->sum('sisa_hutang'),
+                    'dibayar' => $dibayar,
+                    'lunas' => $items->where('status', 'lunas')->count(),
+                    'belum_lunas' => $items->where('status', '!=', 'lunas')->count(),
+                    'items' => $items->values(),
+                ];
+            })
             ->sortBy(fn ($c) => $c['cabang'] === 'Belum Dibebani' ? '~~~' : sprintf('%03d-%s', $urutan[$c['cabang']] ?? 999, $c['cabang']))
             ->values();
 
@@ -87,7 +86,7 @@ class BebanHutangController extends Controller
             'lembar' => $invoices->count(),
             'hutang' => $tagihan($invoices),
             'sisa' => (int) $invoices->sum('sisa_hutang'),
-            'dibayar' => (int) $dibayarPerCabang->sum(),
+            'dibayar' => (int) $invoices->sum('bayar_atau_dp') + (int) $cicilanPerCabang->sum(),
             'lunas' => $invoices->where('status', 'lunas')->count(),
         ];
 

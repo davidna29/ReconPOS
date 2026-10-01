@@ -212,24 +212,47 @@ class BebanHutangTest extends TestCase
         $tb2 = $this->buatFaktur('F-D2', 500000, 500000, 'belum_lunas', 'TERMINAL BAN 2');
 
         $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('Rp 400.000', $html); // dibayar TB1
+        // dibayar TB1 = DP 400rb + cicilan 400rb (uang muka ikut dihitung)
+        $this->assertStringContainsString('Rp 800.000', $html);
         $this->assertStringContainsString('Rp 0', $html); // dibayar TB2 (belum ada pembayaran)
     }
 
-    public function test_rekap_dibayar_mengikuti_filter_periode(): void
+    public function test_rekap_dibayar_tetap_dihitung_walau_cicilan_beda_periode(): void
     {
+        // Makna kohort + kini: filter Juni memilih faktur Juni; cicilan Agustus
+        // atas faktur tsb TETAP dihitung + faktur tampil Lunas bila sudah lunas.
         $this->authUser();
-        $tb1 = $this->buatFaktur('F-P1', 1000000, 900000, 'belum_lunas', 'TERMINAL BAN 1');
-        app(\App\Services\PembelianService::class)->pelunasan($tb1, 100000, now()->subMonths(2));
+        $tb1 = $this->buatFaktur('F-P1', 1000000, 1000000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', now()->startOfMonth()->format('Y-m-d H:i'));
+        app(\App\Services\PembelianService::class)->pelunasan($tb1, 1000000, now()->subMonths(2));
 
-        // pembayaran 2 bulan lalu tak masuk filter bulan berjalan
         $html = $this->get(route('beban-hutang.index', ['bulan' => now()->format('Y-m')]))
             ->assertOk()->getContent();
-        $this->assertStringContainsString('Rp 0', $html);
+        $this->assertStringContainsString('Rp 1.000.000', $html); // dibayar penuh
+        $this->assertStringContainsString('Lunas', $html);
+    }
 
-        // tanpa filter periode: all-time → terlihat
-        $htmlPenuh = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
-        $this->assertStringContainsString('Rp 100.000', $htmlPenuh);
+    public function test_rekap_kohort_balance_hutang_sama_dengan_sisa_plus_dibayar(): void
+    {
+        $this->authUser();
+        // murni (tanpa DP/bayar) + cicilan sebagian + lunas + ber-DP tanpa cicilan
+        $this->buatFaktur('F-B1', 1000000, 1110000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', null, 110000);
+        $cicil = $this->buatFaktur('F-B2', 2000000, 2220000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', null, 220000);
+        app(\App\Services\PembelianService::class)->pelunasan($cicil, 500000, now());
+        $lunas = $this->buatFaktur('F-B3', 500000, 555000, 'belum_lunas', 'TERMINAL BAN 2', 'hutang', null, 55000);
+        app(\App\Services\PembelianService::class)->pelunasan($lunas, 555000, now());
+        $this->buatFaktur('F-B4', 1000000, 900000, 'belum_lunas', 'TERMINAL BAN 2', 'hutang', null, 110000); // DP 200rb
+
+        $response = $this->get(route('beban-hutang.index'))->assertOk();
+        $html = $response->getContent();
+
+        // kartu TB1: hutang 3.330.000 = sisa 2.830.000 + dibayar 500.000
+        $this->assertStringContainsString('Rp 3.330.000', $html);
+        $this->assertStringContainsString('Rp 2.830.000', $html);
+        $this->assertStringContainsString('Rp 500.000', $html);
+        // kartu TB2: hutang 1.665.000 = sisa 900.000 + dibayar 765.000 (DP 210rb + lunas 555rb)
+        $this->assertStringContainsString('Rp 1.665.000', $html);
+        $this->assertStringContainsString('Rp 900.000', $html);
+        $this->assertStringContainsString('Rp 765.000', $html);
     }
 
     public function test_invarian_sisa_sama_dengan_total_ppn_dp_bayar(): void

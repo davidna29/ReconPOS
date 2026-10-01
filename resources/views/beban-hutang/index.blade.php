@@ -9,7 +9,7 @@
         <div>
             <h2 class="page-head-title">Beban Hutang per Cabang</h2>
             <p class="page-head-subtitle">Pemilahan faktur hutang ke TERMINAL BAN 1 / 2 / 3 — {{ $grand['lembar'] }} lembar · hutang {{ rupiah($grand['hutang']) }} · sisa {{ rupiah($grand['sisa']) }} · dibayar {{ rupiah($grand['dibayar']) }} · {{ $grand['lunas'] }} lunas</p>
-            <p class="hint mt-1">Hutang = total tagihan termasuk PPN; Sisa = Hutang − terbayar.</p>
+            <p class="hint mt-1">Hutang = total tagihan termasuk PPN; Sisa = Hutang − terbayar. Filter memilih faktur (tgl transaksi); Dibayar = uang muka + seluruh cicilan s.d. saat ini.</p>
         </div>
         @if (! $publik)
         <div class="flex flex-wrap gap-2">
