@@ -4,7 +4,8 @@
 #
 #   ./scripts/deploy.sh --dry-run              # HANYA menampilkan perubahan (read-only di server)
 #   ./scripts/deploy.sh                        # eksekusi sungguhan (minta ketik KIRIM dulu)
-#   Flags: --force --tanpa-test --tanpa-backup --tanpa-maintenance
+#   ./scripts/deploy.sh --yes ...              # lewati prompt KIRIM (hanya bila konfirmasi sudah eksplisit)
+# Flags: --force --tanpa-test --tanpa-backup --tanpa-maintenance --yes
 #
 # Urutan: cek lokal -> SSH -> deteksi layout -> [dry-run|rsync] -> down ->
 # backup DB hosting -> sambung-public -> composer -> migrate --force ->
@@ -16,7 +17,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-DRY_RUN=0; FORCE=0; TANPA_TEST=0; BACKUP=1; MAINTENANCE=1
+DRY_RUN=0; FORCE=0; TANPA_TEST=0; BACKUP=1; MAINTENANCE=1; YES=0
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY_RUN=1 ;;
@@ -24,6 +25,7 @@ for a in "$@"; do
     --tanpa-test) TANPA_TEST=1 ;;
     --tanpa-backup) BACKUP=0 ;;
     --tanpa-maintenance) MAINTENANCE=0 ;;
+    --yes) YES=1 ;;
     *) echo "Flag tak dikenal: $a (lihat header file ini)"; exit 1 ;;
   esac
 done
@@ -107,14 +109,20 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-# 5. Konfirmasi ketik KIRIM (wajib terminal interaktif).
-if [ ! -t 0 ]; then log "GAGAL: butuh terminal interaktif untuk konfirmasi KIRIM."; exit 1; fi
-read -r -p "Ketik KIRIM untuk eksekusi sungguhan: " KONFIRM
-[ "$KONFIRM" = "KIRIM" ] || { log "Dibatalkan."; exit 1; }
+# 5. Konfirmasi ketik KIRIM (wajib terminal interaktif, kecuali --yes).
+if [ "$YES" -eq 0 ]; then
+  if [ ! -t 0 ]; then log "GAGAL: butuh terminal interaktif untuk konfirmasi KIRIM (atau pakai --yes bila sudah setuju eksplisit)."; exit 1; fi
+  read -r -p "Ketik KIRIM untuk eksekusi sungguhan: " KONFIRM
+  [ "$KONFIRM" = "KIRIM" ] || { log "Dibatalkan."; exit 1; }
+else
+  log "Konfirmasi KIRIM via --yes (persetujuan eksplisit sudah diberikan)."
+fi
 
 # Maintenance ON (kecuali diminta tanpa); trap menjamin UP kembali.
 DID_DOWN=0
-naikkan_up() { if [ "$DID_DOWN" -eq 1 ]; then log "--- artisan up ---"; remote "$DEPLOY_PHP artisan up" || true; fi; }
+# Guard BASH_SUBSHELL: subshell $(...) mewarisi trap EXIT — tanpa guard ini
+# `up` bisa jalan DINI di tengah deploy (insiden: up ganda 2026-10-01).
+naikkan_up() { if [ "${BASH_SUBSHELL:-0}" -ne 0 ]; then return 0; fi; if [ "$DID_DOWN" -eq 1 ]; then log "--- artisan up ---"; run_remote "$DEPLOY_PHP artisan up" || true; fi; }
 trap naikkan_up EXIT
 run_remote() { remote "cd '$PROJECT' && $1"; }
 if [ "$MAINTENANCE" -eq 1 ]; then
@@ -138,17 +146,21 @@ log "--- sambung public ---"
 run_remote "$DEPLOY_PHP artisan app:sambung-public --docroot='$DOCROOT'"
 
 # 9. Dependensi + migrate (PERINTAH PERSIS: migrate --force, tanpa fresh/drop).
+# Composer WAJIB dijalankan dgn binari PHP yg sama (default php server = 8.2,
+# tak cocok dgn platform lock) — cari binernya dulu, gagalkan jelas bila tak ada.
 log "--- composer install ---"
-run_remote "(command -v composer >/dev/null && composer install --no-dev --optimize-autoloader) || ($DEPLOY_PHP composer.phar install --no-dev --optimize-autoloader)"
+run_remote 'if command -v composer >/dev/null 2>&1; then CB=$(command -v composer); elif [ -f composer.phar ]; then CB=composer.phar; else echo BUTUH-COMPOSER-MANUAL; exit 1; fi; '"$DEPLOY_PHP"' $CB install --no-dev --optimize-autoloader'
 log "--- migrate --force ---"
 run_remote "$DEPLOY_PHP artisan migrate --force"
 log "--- izin + cache ---"
 run_remote "chmod -R 775 storage bootstrap/cache"
 run_remote "$DEPLOY_PHP artisan optimize:clear && $DEPLOY_PHP artisan config:cache && $DEPLOY_PHP artisan route:cache && $DEPLOY_PHP artisan view:cache"
 
-# 10. Verifikasi HTTP.
-KODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$DEPLOY_URL")
+# 10. Verifikasi HTTP (ikut redirect: root tamu 302 ke publik/login itu normal).
+KODE=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 30 "$DEPLOY_URL")
 log "HTTP $DEPLOY_URL => $KODE"
-[ "$KODE" = "200" ] || { log "GAGAL: verifikasi HTTP $KODE. Cek storage/logs/laravel.log di server."; exit 1; }
+KODE_LOGIN=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$DEPLOY_URL/login")
+log "HTTP $DEPLOY_URL/login => $KODE_LOGIN"
+[ "$KODE" = "200" ] && [ "$KODE_LOGIN" = "200" ] || { log "GAGAL: verifikasi HTTP $KODE/$KODE_LOGIN. Cek storage/logs/laravel.log di server."; exit 1; }
 
 log "SELESAI."
