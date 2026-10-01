@@ -255,25 +255,26 @@ Ini membuat tabel + data awal (pengaturan toko, template export, dsb.) dan akun 
 >
 > **Saat ragu / baru-baru error cache**: cukup jalankan `route:clear` (membuat Laravel membaca `routes/web.php` langsung tiap request) lalu `optimize`/cache satu-rangkaian.
 
-## 10b. Kirim ke Hosting via tombol (pengganti langkah manual 2–4, 7, 10)
+## 10b. Deploy update via skrip (pengganti langkah manual 2–4, 7, 10)
 
-Setelah deploy awal selesai sekali secara manual, update berikutnya cukup sekali klik
-dari laptop (menu **Kirim Hosting**, hanya tampil bila `APP_ENV=local`):
+> **Fitur tombol "Kirim Hosting" (menu + route `deploy.*` + `app:kirim-hosting`)
+> DIHAPUS pada 2026-10-01** (Bagian 3) — digantikan skrip di bawah.
+> Riwayatnya tersimpan di tag git `cadangan-sebelum-hapus-kirim-hosting`.
+
+Update berikutnya cukup dari terminal laptop:
 
 1. **Siapkan SSH key sekali saja** (agar tanpa password):
    `ssh-copy-id -p 65002 u549935065@46.202.138.28`
    lalu pastikan `ssh -p 65002 u549935065@46.202.138.28 "echo OK"` tidak meminta password.
 2. **Isi `.env` lokal** (tidak ikut terkirim): `DEPLOY_SSH_HOST/PORT/USER`
    (+ `DEPLOY_SSH_KEY` bila key di path non-standar, `DEPLOY_PATH` bila layout custom).
-3. Buka halaman **Kirim Hosting** → centang opsi (disarankan: dry-run dulu,
-   backup ON) → ketik **KIRIM** → pantau log (refresh otomatis tiap 3 detik).
-4. Yang dikerjakan tombol: cek git bersih → `php artisan test` → cek build Vite →
-   rsync delta (`.env`/vendor/sqlite/log tak ikut) → `app:sambung-public` →
-   `composer install` → `migrate --force` → cache → verifikasi HTTP 200.
-5. Alternatif terminal (hasil sama, log di layar):
-   `php artisan app:kirim-hosting --dry-run` lalu tanpa dry-run untuk eksekusi.
-
-> Tombol & route `deploy.*` 404 di hosting (gate lokal) — tidak bisa kepencet dari server.
+3. Kering dulu: `./scripts/deploy.sh --dry-run`
+4. Eksekusi: `./scripts/deploy.sh --force --yes` (tambah `--tanpa-test` bila suite baru saja hijau).
+5. Yang dikerjakan skrip: konfirmasi KIRIM → maintenance down (trap menjamin up) →
+   backup DB hosting → rsync delta (`.env`/vendor/sqlite/log tak ikut) →
+   `app:sambung-public` → `composer install` (PHP 8.4) → `migrate --force` →
+   cache → `db:cek-agregasi` (guard ONLY_FULL_GROUP_BY, SEBELUM up) →
+   verifikasi HTTP → up.
 
 ## 11. SSL & HTTPS (wajib kalau pakai https)
 

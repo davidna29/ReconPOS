@@ -5,7 +5,6 @@ use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BarangController;
 use App\Http\Controllers\BebanHutangController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DeployController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\GenerateController;
 use App\Http\Controllers\PembelianController;
@@ -142,13 +141,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/backup/unggah', [BackupController::class, 'upload'])->name('backup.upload');
     Route::get('/backup/pratinjau', [BackupController::class, 'preview'])->name('backup.preview');
     Route::post('/backup/pulihkan', [BackupController::class, 'restore'])->name('backup.restore');
-
-    // ---- Kirim ke Hosting (hanya lokal — gate di controller, 404 di hosting) ----
-    Route::get('/kirim-hosting', [DeployController::class, 'index'])->name('deploy.index');
-    Route::post('/kirim-hosting', [DeployController::class, 'kirim'])->name('deploy.kirim');
-    Route::get('/kirim-hosting/status', [DeployController::class, 'status'])->name('deploy.status');
-    Route::post('/kirim-hosting/reset', [DeployController::class, 'reset'])->name('deploy.reset');
-    Route::post('/kirim-hosting/test-koneksi', [DeployController::class, 'testKoneksi'])->name('deploy.test-koneksi');
 
     // ---- Pengaturan (PRD 4.5) ----
     Route::get('/pengaturan', [PengaturanController::class, 'index'])->name('pengaturan.index');

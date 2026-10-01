@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Process;
 
 /**
  * Cadangkan database ke storage/app/private/backups-db/db-YYYYMMDD-HHMMSS.sql.gz.
- * Dipakai lokal maupun remote (oleh app:kirim-hosting --backup).
+ * Dipakai lokal maupun remote (oleh scripts/deploy.sh tahap backup).
  */
 class CadangkanDb extends Command
 {
