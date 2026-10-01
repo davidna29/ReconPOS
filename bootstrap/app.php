@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
+    ->withCommands([
+        \App\Console\Commands\KirimHosting::class,
+        \App\Console\Commands\SambungPublic::class,
+        \App\Console\Commands\CadangkanDb::class,
+    ])
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),

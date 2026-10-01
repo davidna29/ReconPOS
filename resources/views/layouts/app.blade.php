@@ -128,6 +128,14 @@
                 </a>
             </li>
             @endif
+            @if (! $publik && app()->isLocal())
+            <li>
+                <a class="nav-link {{ request()->routeIs('deploy.*') ? 'nav-link-active' : '' }}" href="{{ route('deploy.index') }}" title="Kirim kode lokal ke hosting (khusus laptop)" @if (request()->routeIs('deploy.*')) aria-current="page" @endif>
+                    <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
+                    <span class="nav-label">Kirim Hosting</span>
+                </a>
+            </li>
+            @endif
             @if (! $publik)
             <li>
                 <a class="nav-link" href="{{ route('publik.landing') }}" target="_blank" rel="noopener" title="Lihat Mode Publik (tab baru)">
