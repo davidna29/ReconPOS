@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to') || request()->filled('supplier'))
+    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to') || request()->filled('supplier') || request()->filled('cabang'))
     <div class="mb-4">
         <x-collapse id="filter-hutang" label="Filter Periode" icon="filter_alt" :active="$hasFilter">
             @include('partials.filter-periode', [
@@ -22,6 +22,8 @@
                 'reset' => $r('pembelian.invoice-hutang'),
                 'showSupplier' => true,
                 'suppliers' => $suppliers ?? collect(),
+                'showCabang' => true,
+                'daftarCabang' => $daftarCabang ?? collect(),
             ])
         </x-collapse>
     </div>
@@ -72,6 +74,7 @@
                         <th>Invoice</th>
                         <th>Tanggal Transaksi</th>
                         <th>Supplier</th>
+                        <th>Cabang</th>
                         <th>Jatuh Tempo</th>
                         <th class="text-right">Sudah Bayar</th>
                         <th class="text-right">Sisa Hutang</th>
@@ -88,6 +91,7 @@
                             <td data-label="Invoice" class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
                             <td data-label="Tanggal">{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
                             <td data-label="Supplier" class="font-medium">{{ $inv->supplier?->nama }}</td>
+                            <td data-label="Cabang">{{ $inv->cabang ?? '—' }}</td>
                             <td data-label="Jatuh Tempo">
                                 {{ $inv->jatuh_tempo?->format('d/m/Y') ?? '-' }}
                                 @if ($inv->jatuh_tempo && $inv->jatuh_tempo->isPast())
@@ -131,7 +135,7 @@
                         </tr>
                         @if (! $publik)
                         <tr id="bayar-{{ $inv->id }}" class="hidden bg-slate-50">
-                            <td colspan="9">
+                            <td colspan="10">
                                 <form method="POST" action="{{ route('pembelian.bayar', $inv) }}" class="flex flex-wrap items-end gap-3 p-3">
                                     @csrf
                                     <div>
@@ -142,6 +146,24 @@
                                         <label class="label">Tanggal Bayar</label>
                                         <input type="date" name="tanggal_bayar" value="{{ now()->format('Y-m-d') }}" required class="input">
                                     </div>
+                                    @if (trim((string) $inv->cabang) === '')
+                                    <div>
+                                        <label class="label">Cabang Beban <span class="text-danger-red">*</span></label>
+                                        <select name="cabang" required class="input">
+                                            <option value="">— Pilih cabang —</option>
+                                            @foreach (\App\Models\InvoicePembelian::CABANG_SARAN as $cb)
+                                                <option value="{{ $cb }}">{{ $cb }}</option>
+                                            @endforeach
+                                        </select>
+                                        <span class="hint">Wajib — sekalian menetapkan beban faktur ini.</span>
+                                    </div>
+                                    @else
+                                    <div>
+                                        <label class="label">Cabang Beban</label>
+                                        <div class="input-readonly">{{ $inv->cabang }}</div>
+                                        <input type="hidden" name="cabang" value="{{ $inv->cabang }}">
+                                    </div>
+                                    @endif
                                     <div class="flex-1">
                                         <label class="label">Catatan</label>
                                         <input type="text" name="catatan" placeholder="mis. cicilan ke-2" class="input">
@@ -152,7 +174,7 @@
                         </tr>
                         @endif
                     @empty
-                        <tr><td colspan="{{ $publik ? 8 : 9 }}" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
+                        <tr><td colspan="{{ $publik ? 9 : 10 }}" class="py-10 text-center text-secondary">Tidak ada hutang belum lunas. 🎉</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -253,6 +253,41 @@ class BebanHutangTest extends TestCase
         $this->assertStringContainsString('Lunas', $html);
     }
 
+    public function test_rekap_dibayar_memakai_snapshot_bukan_cabang_kini(): void
+    {
+        $this->authUser();
+        $inv = $this->buatFaktur('F-SNAP', 1000000, 1000000, 'belum_lunas', 'TERMINAL BAN 1');
+        app(\App\Services\PembelianService::class)->pelunasan($inv, 400000, now());
+        // cabang faktur diubah sesudah dibayar → riwayat tetap milik TB1
+        $inv->update(['cabang' => 'TERMINAL BAN 2']);
+
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        // kartu TB1 (0 lembar) tetap menampilkan dibayar 400rb dari snapshot
+        $this->assertStringContainsString('Rp 400.000', $html);
+    }
+
+    public function test_tabel_hutang_dan_lunas_tampil_kolom_serta_filter_cabang(): void
+    {
+        $this->authUser();
+        $this->buatFaktur('F-KOL-1', 1000000, 1000000, 'belum_lunas', 'TERMINAL BAN 1');
+        $this->buatFaktur('F-KOL-2', 500000, 0, 'lunas', 'TERMINAL BAN 2');
+
+        $this->get(route('pembelian.invoice-hutang'))
+            ->assertOk()
+            ->assertSee('Cabang', false)
+            ->assertSee('TERMINAL BAN 1');
+        $this->get(route('pembelian.invoice-hutang', ['cabang' => 'TERMINAL BAN 2']))
+            ->assertOk()
+            ->assertDontSee('F-KOL-1', false);
+        $this->get(route('pembelian.invoice-lunas'))
+            ->assertOk()
+            ->assertSee('Cabang', false)
+            ->assertSee('TERMINAL BAN 2');
+        $this->get(route('pembelian.invoice-lunas', ['cabang' => 'TERMINAL BAN 1']))
+            ->assertOk()
+            ->assertDontSee('F-KOL-2', false);
+    }
+
     public function test_rekap_kohort_balance_hutang_sama_dengan_sisa_plus_dibayar(): void
     {
         $this->authUser();

@@ -53,11 +53,14 @@ class BebanHutangController extends Controller
         // semua angka uang = kondisi terkini. Dibayar = uang muka + SELURUH cicilan
         // kapan pun (tanpa batas tanggal_bayar) sehingga Hutang = Sisa + Dibayar.
         // Dihitung dari himpunan faktur terfilter yg sama (bukan query terpisah).
+        // Atribusi cicilan memakai SNAPSHOT cabang baris bayar (bukan cabang faktur
+        // terkini) agar riwayat tak bergeser bila cabang faktur diubah kemudian.
+        $cabangSnapshot = "COALESCE(NULLIF(pembayaran_hutang.cabang, ''), NULLIF(invoice_pembelian.cabang, ''), 'Belum Dibebani')";
         $cicilanPerCabang = PembayaranHutang::query()
             ->join('invoice_pembelian', 'invoice_pembelian.id', '=', 'pembayaran_hutang.invoice_pembelian_id')
             ->whereIn('pembayaran_hutang.invoice_pembelian_id', $invoices->pluck('id'))
-            ->selectRaw("COALESCE(NULLIF(invoice_pembelian.cabang, ''), 'Belum Dibebani') as cabang, SUM(pembayaran_hutang.nominal) as total")
-            ->groupBy('cabang')
+            ->selectRaw("{$cabangSnapshot} as cabang, SUM(pembayaran_hutang.nominal) as total")
+            ->groupByRaw($cabangSnapshot)
             ->pluck('total', 'cabang');
 
         // Urutan kartu: TB1 → TB2 → TB3 → abjad → 'Belum Dibebani' paling bawah.
@@ -65,7 +68,7 @@ class BebanHutangController extends Controller
         $tagihan = fn ($items) => (int) $items->sum('total_setelah_diskon') + (int) $items->sum('ppn');
         $urutan = array_flip(InvoicePembelian::CABANG_SARAN);
         $cards = $invoices->groupBy(fn ($inv) => $inv->labelCabang())
-            ->map(function ($items, $nama) use ($tagihan, $urutan, $cicilanPerCabang) {
+            ->map(function ($items, $nama) use ($tagihan, $cicilanPerCabang) {
                 $dibayar = (int) $items->sum('bayar_atau_dp') + (int) ($cicilanPerCabang[$nama] ?? 0);
 
                 return [
@@ -78,7 +81,24 @@ class BebanHutangController extends Controller
                     'belum_lunas' => $items->where('status', '!=', 'lunas')->count(),
                     'items' => $items->values(),
                 ];
-            })
+            });
+        // Pembayaran yg snapshot cabangnya tak punya faktur dalam scope
+        // (mis. cabang faktur diubah sesudah dibayar) tetap dapat kartu induk.
+        foreach ($cicilanPerCabang as $nama => $total) {
+            if (! $cards->has($nama)) {
+                $cards->put($nama, [
+                    'cabang' => $nama,
+                    'lembar' => 0,
+                    'hutang' => 0,
+                    'sisa' => 0,
+                    'dibayar' => (int) $total,
+                    'lunas' => 0,
+                    'belum_lunas' => 0,
+                    'items' => collect(),
+                ]);
+            }
+        }
+        $cards = $cards
             ->sortBy(fn ($c) => $c['cabang'] === 'Belum Dibebani' ? '~~~' : sprintf('%03d-%s', $urutan[$c['cabang']] ?? 999, $c['cabang']))
             ->values();
 

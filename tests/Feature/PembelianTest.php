@@ -110,11 +110,72 @@ class PembelianTest extends TestCase
             'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
         ]);
         $inv = InvoicePembelian::first();
-        $this->post(route('pembelian.bayar', $inv), ['nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d')]);
+        $this->post(route('pembelian.bayar', $inv), ['nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d'), 'cabang' => 'TERMINAL BAN 1']);
         $this->assertSame(50000, $inv->fresh()->sisa_hutang);
+        $this->assertSame('TERMINAL BAN 1', $inv->fresh()->cabang);
         $this->post(route('pembelian.bayar', $inv), ['nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d')]);
         $this->assertSame(0, $inv->fresh()->sisa_hutang);
         $this->assertSame('lunas', $inv->fresh()->status);
+    }
+
+    public function test_bayar_satuan_ditolak_bila_ada_faktur_lebih_tua(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-FIFO1');
+        $s = $this->supplier();
+        $tua = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->subDays(5)->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $tua->update(['cabang' => 'TERMINAL BAN 1']);
+        $muda = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+        $muda->update(['cabang' => 'TERMINAL BAN 1']);
+
+        // bayar yg muda dulu → ditolak, disebut nomor tertua + arahan Bayar Bulk
+        $this->post(route('pembelian.bayar', $muda), [
+            'nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d'), 'cabang' => 'TERMINAL BAN 1',
+        ])->assertSessionHas('error');
+        $this->assertSame(100000, (int) $muda->fresh()->sisa_hutang);
+
+        // rantai FIFO: tertua lunas → berikutnya boleh dibayar
+        $this->post(route('pembelian.bayar', $tua), [
+            'nominal' => 100000, 'tanggal_bayar' => now()->format('Y-m-d'),
+        ])->assertSessionHas('success');
+        $this->post(route('pembelian.bayar', $muda), [
+            'nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d'),
+        ])->assertSessionHas('success');
+        $this->assertSame(50000, (int) $muda->fresh()->sisa_hutang);
+    }
+
+    public function test_bayar_satuan_wajib_cabang_bila_belum_berbeban(): void
+    {
+        $this->authUser();
+        $b = $this->barang('B-CAB1');
+        $s = $this->supplier();
+        $inv = app(PembelianService::class)->simpan([
+            'supplier_id' => $s->id, 'tanggal_transaksi' => now()->format('Y-m-d H:i'),
+            'jenis' => 'hutang', 'bayar_atau_dp' => 0,
+            'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
+        ]);
+
+        // tanpa cabang → ditolak
+        $this->post(route('pembelian.bayar', $inv), [
+            'nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d'),
+        ])->assertSessionHas('error');
+        $this->assertSame(100000, (int) $inv->fresh()->sisa_hutang);
+        $this->assertNull($inv->fresh()->cabang);
+
+        // dengan cabang → lolos + cabang ditetapkan + snapshot tersimpan
+        $this->post(route('pembelian.bayar', $inv), [
+            'nominal' => 50000, 'tanggal_bayar' => now()->format('Y-m-d'), 'cabang' => 'TERMINAL BAN 2',
+        ])->assertSessionHas('success');
+        $this->assertSame('TERMINAL BAN 2', $inv->fresh()->cabang);
+        $this->assertSame('TERMINAL BAN 2', \App\Models\PembayaranHutang::where('invoice_pembelian_id', $inv->id)->first()->cabang);
     }
 
     public function test_hapus_invoice_dengan_pembayaran_diblokir(): void
@@ -130,7 +191,7 @@ class PembelianTest extends TestCase
             'items' => [['barang_id' => $b->id, 'harga_beli' => 50000, 'qty' => 2, 'diskon_item' => 0]],
         ]);
         $inv = InvoicePembelian::first();
-        app(PembelianService::class)->pelunasan($inv, 50000, now());
+        app(PembelianService::class)->pelunasan($inv, 50000, now(), null, 'TERMINAL BAN 1');
         $this->delete(route('pembelian.destroy', $inv))->assertSessionHas('error');
         $this->assertDatabaseHas('invoice_pembelian', ['id' => $inv->id]);
     }

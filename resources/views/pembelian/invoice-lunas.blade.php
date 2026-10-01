@@ -13,7 +13,7 @@
         </div>
     </div>
 
-    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to') || request()->filled('supplier'))
+    @php($hasFilter = request()->filled('bulan') || request()->filled('tahun') || request()->filled('from') || request()->filled('to') || request()->filled('supplier') || request()->filled('cabang'))
     <div class="mb-4">
         <x-collapse id="filter-lunas" label="Filter Periode" icon="filter_alt" :active="$hasFilter">
             @include('partials.filter-periode', [
@@ -21,6 +21,8 @@
                 'reset' => $r('pembelian.invoice-lunas'),
                 'showSupplier' => true,
                 'suppliers' => $suppliers ?? collect(),
+                'showCabang' => true,
+                'daftarCabang' => $daftarCabang ?? collect(),
             ])
         </x-collapse>
     </div>
@@ -66,6 +68,7 @@
                         <th>Invoice</th>
                         <th>Tanggal</th>
                         <th>Supplier</th>
+                        <th>Cabang</th>
                         <th class="text-right">Total</th>
                         <th class="text-right">Bayar</th>
                         <th class="text-right">PPN</th>
@@ -84,6 +87,7 @@
                             </td>
                             <td data-label="Tanggal">{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
                             <td data-label="Supplier" class="font-medium">{{ $inv->supplier?->nama }}</td>
+                            <td data-label="Cabang">{{ $inv->cabang ?? '—' }}</td>
                             <td data-label="Total" class="mono text-right">{{ rupiah($inv->total_setelah_diskon) }}</td>
                             <td data-label="Bayar" class="mono text-right">{{ rupiah($inv->bayar_atau_dp) }}</td>
                             <td data-label="PPN" class="mono text-right text-secondary">{{ (int) $inv->ppn > 0 ? rupiah($inv->ppn) : '-' }}</td>
@@ -113,7 +117,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $publik ? 8 : 9 }}" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
+                        <tr><td colspan="{{ $publik ? 9 : 10 }}" class="py-10 text-center text-secondary">Belum ada pembelian lunas.</td></tr>
                     @endforelse
                 </tbody>
             </table>

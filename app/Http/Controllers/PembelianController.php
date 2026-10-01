@@ -91,6 +91,9 @@ class PembelianController extends Controller
         if ($sid = (int) $request->query('supplier')) {
             $query->where('supplier_id', $sid);
         }
+        if (($cabang = trim((string) $request->get('cabang'))) !== '') {
+            $query->where('cabang', $cabang);
+        }
 
         if ($s = trim((string) $request->get('q'))) {
             $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%")
@@ -99,9 +102,12 @@ class PembelianController extends Controller
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
+        $daftarCabang = InvoicePembelian::where('jenis', 'hutang')
+            ->whereNotNull('cabang')->where('cabang', '<>', '')
+            ->distinct()->orderBy('cabang')->pluck('cabang');
         [$labelBeli, $totalBeli, $sisaBeli, $countBeli] = $this->kartuPembelian($request, $awal, $akhir);
 
-        return view('pembelian.invoice-hutang', compact('invoices', 'suppliers', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
+        return view('pembelian.invoice-hutang', compact('invoices', 'suppliers', 'daftarCabang', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
     }
 
     /** Data Pembelian (Lunas/Cash) (PRD 5.2b) — dengan filter periode + supplier. */
@@ -117,6 +123,9 @@ class PembelianController extends Controller
         if ($sid = (int) $request->query('supplier')) {
             $query->where('supplier_id', $sid);
         }
+        if (($cabang = trim((string) $request->get('cabang'))) !== '') {
+            $query->where('cabang', $cabang);
+        }
 
         if ($s = trim((string) $request->get('q'))) {
             $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%")
@@ -125,9 +134,11 @@ class PembelianController extends Controller
 
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
+        $daftarCabang = InvoicePembelian::whereNotNull('cabang')->where('cabang', '<>', '')
+            ->distinct()->orderBy('cabang')->pluck('cabang');
         [$labelBeli, $totalBeli, $sisaBeli, $countBeli] = $this->kartuPembelian($request, $awal, $akhir);
 
-        return view('pembelian.invoice-lunas', compact('invoices', 'suppliers', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
+        return view('pembelian.invoice-lunas', compact('invoices', 'suppliers', 'daftarCabang', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
     }
 
     public function show(InvoicePembelian $invoice)
@@ -144,10 +155,11 @@ class PembelianController extends Controller
             'nominal' => ['required', 'integer', 'min:1'],
             'tanggal_bayar' => ['required', 'date'],
             'catatan' => ['nullable', 'string', 'max:255'],
+            'cabang' => ['nullable', 'string', 'max:50'],
         ]);
 
         try {
-            $this->service->pelunasan($invoice, (int) $data['nominal'], Carbon::parse($data['tanggal_bayar']), $data['catatan'] ?? null);
+            $this->service->pelunasan($invoice, (int) $data['nominal'], Carbon::parse($data['tanggal_bayar']), $data['catatan'] ?? null, $data['cabang'] ?? null);
 
             $pesan = $invoice->fresh()->sudahLunas()
                 ? 'Pembayaran diterima. Invoice kini lunas dan berpindah ke Data Pembelian.'

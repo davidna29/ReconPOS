@@ -141,7 +141,7 @@ class BayarBulkTest extends TestCase
         $inv = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-R');
 
         $svc = app(PembelianService::class);
-        $svc->pelunasan($inv, 1000000, now(), 'lunasin');
+        $svc->pelunasan($inv, 1000000, now(), 'lunasin', 'TERMINAL BAN 1');
         $this->assertSame('lunas', $inv->fresh()->status);
 
         // Salah input → hapus → lunas kembali terbuka
@@ -231,7 +231,7 @@ class BayarBulkTest extends TestCase
             'jenis' => 'hutang', 'bayar_atau_dp' => 200000, 'ppn' => 0,
             'items' => [['barang_id' => $b->id, 'harga_beli' => 500000, 'qty' => 2, 'diskon_item' => 0]],
         ]);
-        app(PembelianService::class)->pelunasan($inv, 300000, now());
+        app(PembelianService::class)->pelunasan($inv, 300000, now(), null, 'TERMINAL BAN 2');
 
         $html = $this->get(route('pembelian.invoice-hutang'))->getContent();
         $this->assertStringContainsString('Sudah Bayar', $html);
@@ -359,7 +359,7 @@ class BayarBulkTest extends TestCase
         $s = Supplier::create(['nama' => 'PT. HS', 'kontak' => '0820']);
         $b = $this->barang('B-HS');
         $inv = $this->hutang1jt($s, $b, '2026-06-01 10:00', 'INV-HS');
-        app(PembelianService::class)->pelunasan($inv, 400000, now());
+        app(PembelianService::class)->pelunasan($inv, 400000, now(), null, 'TERMINAL BAN 1');
 
         $this->delete(route('pembelian.bayar.destroy', PembayaranHutang::first()))
             ->assertRedirect()->assertSessionHas('success');

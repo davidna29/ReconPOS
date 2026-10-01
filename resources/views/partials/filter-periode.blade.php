@@ -1,5 +1,5 @@
 {{--
-    Filter periode (Bulan / Tahun / Rentang + opsional Supplier).
+    Filter periode (Bulan / Tahun / Rentang + opsional Supplier / Cabang).
     Satu form dipakai mobile (grid 2 kolom) & desktop (flex wrap) — konsisten dgn dashboard.
 
     Props:
@@ -7,6 +7,8 @@
       reset        : URL Reset (tanpa query)
       showSupplier : bool — tampilkan dropdown supplier (pembelian)
       suppliers    : collection utk dropdown supplier
+      showCabang   : bool — tampilkan dropdown cabang beban (pembelian)
+      daftarCabang : collection/array utk dropdown cabang
       hidden       : string HTML utk input tersembunyi (mis. sumber/q/entries penjualan)
 --}}
 <form method="GET" action="{{ $action }}"
@@ -36,6 +38,17 @@
                 <option value="">Semua supplier</option>
                 @foreach (($suppliers ?? collect()) as $s)
                     <option value="{{ $s->id }}" @selected((string) request('supplier') === (string) $s->id)>{{ $s->nama }}</option>
+                @endforeach
+            </select>
+        </div>
+    @endif
+    @if ($showCabang ?? false)
+        <div class="col-span-2 md:col-span-1">
+            <label class="label mb-0.5 text-[11px] md:text-body-sm">Cabang</label>
+            <select name="cabang" class="input w-full md:w-48">
+                <option value="">Semua cabang</option>
+                @foreach (($daftarCabang ?? collect()) as $cb)
+                    <option value="{{ $cb }}" @selected((string) request('cabang') === (string) $cb)>{{ $cb }}</option>
                 @endforeach
             </select>
         </div>

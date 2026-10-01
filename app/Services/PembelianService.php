@@ -244,7 +244,7 @@ class PembelianService
     }
 
     /** Pelunasan/cicilan hutang (PRD 5.2a). Invoice otomatis lunas bila sisa = 0. */
-    public function pelunasan(InvoicePembelian $invoice, int $nominal, Carbon $tanggal, ?string $catatan = null): void
+    public function pelunasan(InvoicePembelian $invoice, int $nominal, Carbon $tanggal, ?string $catatan = null, ?string $cabang = null): void
     {
         if (! $invoice->isHutang()) {
             throw new InvalidArgumentException('Invoice ini bukan transaksi hutang.');
@@ -255,8 +255,31 @@ class PembelianService
         if ($nominal <= 0 || $nominal > $invoice->sisa_hutang) {
             throw new InvalidArgumentException('Nominal pembayaran harus antara 1 dan sisa hutang (' . uang($invoice->sisa_hutang) . ').');
         }
+        // Prinsip Bayar Bulk: tertua dulu (tanggal ASC, id ASC) per supplier.
+        $tertua = InvoicePembelian::where('supplier_id', $invoice->supplier_id)
+            ->where('status', 'belum_lunas')
+            ->where('sisa_hutang', '>', 0)
+            ->where('id', '!=', $invoice->id)
+            ->orderBy('tanggal_transaksi')
+            ->orderBy('id')
+            ->first();
+        if ($tertua && ($tertua->tanggal_transaksi->lt($invoice->tanggal_transaksi)
+            || ($tertua->tanggal_transaksi->eq($invoice->tanggal_transaksi) && $tertua->id < $invoice->id))) {
+            throw new InvalidArgumentException(
+                'Masih ada faktur lebih tua belum lunas (' . $tertua->no_invoice . ' — sisa ' . uang($tertua->sisa_hutang) . '). Lunasi yang tertua dulu, atau bayar sekaligus via Bayar Bulk.'
+            );
+        }
+        // Beban wajib: faktur tanpa cabang harus ditetapkan cabangnya saat membayar.
+        $cabangBaru = normalisasi_teks($cabang);
+        if (trim((string) $invoice->cabang) === '' && $cabangBaru === null) {
+            throw new InvalidArgumentException('Faktur ini belum punya beban cabang. Pilih cabang dulu (sekalian menetapkan bebannya).');
+        }
 
-        DB::transaction(function () use ($invoice, $nominal, $tanggal, $catatan) {
+        DB::transaction(function () use ($invoice, $nominal, $tanggal, $catatan, $cabangBaru) {
+            if (trim((string) $invoice->cabang) === '' && $cabangBaru !== null) {
+                $invoice->cabang = $cabangBaru;
+                $invoice->save();
+            }
             $this->catatPembayaran($invoice->fresh(), $nominal, $tanggal, $catatan);
         });
     }
@@ -273,6 +296,8 @@ class PembelianService
             'nominal' => $nominal,
             'catatan' => $catatan,
             'grup_bulk' => $grupBulk,
+            // Snapshot cabang saat dibayar (riwayat tak bergeser bila cabang faktur diubah).
+            'cabang' => $invoice->cabang,
         ]);
 
         $invoice->sisa_hutang -= $nominal;
