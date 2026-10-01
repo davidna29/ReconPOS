@@ -49,6 +49,39 @@ class DeployTest extends TestCase
             ->assertSessionHas('error');
     }
 
+    public function test_kirim_sukses_tanpa_menjalankan_asli(): void
+    {
+        config(['deploy.allow_remote' => true]);
+        $this->authUser();
+        $this->mock(\App\Services\DeployRunner::class, function ($m) {
+            $m->shouldReceive('luncurkan')->once()->with(['--dry-run'])->andReturnNull();
+        });
+
+        $this->post(route('deploy.kirim'), ['konfirmasi' => 'KIRIM', 'dry_run' => '1'])
+            ->assertRedirect(route('deploy.index'))
+            ->assertSessionHas('success');
+    }
+
+    public function test_test_koneksi_ok(): void
+    {
+        config(['deploy.allow_remote' => true]);
+        $this->authUser();
+
+        \Illuminate\Support\Facades\Process::fake(['*SSH-OK*' => \Illuminate\Support\Facades\Process::result('SSH-OK')]);
+        $this->post(route('deploy.test-koneksi'))->assertSessionHas('success');
+    }
+
+    public function test_test_koneksi_gagal(): void
+    {
+        config(['deploy.allow_remote' => true]);
+        $this->authUser();
+
+        // Catatan: Process::fake() me-merge handler antar panggilan, jadi
+        // skenario ok & gagal dipisah ke dua test agar pola tak bertabrakan.
+        \Illuminate\Support\Facades\Process::fake(['*' => \Illuminate\Support\Facades\Process::result('Permission denied', '', 255)]);
+        $this->post(route('deploy.test-koneksi'))->assertSessionHas('error');
+    }
+
     public function test_tolak_bila_sedang_berjalan(): void
     {
         config(['deploy.allow_remote' => true]);

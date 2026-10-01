@@ -40,8 +40,8 @@ class KirimHosting extends Command
 
     private function jalan(): bool
     {
-        // 0. Gate: hanya dari lingkungan yg diizinkan (default: lokal).
-        if (! $this->cfg['allow_remote']) {
+        // 0. Gate: runtime lokal ATAU config (konsisten dgn menu sidebar).
+        if (! app()->isLocal() && ! $this->cfg['allow_remote']) {
             return $this->gagal('Ditolak: deploy hanya diizinkan dari lokal (DEPLOY_ALLOW).');
         }
         $dry = (bool) $this->option('dry-run');

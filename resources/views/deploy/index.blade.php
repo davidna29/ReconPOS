@@ -17,7 +17,18 @@
         </h3>
         <p class="mb-3 text-body-sm text-secondary">
             Menjalankan: cek prasyarat → rsync delta → sambung public → composer install →
-            migrate → cache → verifikasi HTTP. Log tampil di bawah. SSH: {{ config('deploy.ssh_user') }}@{{ config('deploy.ssh_host') }}:{{ config('deploy.ssh_port') }}
+            migrate → cache → verifikasi HTTP. Log tampil di bawah. SSH: {{ $sshInfo }}
+        </p>
+        <p class="mb-3 flex flex-wrap items-center gap-2 text-body-sm text-secondary">
+            <span>APP_ENV: <span class="mono font-bold">{{ $appEnv }}</span></span>
+            <span>·</span>
+            <span>Gate: <span class="font-bold text-lunas-green">terbuka (lokal)</span></span>
+            <form method="POST" action="{{ route('deploy.test-koneksi') }}" class="inline" data-no-loading>
+                @csrf
+                <button class="btn btn-secondary btn-sm">
+                    <span class="material-symbols-outlined text-[16px]" aria-hidden="true">wifi_tethering</span> Test Koneksi SSH
+                </button>
+            </form>
         </p>
         <form method="POST" action="{{ route('deploy.kirim') }}" class="flex flex-col gap-3" data-no-loading>
             @csrf
