@@ -62,6 +62,20 @@ class DeployTest extends TestCase
             ->assertSessionHas('success');
     }
 
+    public function test_perintah_detached_selamat_dari_akhir_request(): void
+    {
+        // Regresi insiden Okt 2026: Process::start() tanpa wait() dibunuh
+        // destructor saat request selesai -> log tak pernah terisi.
+        $cmd = \App\Services\DeployRunner::perintahDetached(['--dry-run']);
+
+        $this->assertStringContainsString('nohup', $cmd);
+        $this->assertStringContainsString('app:kirim-hosting', $cmd);
+        $this->assertStringContainsString('--dry-run', $cmd);
+        $this->assertStringContainsString((string) config('deploy.log'), $cmd);
+        $this->assertTrue((bool) preg_match('/2>&1 &/', $cmd), 'Harus background detached: ' . $cmd);
+        $this->assertStringNotContainsString('Process::start', $cmd);
+    }
+
     public function test_test_koneksi_ok(): void
     {
         config(['deploy.allow_remote' => true]);
@@ -99,7 +113,7 @@ class DeployTest extends TestCase
     public function test_exclude_melindungi_file_rahasia_dan_data(): void
     {
         $flat = implode(' ', KirimHosting::opsiExclude());
-        foreach (['.env*', 'vendor/', 'node_modules/', '.git/', 'database/*.sqlite*', 'storage/logs/*', 'storage/app/private/backups/*', 'storage/app/private/export/*'] as $wajib) {
+        foreach (['.env*', 'vendor/', 'node_modules/', '.git/', 'tests/', 'database/*.sqlite*', 'storage/logs/*', 'storage/app/private/backups/*', 'storage/app/private/export/*'] as $wajib) {
             $this->assertStringContainsString($wajib, $flat);
         }
     }
@@ -107,9 +121,15 @@ class DeployTest extends TestCase
     public function test_kandidat_path_dua_layout_hostinger(): void
     {
         $this->assertSame(
-            ['~/domains/contoh.id/reconpos', '~/domains/contoh.id/public_html/reconpos'],
-            KirimHosting::kandidatPath('contoh.id')
+            ['/home/u1/domains/contoh.id/reconpos', '/home/u1/domains/contoh.id/public_html/reconpos'],
+            KirimHosting::kandidatPath('contoh.id', 'u1')
         );
+    }
+
+    public function test_expand_home_hanya_awalan_tilde(): void
+    {
+        $this->assertSame('/home/u1/x/y', KirimHosting::expandHome('~/x/y', 'u1'));
+        $this->assertSame('/sudah/absolut', KirimHosting::expandHome('/sudah/absolut', 'u1'));
     }
 
     public function test_prefix_relatif_kedua_layout(): void

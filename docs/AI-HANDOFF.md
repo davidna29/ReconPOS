@@ -23,7 +23,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan serve               # http://127.0.0.1:8000 (+ vite HMR :5173)
   ```
 - Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (**275 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**, **Deploy**.
+- Test: `php artisan test` (**277 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian, Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking**, **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok**, **BebanHutang**, **Deploy**.
 - **Edit invoice boleh koreksi `no_invoice` (2026-10-02):** `PembelianService::edit()` dulu mengabaikannya diam-diam ("tanpa mengubah no_invoice") — kini divalidasi (isi, ≤40 char, unik kecuali diri sendiri) lalu disimpan; relasi aman karena semua memakai `invoice_id`. Guard lain (histori bayar, qty terjual) tetap berlaku.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 - Repo GitHub: `davidna29/ReconPOS` (dulu `Aplikasi-GenTOt`); rilis terakhir **v2.0.0**.
@@ -130,6 +130,8 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 - **Array `+` (union) MEMBUANG argumen numerik**: `$ssh + ['echo', ...]` diam-diam membuang sisi kanan (key 0..n tabrakan) → command SSH terpotong tanpa error (insiden deploy: ssh tanpa perintah remote). Selalu `array_merge()` utk list argumen.
 - **Gate fitur JANGAN hanya dari config**: `config()` bisa beku bila `config:cache` pernah jalan → menu tampil (runtime `isLocal()` true) tapi aksi ditolak. Pola benar: `app()->isLocal() || config(...)` di semua gate.
 - **`Process::start()` via facade = proses NYATA** (fake hanya mencegat `run()`): utk spawn background pakai `Process::path()->start()` + ekstrak ke service (`DeployRunner`) agar test bisa mock. `Process::fake()` me-merge handler antar panggilan — skenario ok/gagal dipisah ke test berbeda.
+- **Background lintas-request JANGAN pakai `Process::start()` tanpa wait**: destructor Symfony `stop(0)` membunuh anak saat request selesai → deploy tak pernah jalan (insiden tombol kirim Okt 2026). Pola benar: `nohup … >> log 2>&1 &` via `exec()` (`DeployRunner::perintahDetached`, pure & testable).
+- **Array `+` (union) buang argumen numerik + `~` dalam quote tak mengembang**: `$ssh + [...]` memotong perintah SSH tanpa error; `'~/...'` dalam single-quote remote = literal. Selalu `array_merge()` + path absolut `/home/<user>/…` (`KirimHosting::expandHome`). Layout terdeteksi: proyek di `public_html/reconpos` (prefix sambung `/reconpos`).
 - **Controller Publik vs Admin dgn nama class sama WAJIB alias**: `use App\Http\Controllers\X;` di dalam `namespace App\Http\Controllers\Publik;` + deklarasi `class X` di file yg sama = fatal *"Cannot redeclare class"* (insiden `Publik\RekapStokController`). Pola benar: `use App\Http\Controllers\X as AdminX;` (lihat route yg sudah pakai alias `... as PublikXController`).
 
 ## 7. Checklist Menambah Fitur

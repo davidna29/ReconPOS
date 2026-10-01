@@ -75,8 +75,10 @@ class KirimHosting extends Command
         $this->catat('Project : ' . $project);
         $this->catat('Docroot : ' . $docroot);
 
-        // 4. rsync kode (delta).
-        $rsync = array_merge(['rsync', '-az', '--delete'], self::opsiExclude(), ['-e', $this->sshEString(), base_path() . '/', $this->cfg['ssh_user'] . '@' . $this->cfg['ssh_host'] . ':' . $project . '/']);
+        // 4. rsync kode (delta). Target absolut: ~ di argumen rsync tak
+        // selalu mengembang di sisi remote.
+        $tujuan = self::expandHome($project, (string) $this->cfg['ssh_user']);
+        $rsync = array_merge(['rsync', '-az', '--delete'], self::opsiExclude(), ['-e', $this->sshEString(), base_path() . '/', $this->cfg['ssh_user'] . '@' . $this->cfg['ssh_host'] . ':' . $tujuan . '/']);
         if ($dry) {
             $lihat = $rsync;
             array_splice($lihat, 2, 0, ['-n', '--itemize-changes']);
@@ -211,6 +213,8 @@ class KirimHosting extends Command
     /** Jalankan perintah di server (cd project dulu). True bila exit 0. */
     private function remote(array $ssh, string $project, string $cmd): ?string
     {
+        $project = self::expandHome($project, (string) $this->cfg['ssh_user']);
+
         return $this->proc(array_merge($ssh, ['cd ' . escapeshellarg($project) . ' && ' . $cmd]), (int) $this->cfg['timeout']);
     }
 
@@ -223,7 +227,7 @@ class KirimHosting extends Command
     public static function opsiExclude(): array
     {
         $pola = [
-            '.env*', 'node_modules/', 'vendor/', '.git/', '.DS_Store',
+            '.env*', 'node_modules/', 'vendor/', '.git/', '.DS_Store', 'tests/',
             'database/*.sqlite*', '.phpunit.result.cache', 'public/hot',
             'storage/logs/*', 'storage/framework/cache/*', 'storage/framework/sessions/*',
             'storage/framework/views/*', 'storage/app/private/backups/*', 'storage/app/private/backups-db/*',
@@ -238,22 +242,32 @@ class KirimHosting extends Command
         return $out;
     }
 
-    /** Kandidat path proyek dari domain URL (pure, testable). */
-    public static function kandidatPath(string $domain): array
+    /**
+     * Kembangkan awalan ~/ menjadi home absolut (wajib: ~ di dalam quote
+     * tunggal TIDAK mengembang di shell remote — insiden deteksi path).
+     */
+    public static function expandHome(string $path, string $user): string
     {
-        $d = '~/domains/' . $domain;
+        return str_starts_with($path, '~/') ? '/home/' . $user . substr($path, 1) : $path;
+    }
+
+    /** Kandidat path proyek absolut dari domain URL (pure, testable). */
+    public static function kandidatPath(string $domain, string $user): array
+    {
+        $d = '/home/' . $user . '/domains/' . $domain;
 
         return [$d . '/reconpos', $d . '/public_html/reconpos'];
     }
 
     private function deteksiPath(array $ssh): ?array
     {
+        $user = (string) $this->cfg['ssh_user'];
         if (! empty($this->cfg['path'])) {
-            $project = (string) $this->cfg['path'];
+            $project = self::expandHome((string) $this->cfg['path'], $user);
         } else {
             $domain = (string) parse_url((string) $this->cfg['url'], PHP_URL_HOST);
             $project = null;
-            foreach (self::kandidatPath($domain) as $k) {
+            foreach (self::kandidatPath($domain, $user) as $k) {
                 $cek = $this->proc(array_merge($ssh, ['test -d ' . escapeshellarg($k) . ' && echo ADA']), 30);
                 if ($cek !== null && str_contains($cek, 'ADA')) {
                     $project = $k;
@@ -261,12 +275,17 @@ class KirimHosting extends Command
                 }
             }
             if (! $project) {
-                $this->gagal('Path proyek tak ditemukan. Isi DEPLOY_PATH manual. Dicoba: ' . implode(', ', self::kandidatPath($domain)));
+                // Fallback terakhir: tampilkan isi ~/domains agar user tahu struktur asli.
+                $ls = $this->proc(array_merge($ssh, ['ls -la ~/domains/ 2>&1; ls ~/domains/*/ 2>/dev/null']), 30);
+                $this->catat('Isi domains di server:' . ($ls ? "\n" . $ls : ' (tak terbaca)'));
+                $this->gagal('Path proyek tak ditemukan. Isi DEPLOY_PATH manual. Dicoba: ' . implode(', ', self::kandidatPath($domain, $user)));
 
                 return null;
             }
         }
-        $docroot = ! empty($this->cfg['docroot']) ? (string) $this->cfg['docroot'] : '~/domains/' . parse_url((string) $this->cfg['url'], PHP_URL_HOST) . '/public_html';
+        $docroot = ! empty($this->cfg['docroot'])
+            ? self::expandHome((string) $this->cfg['docroot'], $user)
+            : '/home/' . $user . '/domains/' . parse_url((string) $this->cfg['url'], PHP_URL_HOST) . '/public_html';
         $cekDoc = $this->proc(array_merge($ssh, ['test -d ' . escapeshellarg($docroot) . ' && echo ADA']), 30);
         if ($cekDoc === null || ! str_contains($cekDoc, 'ADA')) {
             $this->gagal('Docroot tak ditemukan: ' . $docroot . '. Isi DEPLOY_DOCROOT manual.');
