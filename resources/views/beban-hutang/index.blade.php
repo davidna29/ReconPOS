@@ -6,13 +6,13 @@
     @php($publik = $publik ?? false)
     @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="page-head animate-rise">
-        <div>
+        <div class="min-w-0">
             <h2 class="page-head-title">Beban Hutang per Cabang</h2>
             <p class="page-head-subtitle">Pemilahan faktur hutang ke TERMINAL BAN 1 / 2 / 3 — {{ $grand['lembar'] }} lembar · hutang {{ rupiah($grand['hutang']) }} · sisa {{ rupiah($grand['sisa']) }} · dibayar {{ rupiah($grand['dibayar']) }} · {{ $grand['lunas'] }} lunas</p>
             <p class="hint mt-1">Hutang = total tagihan termasuk PPN; Sisa = Hutang − terbayar. Filter memilih faktur (tgl transaksi); Dibayar = uang muka + seluruh cicilan s.d. saat ini.</p>
         </div>
         @if (! $publik)
-        <div class="flex flex-wrap gap-2">
+        <div class="page-head-actions shrink-0 sm:flex-nowrap">
             <a href="{{ route('pembelian.bayar-bulk.index') }}" class="btn btn-success btn-sm">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar Bulk
             </a>
