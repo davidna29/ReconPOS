@@ -4,19 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\ImportFileException;
 use App\Exceptions\StokException;
+use App\Http\Controllers\Concerns\MembatasiExportSebulan;
 use App\Models\InvoicePembelian;
 use App\Models\PembayaranHutang;
 use App\Models\Supplier;
 use App\Models\TokoSetting;
 use App\Services\ExcelImportService;
 use App\Services\PembelianService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 
 class PembelianController extends Controller
 {
+    use MembatasiExportSebulan;
+
     public function __construct(
         private PembelianService $service,
         private ExcelImportService $excel,
@@ -76,13 +83,15 @@ class PembelianController extends Controller
         }
     }
 
-    /** Data Hutang Belum Lunas (PRD 5.2a) — dengan filter periode (bulan/tahun/rentang) + supplier. */
-    public function invoiceHutang(Request $request)
+    /**
+     * Query daftar invoice 1 status + filter tab (periode/supplier/cabang/cari),
+     * dipakai index (paginate) & export (get semua) agar IDENTIK.
+     */
+    private function queryInvoice(Request $request, string $status)
     {
         $query = InvoicePembelian::with('supplier')
             ->withSum('pembayaranHutang as cicilan_sum', 'nominal')
-            ->withCount('pembayaranHutang as cicilan_count')
-            ->where('status', 'belum_lunas');
+            ->where('status', $status);
 
         [$awal, $akhir] = $this->periodeDariRequest($request);
         if ($awal && $akhir) {
@@ -100,6 +109,16 @@ class PembelianController extends Controller
                 ->orWhereHas('supplier', fn ($sq) => $sq->where('nama', 'like', "%{$s}%")));
         }
 
+        return $query;
+    }
+
+    /** Data Hutang Belum Lunas (PRD 5.2a) — dengan filter periode (bulan/tahun/rentang) + supplier. */
+    public function invoiceHutang(Request $request)
+    {
+        $query = $this->queryInvoice($request, 'belum_lunas')
+            ->withCount('pembayaranHutang as cicilan_count');
+
+        [$awal, $akhir] = $this->periodeDariRequest($request);
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
         $daftarCabang = InvoicePembelian::where('jenis', 'hutang')
@@ -113,25 +132,9 @@ class PembelianController extends Controller
     /** Data Pembelian (Lunas/Cash) (PRD 5.2b) — dengan filter periode + supplier. */
     public function invoiceLunas(Request $request)
     {
-        $query = InvoicePembelian::with('supplier')
-            ->where('status', 'lunas');
+        $query = $this->queryInvoice($request, 'lunas');
 
         [$awal, $akhir] = $this->periodeDariRequest($request);
-        if ($awal && $akhir) {
-            $query->whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
-        }
-        if ($sid = (int) $request->query('supplier')) {
-            $query->where('supplier_id', $sid);
-        }
-        if (($cabang = trim((string) $request->get('cabang'))) !== '') {
-            $query->where('cabang', $cabang);
-        }
-
-        if ($s = trim((string) $request->get('q'))) {
-            $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%")
-                ->orWhereHas('supplier', fn ($sq) => $sq->where('nama', 'like', "%{$s}%")));
-        }
-
         $invoices = $query->latest('tanggal_transaksi')->paginate((int) ($request->get('entries') ?: 10))->withQueryString();
         $suppliers = Supplier::orderBy('nama')->get(['id', 'nama']);
         $daftarCabang = InvoicePembelian::whereNotNull('cabang')->where('cabang', '<>', '')
@@ -139,6 +142,141 @@ class PembelianController extends Controller
         [$labelBeli, $totalBeli, $sisaBeli, $countBeli] = $this->kartuPembelian($request, $awal, $akhir);
 
         return view('pembelian.invoice-lunas', compact('invoices', 'suppliers', 'daftarCabang', 'labelBeli', 'totalBeli', 'sisaBeli', 'countBeli'));
+    }
+
+    /**
+     * Export tab Hutang / Lunas ke Excel & PDF. DIBATASI 1 bulan
+     * (trait MembatasiExportSebulan); angka = query tab yg sama.
+     */
+    public function exportHutangXlsx(Request $request)
+    {
+        return $this->unduhExport($request, 'belum_lunas', 'DATA HUTANG BELUM LUNAS', 'pembelian-hutang', 'xlsx');
+    }
+
+    public function exportHutangPdf(Request $request)
+    {
+        return $this->unduhExport($request, 'belum_lunas', 'DATA HUTANG BELUM LUNAS', 'pembelian-hutang', 'pdf');
+    }
+
+    public function exportLunasXlsx(Request $request)
+    {
+        return $this->unduhExport($request, 'lunas', 'DATA PEMBELIAN LUNAS/CASH', 'pembelian-lunas', 'xlsx');
+    }
+
+    public function exportLunasPdf(Request $request)
+    {
+        return $this->unduhExport($request, 'lunas', 'DATA PEMBELIAN LUNAS/CASH', 'pembelian-lunas', 'pdf');
+    }
+
+    private function unduhExport(Request $request, string $status, string $judul, string $prefix, string $format)
+    {
+        $request->validate([
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'supplier' => ['nullable', 'integer'],
+            'cabang' => ['nullable', 'string', 'max:50'],
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        try {
+            [$awal, $akhir, $label] = self::periodeExportSebulan($request);
+            // Request dimurnikan (tahun dibuang) agar query tab selalu
+            // memakai bulan/from-to yg sudah lolos batas 1 bulan.
+            $bersih = new Request($request->only(['bulan', 'from', 'to', 'supplier', 'cabang', 'q']));
+            $invoices = $this->queryInvoice($bersih, $status)->oldest('tanggal_transaksi')->get();
+            $baris = $invoices->map(fn ($inv) => [
+                'tanggal' => $inv->tanggal_transaksi->format('Y-m-d'),
+                'no_invoice' => $inv->no_invoice,
+                'supplier' => $inv->supplier->nama ?? '-',
+                'jenis' => ucfirst((string) $inv->jenis),
+                'cabang' => $inv->labelCabang(),
+                'total' => (int) $inv->total_setelah_diskon + (int) $inv->ppn,
+                'dp' => (int) $inv->bayar_atau_dp,
+                'cicilan' => (int) ($inv->cicilan_sum ?? 0),
+                'sisa' => (int) $inv->sisa_hutang,
+                'status' => ucwords(str_replace('_', ' ', (string) $inv->status)),
+                'jatuh_tempo' => $inv->jatuh_tempo ? $inv->jatuh_tempo->format('Y-m-d') : '-',
+            ])->values();
+            $ringkasan = [
+                'Periode' => $awal->format('d M Y') . ' – ' . $akhir->format('d M Y'),
+                'Jumlah' => $baris->count() . ' invoice',
+                'Total' => (int) $baris->sum('total'),
+                'Sisa' => (int) $baris->sum('sisa'),
+            ];
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $nama = "{$prefix}-{$label}." . $format;
+        $path = storage_path('app/private/export/' . pathinfo($nama, PATHINFO_FILENAME) . '-' . now()->format('Ymd-His') . '.' . $format);
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0775, true);
+        }
+
+        if ($format === 'xlsx') {
+            $spreadsheet = new Spreadsheet();
+            $this->isiSheetRingkasanBeli($spreadsheet->getActiveSheet(), $judul, $ringkasan);
+            $this->isiSheetRincianBeli($spreadsheet->createSheet(), $baris);
+            (new XlsxWriter($spreadsheet))->save($path);
+            $spreadsheet->disconnectWorksheets();
+
+            return response()->download($path, $nama, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        }
+
+        $pdf = Pdf::loadView('pembelian.export-pdf', [
+            'toko' => TokoSetting::utama(),
+            'judul' => $judul,
+            'ringkasan' => $ringkasan,
+            'baris' => $baris,
+        ])->setPaper('a4', 'landscape');
+        file_put_contents($path, $pdf->output());
+
+        // Header eksplisit agar Symfony melewati penebak MIME (hemat memori).
+        return response()->download($path, $nama, [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
+
+    private function isiSheetRingkasanBeli($sheet, string $judul, array $ringkasan): void
+    {
+        $sheet->setTitle('Ringkasan');
+        $sheet->setCellValue('A1', $judul);
+        $baris = 3;
+        foreach ($ringkasan as $label => $nilai) {
+            $sheet->setCellValue("A{$baris}", $label);
+            $sheet->setCellValue("B{$baris}", $nilai);
+            $baris++;
+        }
+        $sheet->getStyle('A3:A' . ($baris - 1))->getFont()->setBold(true);
+        $sheet->getStyle('A3:B2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+        $sheet->getColumnDimension('A')->setAutoSize(true);
+        $sheet->getColumnDimension('B')->setAutoSize(true);
+    }
+
+    private function isiSheetRincianBeli($sheet, $baris): void
+    {
+        $sheet->setTitle('Rincian');
+        $headers = ['Tanggal', 'No Invoice', 'Supplier', 'Jenis', 'Cabang', 'Total (incl PPN)', 'DP', 'Cicilan', 'Sisa', 'Status', 'Jatuh Tempo'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $sheet->getStyle('A1:K1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:K1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+
+        $no = 2;
+        foreach ($baris as $b) {
+            $sheet->fromArray([$b['tanggal'], $b['no_invoice'], $b['supplier'], $b['jenis'], $b['cabang'], $b['total'], $b['dp'], $b['cicilan'], $b['sisa'], $b['status'], $b['jatuh_tempo']], null, "A{$no}");
+            $no++;
+        }
+        foreach (['F', 'G', 'H', 'I'] as $kol) {
+            $sheet->getStyle("{$kol}2:{$kol}{$no}")->getNumberFormat()->setFormatCode('#,##0');
+        }
+        foreach (range('A', 'K') as $kol) {
+            $sheet->getColumnDimension($kol)->setAutoSize(true);
+        }
     }
 
     public function show(InvoicePembelian $invoice)

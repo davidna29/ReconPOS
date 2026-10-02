@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ImportFileException;
+use App\Http\Controllers\Concerns\MembatasiExportSebulan;
 use App\Models\InvoicePembelian;
 use App\Models\PembayaranHutang;
 use App\Models\Supplier;
@@ -20,6 +21,8 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 
 class BebanHutangController extends Controller
 {
+    use MembatasiExportSebulan;
+
     public function __construct(private ExcelImportService $excel) {}
 
     public function index(Request $request)
@@ -211,7 +214,7 @@ class BebanHutangController extends Controller
         ]);
 
         try {
-            [$awal, $akhir, $label] = self::periodeExport($request);
+            [$awal, $akhir, $label] = self::periodeExportSebulan($request);
             [$cards, $grand, $baris] = $this->dataExport($request);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
@@ -247,7 +250,7 @@ class BebanHutangController extends Controller
         ]);
 
         try {
-            [$awal, $akhir, $label] = self::periodeExport($request);
+            [$awal, $akhir, $label] = self::periodeExportSebulan($request);
             [$cards, $grand, $baris] = $this->dataExport($request);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
@@ -275,44 +278,10 @@ class BebanHutangController extends Controller
     }
 
     /**
-     * Resolve periode export (maks 1 bulan).
-     *
-     * @return array{0: Carbon, 1: Carbon, 2: string}
-     *
-     * @throws InvalidArgumentException
-     */
-    private static function periodeExport(Request $request): array
-    {
-        $bulan = (string) $request->get('bulan');
-        if ($bulan !== '' && preg_match('/^\d{4}-\d{2}$/', $bulan)) {
-            $awal = Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
-
-            return [$awal, $awal->copy()->endOfMonth(), $bulan];
-        }
-
-        $from = (string) $request->get('from');
-        $to = (string) $request->get('to');
-        if ($from !== '' && $to !== '') {
-            $awal = Carbon::parse($from)->startOfDay();
-            $akhir = Carbon::parse($to)->endOfDay();
-            if ($awal->greaterThan($akhir)) {
-                throw new InvalidArgumentException('Rentang tanggal tidak valid (Dari melewati Sampai).');
-            }
-            if ($awal->diffInDays($akhir) > 30) {
-                throw new InvalidArgumentException('Export dibatasi 1 bulan — rentang Dari–Sampai maksimal 31 hari.');
-            }
-
-            return [$awal, $akhir, $awal->format('Ymd') . '-' . $akhir->format('Ymd')];
-        }
-
-        throw new InvalidArgumentException('Export dibatasi 1 bulan — pilih Bulan atau isi rentang Dari–Sampai (maksimal 31 hari). Mode Tahun tidak didukung.');
-    }
-
-    /**
      * Data export: pakai ulang rekap() agar angka IDENTIK dgn layar
      * (kohort+kini, snapshot cabang, hutang termasuk PPN).
      * Request dimurnikan (tahun dibuang) agar filter periode rekap
-     * selalu memakai bulan/from-to yg sudah lolos periodeExport.
+     * selalu memakai bulan/from-to yg sudah lolos periodeExportSebulan.
      *
      * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Support\Collection}
      */

@@ -35,6 +35,14 @@
                 <div class="flex flex-wrap items-center gap-2">
                     @if (! $publik)
                     @include('partials.bulk-print', ['scope' => 'lunas', 'action' => route('pembelian.print-batch')])
+                        <a href="{{ route('pembelian.lunas.export.xlsx', request()->only(['bulan', 'tahun', 'from', 'to', 'supplier', 'cabang', 'q'])) }}" class="btn btn-secondary btn-sm"
+                            title="Unduh Excel tab ini (dibatasi 1 bulan)">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">table_view</span> Export Excel
+                        </a>
+                        <a href="{{ route('pembelian.lunas.export.pdf', request()->only(['bulan', 'tahun', 'from', 'to', 'supplier', 'cabang', 'q'])) }}" class="btn btn-secondary btn-sm"
+                            title="Unduh PDF tab ini (dibatasi 1 bulan)">
+                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span> Export PDF
+                        </a>
                         <button type="button" class="btn btn-danger btn-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled
                             data-bulk-delete-btn="lunas"
                             data-bulk-delete-url="{{ route('pembelian.bulk-delete') }}"
