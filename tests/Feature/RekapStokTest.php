@@ -105,4 +105,89 @@ class RekapStokTest extends TestCase
         $html = $this->get(route('publik.landing'))->assertOk()->getContent();
         $this->assertStringContainsString(route('publik.rekap-stok.index'), $html);
     }
+
+    public function test_export_xlsx_dua_sheet_angka_sama_layar(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+
+        $res = $this->get(route('rekap-stok.export.xlsx'));
+        $res->assertOk();
+        $res->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $files = glob(storage_path('app/private/export/rekap-stok-*.xlsx')) ?: [];
+        $this->assertNotEmpty($files);
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $this->assertSame(['Ringkasan', 'Rincian'], $book->getSheetNames());
+
+            $grand = null;
+            foreach ($book->getSheetByName('Ringkasan')->toArray(null, true, false) as $row) {
+                if (($row[0] ?? '') === 'GRAND TOTAL') {
+                    $grand = [(int) $row[1], (int) $row[2]];
+                }
+            }
+            // 5 SKU, total stok 21+0+5+3+7
+            $this->assertSame([5, 36], $grand);
+
+            $teks = json_encode($book->getSheetByName('Rincian')->toArray(null, true, false));
+            $this->assertStringContainsString('BL-26570R17-SAV-MTP', $teks);
+            $this->assertStringContainsString('HANKOOK', $teks);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_pdf_header_dan_isi(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+
+        $res = $this->get(route('rekap-stok.export.pdf'));
+        $res->assertOk();
+        $this->assertStringStartsWith('application/pdf', $res->headers->get('content-type'));
+        $this->assertStringContainsString('rekap-stok-' . now()->format('Ymd') . '.pdf', $res->headers->get('content-disposition'));
+
+        $files = glob(storage_path('app/private/export/rekap-stok-*.pdf')) ?: [];
+        $this->assertNotEmpty($files);
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $this->assertStringStartsWith('%PDF', (string) file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_menghormati_filter_merk(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+
+        $res = $this->get(route('rekap-stok.export.xlsx', ['merk' => 'HANKOOK']));
+        $res->assertOk();
+
+        $files = glob(storage_path('app/private/export/rekap-stok-*.xlsx')) ?: [];
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $grand = null;
+            foreach ($book->getSheetByName('Ringkasan')->toArray(null, true, false) as $row) {
+                if (($row[0] ?? '') === 'GRAND TOTAL') {
+                    $grand = [(int) $row[1], (int) $row[2]];
+                }
+            }
+            $this->assertSame([1, 3], $grand);
+            $teks = json_encode($book->getSheetByName('Rincian')->toArray(null, true, false));
+            $this->assertStringNotContainsString('SAVERO', $teks);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_tanpa_login_ditolak(): void
+    {
+        $this->get(route('rekap-stok.export.xlsx'))->assertRedirect(route('login'));
+        $this->get(route('rekap-stok.export.pdf'))->assertRedirect(route('login'));
+    }
 }

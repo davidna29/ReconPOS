@@ -6,10 +6,20 @@
     @php($publik = $publik ?? false)
     @php($r = fn (string $n, ...$p) => route(($publik ? 'publik.' : '') . $n, ...$p))
     <div class="page-head animate-rise">
-        <div>
+        <div class="min-w-0">
             <h2 class="page-head-title">Rekap Stok per Merk</h2>
             <p class="page-head-subtitle">Susunan Merk → Varian → Ukuran + stok ({{ $totalSku }} SKU · total {{ $totalStok }} pcs)</p>
         </div>
+        @if (! $publik)
+        <div class="page-head-actions shrink-0 sm:flex-nowrap">
+            <a href="{{ route('rekap-stok.export.xlsx', request()->only(['merk', 'q', 'sembunyikan_kosong'])) }}" class="btn btn-secondary btn-sm" title="Unduh Excel rekap + rincian sesuai filter">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">table_view</span> Export Excel
+            </a>
+            <a href="{{ route('rekap-stok.export.pdf', request()->only(['merk', 'q', 'sembunyikan_kosong'])) }}" class="btn btn-secondary btn-sm" title="Unduh PDF rekap + rincian sesuai filter">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span> Export PDF
+            </a>
+        </div>
+        @endif
     </div>
 
     <form method="GET" action="{{ $r('rekap-stok.index') }}" class="flex flex-wrap items-end gap-2">

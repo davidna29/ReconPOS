@@ -63,6 +63,8 @@ Route::middleware('auth')->group(function () {
 
     // ---- Rekap Stok per Merk (Merk → Varian → Ukuran) ----
     Route::get('/rekap-stok', [RekapStokController::class, 'index'])->name('rekap-stok.index');
+    Route::get('/rekap-stok/export/xlsx', [RekapStokController::class, 'exportXlsx'])->name('rekap-stok.export.xlsx');
+    Route::get('/rekap-stok/export/pdf', [RekapStokController::class, 'exportPdf'])->name('rekap-stok.export.pdf');
 
     // ---- Beban Hutang per Cabang (pemilahan + rekap, hutang saja) ----
     Route::get('/beban-hutang', [BebanHutangController::class, 'index'])->name('beban-hutang.index');
