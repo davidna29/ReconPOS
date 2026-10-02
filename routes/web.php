@@ -69,6 +69,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/beban-hutang/tetapkan', [BebanHutangController::class, 'tetapkan'])->name('beban-hutang.tetapkan');
     Route::get('/beban-hutang/template/download', [BebanHutangController::class, 'downloadTemplate'])->name('beban-hutang.template.download');
     Route::post('/beban-hutang/template/import', [BebanHutangController::class, 'importTemplate'])->name('beban-hutang.template.import');
+    Route::get('/beban-hutang/export/xlsx', [BebanHutangController::class, 'exportXlsx'])->name('beban-hutang.export.xlsx');
+    Route::get('/beban-hutang/export/pdf', [BebanHutangController::class, 'exportPdf'])->name('beban-hutang.export.pdf');
 
     // ---- Data Supplier (PRD 4.4) ----
     Route::get('/supplier', [SupplierController::class, 'index'])->name('supplier.index');

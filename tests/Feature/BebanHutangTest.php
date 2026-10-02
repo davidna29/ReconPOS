@@ -337,4 +337,112 @@ class BebanHutangTest extends TestCase
         $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
         $this->assertStringNotContainsString('(111%)', $html);
     }
+
+    public function test_export_xlsx_dua_sheet_angka_sama_layar(): void
+    {
+        $this->authUser();
+        $this->seedRekap();
+        $a = InvoicePembelian::where('no_invoice', 'F-TB1-1')->first();
+        \App\Models\PembayaranHutang::create([
+            'invoice_pembelian_id' => $a->id,
+            'tanggal_bayar' => now()->format('Y-m-d'),
+            'nominal' => 600000,
+            'cabang' => 'TERMINAL BAN 1',
+        ]);
+
+        $res = $this->get(route('beban-hutang.export.xlsx', ['bulan' => now()->format('Y-m')]));
+        $res->assertOk();
+        $res->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $files = glob(storage_path('app/private/export/beban-hutang-*.xlsx')) ?: [];
+        $this->assertNotEmpty($files);
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $this->assertSame(['Ringkasan', 'Rincian'], $book->getSheetNames());
+
+            $grand = null;
+            foreach ($book->getSheetByName('Ringkasan')->toArray(null, true, false) as $row) {
+                if (($row[0] ?? '') === 'GRAND TOTAL') {
+                    $grand = (int) $row[2];
+                }
+            }
+            // hutang incl PPN semua faktur hutang bulan ini (cash dikecualikan)
+            $this->assertSame(1000000 + 500000 + 2000000 + 300000, $grand);
+
+            $rinci = $book->getSheetByName('Rincian')->toArray(null, true, false);
+            $teks = json_encode($rinci);
+            $this->assertStringContainsString('F-TB1-1', $teks);
+            $this->assertStringContainsString('F-TB2-1', $teks);
+            $this->assertStringNotContainsString('F-CASH-1', $teks);
+            // kolom Cicilan memuat pembayaran 600rb
+            $cicilan = null;
+            foreach ($rinci as $row) {
+                if (($row[1] ?? '') === 'F-TB1-1') {
+                    $cicilan = (int) $row[6];
+                }
+            }
+            $this->assertSame(600000, $cicilan);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_pdf_header_dan_isi(): void
+    {
+        $this->authUser();
+        $this->seedRekap();
+
+        $res = $this->get(route('beban-hutang.export.pdf', ['bulan' => now()->format('Y-m')]));
+        $res->assertOk();
+        $this->assertStringStartsWith('application/pdf', $res->headers->get('content-type'));
+        $this->assertStringContainsString('beban-hutang-' . now()->format('Y-m') . '.pdf', $res->headers->get('content-disposition'));
+
+        $files = glob(storage_path('app/private/export/beban-hutang-*.pdf')) ?: [];
+        $this->assertNotEmpty($files);
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $this->assertStringStartsWith('%PDF', (string) file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_menolak_mode_tahun(): void
+    {
+        $this->authUser();
+
+        $this->from(route('beban-hutang.index'))
+            ->get(route('beban-hutang.export.xlsx', ['tahun' => now()->year]))
+            ->assertRedirect(route('beban-hutang.index'))
+            ->assertSessionHas('error');
+    }
+
+    public function test_export_menolak_rentang_lebih_31_hari(): void
+    {
+        $this->authUser();
+
+        $this->from(route('beban-hutang.index'))
+            ->get(route('beban-hutang.export.pdf', ['from' => '2026-01-01', 'to' => '2026-02-15']))
+            ->assertRedirect(route('beban-hutang.index'))
+            ->assertSessionHas('error', 'Export dibatasi 1 bulan — rentang Dari–Sampai maksimal 31 hari.');
+    }
+
+    public function test_export_menolak_tanpa_filter(): void
+    {
+        $this->authUser();
+
+        $this->from(route('beban-hutang.index'))
+            ->get(route('beban-hutang.export.xlsx'))
+            ->assertRedirect(route('beban-hutang.index'))
+            ->assertSessionHas('error');
+    }
+
+    public function test_export_tanpa_login_ditolak(): void
+    {
+        $this->get(route('beban-hutang.export.xlsx', ['bulan' => now()->format('Y-m')]))
+            ->assertRedirect(route('login'));
+        $this->get(route('beban-hutang.export.pdf', ['bulan' => now()->format('Y-m')]))
+            ->assertRedirect(route('login'));
+    }
 }

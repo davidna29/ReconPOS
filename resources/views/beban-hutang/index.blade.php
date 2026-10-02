@@ -16,6 +16,12 @@
             <a href="{{ route('pembelian.bayar-bulk.index') }}" class="btn btn-success btn-sm">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span> Bayar Bulk
             </a>
+            <a href="{{ route('beban-hutang.export.xlsx', request()->only(['bulan', 'tahun', 'from', 'to', 'cabang', 'supplier', 'q'])) }}" class="btn btn-secondary btn-sm" title="Unduh Excel rekap + rincian (dibatasi 1 bulan)">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">table_view</span> Export Excel
+            </a>
+            <a href="{{ route('beban-hutang.export.pdf', request()->only(['bulan', 'tahun', 'from', 'to', 'cabang', 'supplier', 'q'])) }}" class="btn btn-secondary btn-sm" title="Unduh PDF rekap + rincian (dibatasi 1 bulan)">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span> Export PDF
+            </a>
         </div>
         @endif
     </div>

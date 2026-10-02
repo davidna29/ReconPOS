@@ -4,11 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\ImportFileException;
 use App\Models\InvoicePembelian;
+use App\Models\PembayaranHutang;
 use App\Models\Supplier;
+use App\Models\TokoSetting;
 use App\Services\ExcelImportService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 
 class BebanHutangController extends Controller
 {
@@ -187,6 +195,209 @@ class BebanHutangController extends Controller
         $path = $this->excel->templateBebanHutang();
 
         return response()->download($path, 'template-beban-hutang.xlsx');
+    }
+
+    /**
+     * Export rekap + rincian beban hutang ke Excel (2 sheet).
+     * DIBATASI 1 bulan: mode bulan OK; from/to maks 31 hari;
+     * mode tahun & tanpa filter DITOLAK (data bisa raksasa).
+     */
+    public function exportXlsx(Request $request)
+    {
+        $request->validate([
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+        ]);
+
+        try {
+            [$awal, $akhir, $label] = self::periodeExport($request);
+            [$cards, $grand, $baris] = $this->dataExport($request);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $this->isiSheetRingkasan($spreadsheet->getActiveSheet(), $cards, $grand, $awal, $akhir);
+        $this->isiSheetRincian($spreadsheet->createSheet(), $baris);
+
+        $nama = "beban-hutang-{$label}.xlsx";
+        $path = storage_path('app/private/export/' . pathinfo($nama, PATHINFO_FILENAME) . '-' . now()->format('Ymd-His') . '.xlsx');
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0775, true);
+        }
+        (new XlsxWriter($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return response()->download($path, $nama, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Export rekap + rincian beban hutang ke PDF (A4 landscape).
+     * Batas 1 bulan sama dgn exportXlsx.
+     */
+    public function exportPdf(Request $request)
+    {
+        $request->validate([
+            'bulan' => ['nullable', 'date_format:Y-m'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+        ]);
+
+        try {
+            [$awal, $akhir, $label] = self::periodeExport($request);
+            [$cards, $grand, $baris] = $this->dataExport($request);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $pdf = Pdf::loadView('beban-hutang.export-pdf', [
+            'toko' => TokoSetting::utama(),
+            'cards' => $cards,
+            'grand' => $grand,
+            'baris' => $baris,
+            'periode' => $awal->format('d M Y') . ' – ' . $akhir->format('d M Y'),
+        ])->setPaper('a4', 'landscape');
+
+        $nama = "beban-hutang-{$label}.pdf";
+        $path = storage_path('app/private/export/' . pathinfo($nama, PATHINFO_FILENAME) . '-' . now()->format('Ymd-His') . '.pdf');
+        if (! is_dir(dirname($path))) {
+            mkdir(dirname($path), 0775, true);
+        }
+        file_put_contents($path, $pdf->output());
+
+        // Header eksplisit agar Symfony melewati penebak MIME (hemat memori).
+        return response()->download($path, $nama, [
+            'Content-Type' => 'application/pdf',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Resolve periode export (maks 1 bulan).
+     *
+     * @return array{0: Carbon, 1: Carbon, 2: string}
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function periodeExport(Request $request): array
+    {
+        $bulan = (string) $request->get('bulan');
+        if ($bulan !== '' && preg_match('/^\d{4}-\d{2}$/', $bulan)) {
+            $awal = Carbon::createFromFormat('Y-m', $bulan)->startOfMonth();
+
+            return [$awal, $awal->copy()->endOfMonth(), $bulan];
+        }
+
+        $from = (string) $request->get('from');
+        $to = (string) $request->get('to');
+        if ($from !== '' && $to !== '') {
+            $awal = Carbon::parse($from)->startOfDay();
+            $akhir = Carbon::parse($to)->endOfDay();
+            if ($awal->greaterThan($akhir)) {
+                throw new InvalidArgumentException('Rentang tanggal tidak valid (Dari melewati Sampai).');
+            }
+            if ($awal->diffInDays($akhir) > 30) {
+                throw new InvalidArgumentException('Export dibatasi 1 bulan — rentang Dari–Sampai maksimal 31 hari.');
+            }
+
+            return [$awal, $akhir, $awal->format('Ymd') . '-' . $akhir->format('Ymd')];
+        }
+
+        throw new InvalidArgumentException('Export dibatasi 1 bulan — pilih Bulan atau isi rentang Dari–Sampai (maksimal 31 hari). Mode Tahun tidak didukung.');
+    }
+
+    /**
+     * Data export: pakai ulang rekap() agar angka IDENTIK dgn layar
+     * (kohort+kini, snapshot cabang, hutang termasuk PPN).
+     * Request dimurnikan (tahun dibuang) agar filter periode rekap
+     * selalu memakai bulan/from-to yg sudah lolos periodeExport.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Support\Collection}
+     */
+    private function dataExport(Request $request): array
+    {
+        $bersih = new Request($request->only(['bulan', 'from', 'to', 'cabang', 'supplier', 'q']));
+        [$cards, $grand] = self::rekap($bersih);
+
+        $semuaId = $cards->flatMap(fn ($c) => $c['items']->pluck('id'))->unique()->values();
+        $cicilanPerFaktur = $semuaId->isEmpty() ? collect() : PembayaranHutang::query()
+            ->whereIn('invoice_pembelian_id', $semuaId)
+            ->selectRaw('invoice_pembelian_id, SUM(nominal) as total')
+            ->groupBy('invoice_pembelian_id')
+            ->pluck('total', 'invoice_pembelian_id');
+
+        $baris = $cards->flatMap(function ($c) use ($cicilanPerFaktur) {
+            return $c['items']->map(function ($inv) use ($cicilanPerFaktur) {
+                $hutang = (int) $inv->total_setelah_diskon + (int) $inv->ppn;
+                $cicilan = (int) ($cicilanPerFaktur[$inv->id] ?? 0);
+
+                return [
+                    'tanggal' => $inv->tanggal_transaksi->format('Y-m-d'),
+                    'no_invoice' => $inv->no_invoice,
+                    'supplier' => $inv->supplier->nama ?? '-',
+                    'cabang' => $inv->labelCabang(),
+                    'hutang' => $hutang,
+                    'dp' => (int) $inv->bayar_atau_dp,
+                    'cicilan' => $cicilan,
+                    'sisa' => (int) $inv->sisa_hutang,
+                    'status' => ucwords(str_replace('_', ' ', (string) $inv->status)),
+                ];
+            });
+        })->values();
+
+        return [$cards, $grand, $baris];
+    }
+
+    private function isiSheetRingkasan($sheet, $cards, array $grand, Carbon $awal, Carbon $akhir): void
+    {
+        $sheet->setTitle('Ringkasan');
+        $sheet->setCellValue('A1', 'REKAP BEBAN HUTANG PER CABANG');
+        $sheet->setCellValue('A2', 'Periode: ' . $awal->format('d M Y') . ' – ' . $akhir->format('d M Y') . ' (filter memilih faktur by tgl transaksi; Dibayar = DP + seluruh cicilan kini)');
+        $headers = ['Cabang', 'Lembar', 'Hutang (incl PPN)', 'Dibayar', 'Sisa', 'Lunas', 'Belum Lunas'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 4], $h);
+        }
+        $sheet->getStyle('A4:G4')->getFont()->setBold(true);
+        $sheet->getStyle('A4:G4')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+
+        $baris = 5;
+        foreach ($cards as $c) {
+            $sheet->fromArray([$c['cabang'], $c['lembar'], $c['hutang'], $c['dibayar'], $c['sisa'], $c['lunas'], $c['belum_lunas']], null, "A{$baris}");
+            $baris++;
+        }
+        $sheet->fromArray(['GRAND TOTAL', $grand['lembar'], $grand['hutang'], $grand['dibayar'], $grand['sisa'], $grand['lunas'], ''], null, "A{$baris}");
+        $sheet->getStyle("A{$baris}:G{$baris}")->getFont()->setBold(true);
+        foreach (['C', 'D', 'E'] as $kol) {
+            $sheet->getStyle("{$kol}5:{$kol}{$baris}")->getNumberFormat()->setFormatCode('#,##0');
+        }
+        foreach (range('A', 'G') as $kol) {
+            $sheet->getColumnDimension($kol)->setAutoSize(true);
+        }
+    }
+
+    private function isiSheetRincian($sheet, $baris): void
+    {
+        $sheet->setTitle('Rincian');
+        $headers = ['Tanggal', 'No Invoice', 'Supplier', 'Cabang', 'Hutang (incl PPN)', 'DP', 'Cicilan', 'Sisa', 'Status'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValue([$i + 1, 1], $h);
+        }
+        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+
+        $no = 2;
+        foreach ($baris as $b) {
+            $sheet->fromArray([$b['tanggal'], $b['no_invoice'], $b['supplier'], $b['cabang'], $b['hutang'], $b['dp'], $b['cicilan'], $b['sisa'], $b['status']], null, "A{$no}");
+            $no++;
+        }
+        foreach (['E', 'F', 'G', 'H'] as $kol) {
+            $sheet->getStyle("{$kol}2:{$kol}{$no}")->getNumberFormat()->setFormatCode('#,##0');
+        }
+        foreach (range('A', 'I') as $kol) {
+            $sheet->getColumnDimension($kol)->setAutoSize(true);
+        }
     }
 
     public function importTemplate(Request $request)
