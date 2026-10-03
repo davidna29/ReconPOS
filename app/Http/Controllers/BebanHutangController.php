@@ -16,7 +16,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 
 class BebanHutangController extends Controller
@@ -34,16 +37,14 @@ class BebanHutangController extends Controller
     }
 
     /**
-     * Rekap beban hutang bersama utk admin & publik (lihat Publik\BebanHutangController).
-     * Hanya invoice jenis=hutang. Filter periode memakai tanggal_transaksi.
-     *
-     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: int, 4: \Illuminate\Support\Collection, 5: bool, 6: \Illuminate\Support\Collection}
+     * Builder filter rekap (periode/cabang/supplier/cari) — 1 sumber utk
+     * rekap layar + COUNT pre-flight export.
      */
-    public static function rekap(Request $request): array
+    private static function queryRekap(Request $request)
     {
         [$awal, $akhir] = self::rentangDariRequest($request);
 
-        $query = InvoicePembelian::with('supplier')->where('jenis', 'hutang');
+        $query = InvoicePembelian::where('jenis', 'hutang');
         if ($awal && $akhir) {
             $query->whereBetween('tanggal_transaksi', [$awal->copy()->startOfDay(), $akhir->copy()->endOfDay()]);
         }
@@ -57,7 +58,34 @@ class BebanHutangController extends Controller
             $query->where(fn ($q) => $q->where('no_invoice', 'like', "%{$s}%"));
         }
 
-        $invoices = $query->orderBy('tanggal_transaksi')->get();
+        return $query;
+    }
+
+    /** Estimasi baris export (faktur terfilter, 1 bulan) — COUNT murah. */
+    public const AMBANG_XLSX = 2000;
+
+    public const AMBANG_PDF = 800;
+
+    /** Tolak export raksasa sebelum kerja berat (fail-fast). */
+    private static function jagaAmbang(Request $request, int $ambang, string $format): ?\Illuminate\Http\RedirectResponse
+    {
+        $jumlah = (int) self::queryRekap($request)->count();
+        if ($jumlah > $ambang) {
+            return back()->with('error', "Export {$format} dibatalkan: ±{$jumlah} faktur melebihi batas aman {$ambang} baris (risiko timeout). Persempit ke rentang tanggal lebih kecil.");
+        }
+
+        return null;
+    }
+
+    /**
+     * Rekap beban hutang bersama utk admin & publik (lihat Publik\BebanHutangController).
+     * Hanya invoice jenis=hutang. Filter periode memakai tanggal_transaksi.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: array, 2: \Illuminate\Contracts\Pagination\LengthAwarePaginator, 3: int, 4: \Illuminate\Support\Collection, 5: bool, 6: \Illuminate\Support\Collection}
+     */
+    public static function rekap(Request $request): array
+    {
+        $invoices = self::queryRekap($request)->with('supplier')->orderBy('tanggal_transaksi')->get();
 
         // Makna kohort + kini: filter memilih FAKTUR-nya (via tanggal_transaksi);
         // semua angka uang = kondisi terkini. Dibayar = uang muka + SELURUH cicilan
@@ -215,6 +243,9 @@ class BebanHutangController extends Controller
 
         try {
             [$awal, $akhir, $label] = self::periodeExportSebulan($request);
+            if ($tolak = self::jagaAmbang($request, self::AMBANG_XLSX, 'Excel')) {
+                return $tolak;
+            }
             [$cards, $grand, $baris] = $this->dataExport($request);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
@@ -251,6 +282,9 @@ class BebanHutangController extends Controller
 
         try {
             [$awal, $akhir, $label] = self::periodeExportSebulan($request);
+            if ($tolak = self::jagaAmbang($request, self::AMBANG_PDF, 'PDF')) {
+                return $tolak;
+            }
             [$cards, $grand, $baris] = $this->dataExport($request);
         } catch (InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
@@ -319,31 +353,80 @@ class BebanHutangController extends Controller
         return [$cards, $grand, $baris];
     }
 
+    /** Ungu primer + hijau total + zebra — bahasa visual Precision Ledger. */
+    private const UNGU = '6D28D9';
+
+    private const ZEBRA = 'F5F3FF';
+
+    private const HIJAU_TOTAL = 'E6F4EA';
+
+    private const GARIS = 'C3C6D7';
+
+    private function gayaKepala($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::UNGU);
+        $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function gayaBingkai($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getBorders()->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB(self::GARIS);
+    }
+
+    private function aturCetak($sheet): void
+    {
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+        $sheet->getPageSetup()->setFitToPage(true);
+        $sheet->getPageSetup()->setFitToWidth(1)->setFitToHeight(0);
+        $sheet->getPageMargins()->setLeft(0.4)->setRight(0.4)->setTop(0.5)->setBottom(0.5);
+    }
+
     private function isiSheetRingkasan($sheet, $cards, array $grand, Carbon $awal, Carbon $akhir): void
     {
         $sheet->setTitle('Ringkasan');
+        $sheet->mergeCells('A1:G1');
         $sheet->setCellValue('A1', 'REKAP BEBAN HUTANG PER CABANG');
-        $sheet->setCellValue('A2', 'Periode: ' . $awal->format('d M Y') . ' – ' . $akhir->format('d M Y') . ' (filter memilih faktur by tgl transaksi; Dibayar = DP + seluruh cicilan kini)');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::UNGU);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getRowDimension(1)->setRowHeight(24);
+        $sheet->mergeCells('A2:G2');
+        $sheet->setCellValue('A2', 'Periode: ' . $awal->format('d M Y') . ' – ' . $akhir->format('d M Y') . '  ·  Hutang incl PPN; Dibayar = DP + seluruh cicilan kini');
+        $sheet->getStyle('A2')->getFont()->setItalic(true)->getColor()->setRGB('3F4756');
+
         $headers = ['Cabang', 'Lembar', 'Hutang (incl PPN)', 'Dibayar', 'Sisa', 'Lunas', 'Belum Lunas'];
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 4], $h);
         }
-        $sheet->getStyle('A4:G4')->getFont()->setBold(true);
-        $sheet->getStyle('A4:G4')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+        $this->gayaKepala($sheet, 'A4:G4');
+        $sheet->getRowDimension(4)->setRowHeight(20);
+        $sheet->freezePane('A5');
+        $sheet->setAutoFilter('A4:G4');
 
         $baris = 5;
-        foreach ($cards as $c) {
+        foreach ($cards as $i => $c) {
             $sheet->fromArray([$c['cabang'], $c['lembar'], $c['hutang'], $c['dibayar'], $c['sisa'], $c['lunas'], $c['belum_lunas']], null, "A{$baris}");
+            if ($i % 2 === 1) {
+                $sheet->getStyle("A{$baris}:G{$baris}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::ZEBRA);
+            }
             $baris++;
         }
         $sheet->fromArray(['GRAND TOTAL', $grand['lembar'], $grand['hutang'], $grand['dibayar'], $grand['sisa'], $grand['lunas'], ''], null, "A{$baris}");
         $sheet->getStyle("A{$baris}:G{$baris}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$baris}:G{$baris}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::HIJAU_TOTAL);
+        $sheet->getStyle("A{$baris}:G{$baris}")->getBorders()->getTop()
+            ->setBorderStyle(Border::BORDER_DOUBLE)->getColor()->setRGB(self::UNGU);
         foreach (['C', 'D', 'E'] as $kol) {
             $sheet->getStyle("{$kol}5:{$kol}{$baris}")->getNumberFormat()->setFormatCode('#,##0');
         }
+        $this->gayaBingkai($sheet, "A4:G{$baris}");
         foreach (range('A', 'G') as $kol) {
             $sheet->getColumnDimension($kol)->setAutoSize(true);
         }
+        $this->aturCetak($sheet);
+        $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(4, 4);
     }
 
     private function isiSheetRincian($sheet, $baris): void
@@ -353,20 +436,31 @@ class BebanHutangController extends Controller
         foreach ($headers as $i => $h) {
             $sheet->setCellValue([$i + 1, 1], $h);
         }
-        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E6F4EA');
+        $this->gayaKepala($sheet, 'A1:I1');
+        $sheet->getRowDimension(1)->setRowHeight(20);
+        $sheet->freezePane('A2');
+        $sheet->setAutoFilter('A1:I1');
 
         $no = 2;
+        $barisData = 0;
         foreach ($baris as $b) {
             $sheet->fromArray([$b['tanggal'], $b['no_invoice'], $b['supplier'], $b['cabang'], $b['hutang'], $b['dp'], $b['cicilan'], $b['sisa'], $b['status']], null, "A{$no}");
+            if ($barisData % 2 === 1) {
+                $sheet->getStyle("A{$no}:I{$no}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB(self::ZEBRA);
+            }
             $no++;
+            $barisData++;
         }
+        $akhir = max(2, $no - 1);
         foreach (['E', 'F', 'G', 'H'] as $kol) {
-            $sheet->getStyle("{$kol}2:{$kol}{$no}")->getNumberFormat()->setFormatCode('#,##0');
+            $sheet->getStyle("{$kol}2:{$kol}{$akhir}")->getNumberFormat()->setFormatCode('#,##0');
         }
+        $this->gayaBingkai($sheet, "A1:I{$akhir}");
         foreach (range('A', 'I') as $kol) {
             $sheet->getColumnDimension($kol)->setAutoSize(true);
         }
+        $this->aturCetak($sheet);
+        $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, 1);
     }
 
     public function importTemplate(Request $request)
@@ -402,8 +496,9 @@ class BebanHutangController extends Controller
     }
 
     /**
-     * Rentang periode dari query string (prioritas: bulan > tahun > from/to),
-     * pola sama dgn filter kartu omset dashboard & penjualan.
+     * Rentang periode dari query string (prioritas: bulan > tahun > from/to).
+     * Tanpa filter = BULAN BERJALAN (anti-ledakan default; preseden kartu
+     * penjualan). Tahun/rentang eksplisit tetap tak terbatas.
      *
      * @return array{0: ?\Illuminate\Support\Carbon, 1: ?\Illuminate\Support\Carbon}
      */
@@ -427,6 +522,8 @@ class BebanHutangController extends Controller
             }
         }
 
-        return [null, null];
+        $awal = \Illuminate\Support\Carbon::now()->startOfMonth();
+
+        return [$awal, $awal->copy()->endOfMonth()];
     }
 }

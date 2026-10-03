@@ -134,7 +134,7 @@
                 </div>
             </div>
             <div class="overflow-x-auto min-w-0 max-w-full border-t border-outline-variant">
-                <table class="tbl tbl-cards">
+                <table class="tbl tbl-cards tbl-hutang-kompak">
                     <thead>
                         <tr>
                             <th>Invoice</th>
@@ -147,10 +147,28 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @php($tampil = ($rinciSemua ?? false) ? $c['items'] : $c['items']->take(10))
+                        @php($tampil = ($rinciSemua ?? false) ? $c['items']->take(100) : $c['items']->take(10))
                         @foreach ($tampil as $inv)
                             <tr @class(['row-overdue' => $inv->sisa_hutang > 0])>
-                                <td data-label="Invoice" class="mono font-semibold text-primary">{{ $inv->no_invoice }}</td>
+                                <td data-label="Invoice" class="font-semibold min-w-0">
+                                    <span class="hidden md:inline mono text-primary">{{ $inv->no_invoice }}</span>
+                                    {{-- Ringkas mobile: maks 2 baris (invoice+status 1 baris + meta 1 baris, font kecil) --}}
+                                    <span class="md:hidden block min-w-0">
+                                        <span class="flex items-center gap-1.5 text-[12.5px] leading-tight">
+                                            <span class="mono truncate text-primary">{{ $inv->no_invoice }}</span>
+                                            @if ($inv->status === 'lunas')
+                                                <span class="badge badge-green shrink-0 text-[10px]">Lunas</span>
+                                            @else
+                                                <span class="badge badge-amber shrink-0 text-[10px]">Belum</span>
+                                            @endif
+                                        </span>
+                                        <span class="mt-0.5 flex items-center gap-1.5 text-[11px] leading-tight text-secondary">
+                                            <span class="truncate">{{ $inv->supplier?->nama ?? '-' }}</span>
+                                            <span aria-hidden="true">·</span>
+                                            <span class="mono whitespace-nowrap font-bold {{ $inv->sisa_hutang > 0 ? 'text-hutang-amber' : 'text-lunas-green' }}">Sisa {{ rupiah($inv->sisa_hutang) }}</span>
+                                        </span>
+                                    </span>
+                                </td>
                                 <td data-label="Tanggal">{{ $inv->tanggal_transaksi->format('d/m/Y') }}</td>
                                 <td data-label="Supplier" class="font-medium">{{ $inv->supplier?->nama ?? '-' }}</td>
                                 <td data-label="Hutang" class="mono text-right" title="Total + PPN">{{ rupiah($inv->total_setelah_diskon + $inv->ppn) }}</td>
@@ -167,7 +185,7 @@
                                     <form method="POST" action="{{ route('beban-hutang.tetapkan') }}" class="flex justify-end">
                                         @csrf
                                         <input type="hidden" name="ids[]" value="{{ $inv->id }}">
-                                        <select name="cabang" aria-label="Pindah cabang {{ $inv->no_invoice }}" class="input w-40 py-1 text-[12px]" onchange="this.form.submit()">
+                                        <select name="cabang" aria-label="Pindah cabang {{ $inv->no_invoice }}" class="input w-40 md:w-40 py-1 text-[12px] hutang-cabang-select" onchange="this.form.submit()">
                                             <option value="">— Belum Dibebani —</option>
                                             @foreach (\App\Models\InvoicePembelian::CABANG_SARAN as $cb)
                                                 <option value="{{ $cb }}" @selected($inv->cabang === $cb)>{{ str_replace('TERMINAL BAN ', 'TB ', $cb) }}</option>
@@ -186,6 +204,13 @@
                                 <td colspan="{{ $publik ? 6 : 7 }}" class="py-3 text-center text-body-sm text-secondary">
                                     +{{ $c['items']->count() - $tampil->count() }} lainnya —
                                     <a href="{{ request()->fullUrlWithQuery(['rinci_semua' => 1]) }}" class="font-semibold text-primary hover:underline">Tampilkan semua</a>
+                                </td>
+                            </tr>
+                        @elseif (($rinciSemua ?? false) && $c['items']->count() > 100)
+                            <tr>
+                                <td colspan="{{ $publik ? 6 : 7 }}" class="py-3 text-center text-body-sm text-secondary">
+                                    Menampilkan 100 dari {{ $c['items']->count() }} — persempit filter atau export 1 bulan utk data penuh ·
+                                    <a href="{{ request()->fullUrlWithQuery(['rinci_semua' => null]) }}" class="font-semibold text-primary hover:underline">Ringkas kembali (10 baris)</a>
                                 </td>
                             </tr>
                         @elseif (($rinciSemua ?? false) && $c['items']->count() > 10)

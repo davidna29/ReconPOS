@@ -733,6 +733,46 @@ main {
     table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Nama']::before {
         display: none;
     }
+    /* Beban-hutang kompak (mobile): perlakuan persis kartu barang —
+       1 baris = ±2 baris (invoice+status 1 baris + meta supplier·sisa 1 baris).
+       Select cabang dipertahankan menyusut inline agar tetap tersubmit. */
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        margin-bottom: 8px;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Tanggal'],
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Supplier'],
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Hutang'],
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Sisa'],
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Status'] {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Invoice'] {
+        display: block;
+        flex: 1 1 auto;
+        min-width: 0;
+        border-bottom: 0;
+        padding: 2px 0;
+        text-align: left;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Invoice']::before {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Cabang'] {
+        display: block;
+        flex: 0 0 auto;
+        border-bottom: 0;
+        padding: 2px 0;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak > tbody > tr > td[data-label='Cabang']::before {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-hutang-kompak .hutang-cabang-select {
+        width: 7rem;
+    }
     /* Sel berisi input form: label di atas, input full-width */
     table.tbl.tbl-cards > tbody > tr > td[data-stack='1'] {
         flex-direction: column;

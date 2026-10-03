@@ -161,11 +161,13 @@ class BebanHutangTest extends TestCase
     public function test_rincian_kartu_dibatasi_dan_bisa_dibuka_penuh(): void
     {
         $this->authUser();
+        // Tanggal sebar dalam bulan BERJALAN (default filter) agar selalu masuk scope.
+        $awalBulan = now()->copy()->startOfMonth();
         for ($i = 1; $i <= 12; $i++) {
             $this->buatFaktur(
                 'F-RIN-' . str_pad((string) $i, 2, '0', STR_PAD_LEFT),
                 100000, 100000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang',
-                now()->subDays(30 - $i)->format('Y-m-d H:i')
+                $awalBulan->copy()->addDays($i)->format('Y-m-d H:i')
             );
         }
 
@@ -444,5 +446,128 @@ class BebanHutangTest extends TestCase
             ->assertRedirect(route('login'));
         $this->get(route('beban-hutang.export.pdf', ['bulan' => now()->format('Y-m')]))
             ->assertRedirect(route('login'));
+    }
+
+    public function test_default_hanya_bulan_berjalan(): void
+    {
+        $this->authUser();
+        $this->buatFaktur('F-LAMA-DF', 100000, 100000, 'belum_lunas', 'TERMINAL BAN 1', 'hutang', now()->subMonths(2)->format('Y-m-d H:i'));
+        $this->buatFaktur('F-BARU-DF', 100000, 100000, 'belum_lunas', 'TERMINAL BAN 1');
+
+        // default (tanpa filter) = bulan berjalan saja
+        $this->get(route('beban-hutang.index'))
+            ->assertOk()->assertSee('F-BARU-DF')->assertDontSee('F-LAMA-DF');
+
+        // tahun eksplisit tetap tak terbatas
+        $this->get(route('beban-hutang.index', ['tahun' => now()->year]))
+            ->assertOk()->assertSee('F-BARU-DF')->assertSee('F-LAMA-DF');
+    }
+
+    public function test_rinci_semua_dibatasi_100_dengan_pesan(): void
+    {
+        $this->authUser();
+        $sup = $this->supplier();
+        $tgl = now()->format('Y-m-d H:i');
+        for ($i = 1; $i <= 105; $i++) {
+            InvoicePembelian::create([
+                'no_invoice' => 'F-CAP-' . str_pad((string) $i, 3, '0', STR_PAD_LEFT),
+                'supplier_id' => $sup->id,
+                'tanggal_transaksi' => $tgl,
+                'jenis' => 'hutang',
+                'subtotal' => 10000,
+                'total_setelah_diskon' => 10000,
+                'ppn' => 0,
+                'bayar_atau_dp' => 0,
+                'sisa_hutang' => 10000,
+                'status' => 'belum_lunas',
+                'cabang' => 'TERMINAL BAN 1',
+            ]);
+        }
+
+        $html = $this->get(route('beban-hutang.index', ['rinci_semua' => 1]))
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('Menampilkan 100 dari 105', $html);
+        $this->assertStringContainsString('export 1 bulan', $html);
+        $this->assertStringNotContainsString('F-CAP-105', $html);
+    }
+
+    public function test_rincian_mobile_kompak_dan_select_menyusut(): void
+    {
+        $this->authUser();
+        $this->seedRekap();
+
+        $html = $this->get(route('beban-hutang.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('tbl-hutang-kompak', $html);
+        $this->assertStringContainsString('hutang-cabang-select', $html);
+        // badge status inline mobile + desktop tak berubah
+        $this->assertStringContainsString('Belum', $html);
+    }
+
+    public function test_export_menolak_di_atas_ambang(): void
+    {
+        $this->authUser();
+        $this->seedRekap();
+
+        $ctrl = new \App\Http\Controllers\BebanHutangController(app(\App\Services\ExcelImportService::class));
+        $ref = new \ReflectionMethod($ctrl, 'jagaAmbang');
+        $req = \Illuminate\Http\Request::create(
+            route('beban-hutang.export.xlsx', ['bulan' => now()->format('Y-m')]),
+            'GET',
+            ['bulan' => now()->format('Y-m')]
+        );
+
+        $tolak = $ref->invoke(null, $req, 1, 'Excel');
+        $this->assertNotNull($tolak);
+
+        $lolos = $ref->invoke(null, $req, 2000, 'Excel');
+        $this->assertNull($lolos);
+    }
+
+    public function test_index_jenis_punya_index_komposit(): void
+    {
+        $nama = collect(\Illuminate\Support\Facades\Schema::getIndexes('invoice_pembelian'))
+            ->pluck('name')->all();
+        $this->assertContains('inv_jenis_tanggal_idx', $nama);
+        $this->assertContains('inv_jenis_cabang_idx', $nama);
+    }
+
+    public function test_export_xlsx_cantik_header_ungu(): void
+    {
+        $this->authUser();
+        $this->seedRekap();
+
+        $this->get(route('beban-hutang.export.xlsx', ['bulan' => now()->format('Y-m')]))->assertOk();
+
+        $files = glob(storage_path('app/private/export/beban-hutang-*.xlsx')) ?: [];
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $ringkas = $book->getSheetByName('Ringkasan');
+            $this->assertSame('6D28D9', $ringkas->getStyle('A4')->getFill()->getStartColor()->getRGB());
+            $this->assertArrayHasKey('A1:G1', $ringkas->getMergeCells());
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_blade_pdf_memuat_kop_garis_dan_halaman(): void
+    {
+        $this->authUser();
+        $toko = \App\Models\TokoSetting::utama();
+
+        $html = (string) $this->view('beban-hutang.export-pdf', [
+            'toko' => $toko,
+            'cards' => collect([[
+                'cabang' => 'TERMINAL BAN 1', 'lembar' => 1, 'hutang' => 100000,
+                'dibayar' => 0, 'sisa' => 100000, 'lunas' => 0, 'belum_lunas' => 1,
+            ]]),
+            'grand' => ['lembar' => 1, 'hutang' => 100000, 'dibayar' => 0, 'sisa' => 100000, 'lunas' => 0],
+            'baris' => collect(),
+            'periode' => '01 Jan 2026 – 31 Jan 2026',
+        ]);
+
+        $this->assertStringContainsString('kop-garis', $html);
+        $this->assertStringContainsString('Halaman', $html);
+        $this->assertStringContainsString('GRAND TOTAL', $html);
     }
 }
