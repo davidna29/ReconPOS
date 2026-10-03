@@ -28,20 +28,25 @@ class RekapStokController extends Controller
 
     private const GARIS = 'C3C6D7';
 
+    /** Estimasi baris di atas ini → export ditolak (fail-fast, suruh persempit filter). */
+    public const AMBANG_XLSX = 5000;
+
+    public const AMBANG_PDF = 1500;
+
+    public const AMBANG_DOCX = 2000;
+
     public function index(Request $request)
     {
-        [$groups, $totalSku, $totalStok, $merks] = self::rekap($request);
+        [$groups, $totalSku, $totalStok, $merks, $paginator, $entries, $ringkasMerk, $ringkasVarian] = self::rekapHalaman($request);
 
-        return view('rekap-stok.index', compact('groups', 'totalSku', 'totalStok', 'merks'));
+        return view('rekap-stok.index', compact('groups', 'totalSku', 'totalStok', 'merks', 'paginator', 'entries', 'ringkasMerk', 'ringkasVarian'));
     }
 
     /**
-     * Query + grouping bersama utk admin & publik (lihat Publik\RekapStokController):
-     * Merk → Varian → baris SKU (kode, nama, ukuran, harga, stok).
-     *
-     * @return array{0: \Illuminate\Support\Collection, 1: int, 2: int, 3: \Illuminate\Support\Collection}
+     * Builder dasar terfilter (merk/cari) + urut tetap.
+     * Dipakai paginasi layar, agregat, hitung preflight — 1 sumber filter.
      */
-    public static function rekap(Request $request): array
+    private static function queryDasar(Request $request)
     {
         $query = Barang::where('tipe_item', 'barang');
 
@@ -53,15 +58,88 @@ class RekapStokController extends Controller
                 ->orWhere('nama', 'like', "%{$s}%")
                 ->orWhere('ukuran_ban', 'like', "%{$s}%"));
         }
-
-        $barangs = $query->orderBy('merk')->orderBy('varian')
-            ->orderBy('ukuran_ban')->orderBy('kode_barang')->get();
-
         if ($request->boolean('sembunyikan_kosong')) {
-            $barangs = $barangs->filter(fn ($b) => $b->stock > 0)->values();
+            $query->where('stock', '>', 0);
         }
 
-        $groups = $barangs->groupBy(fn ($b) => $b->labelMerk())
+        return $query->orderBy('merk')->orderBy('varian')
+            ->orderBy('ukuran_ban')->orderBy('kode_barang');
+    }
+
+    /**
+     * Rekap 1 halaman: potong FLAT di SQL (anti-ledakan DOM/memori),
+     * group slice di PHP; angka header = agregat scope-penuh via
+     * GROUP BY kolom polos (strict-safe MariaDB) agar tetap jujur.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: int, 2: int, 3: \Illuminate\Support\Collection, 4: \Illuminate\Pagination\LengthAwarePaginator, 5: int, 6: array, 7: array}
+     */
+    public static function rekapHalaman(Request $request): array
+    {
+        $entries = (int) $request->get('entries', 10);
+        if (! in_array($entries, [10, 25, 50, 100], true)) {
+            $entries = 10;
+        }
+
+        $paginator = self::queryDasar($request)->paginate($entries)->withQueryString();
+        $groups = self::kelompokkan($paginator->getCollection());
+
+        // Agregat murah scope-penuh: GROUP BY kolom polos, label dipetakan
+        // di PHP dgn closure IDENTIK (tak ada ekspresi di GROUP BY → lolos strict).
+        $agregat = self::queryDasar($request)
+            ->selectRaw('merk, varian, COUNT(*) as sku, COALESCE(SUM(stock), 0) as stok')
+            ->groupBy('merk', 'varian')
+            ->get();
+
+        $ringkasMerk = [];
+        $ringkasVarian = [];
+        foreach ($agregat as $row) {
+            $labelMerk = trim((string) $row->merk) !== '' ? trim((string) $row->merk) : 'Tanpa Merk';
+            $labelVarian = trim((string) $row->varian) !== '' ? (string) $row->varian : '-';
+            $ringkasMerk[$labelMerk]['sku'] = ($ringkasMerk[$labelMerk]['sku'] ?? 0) + (int) $row->sku;
+            $ringkasMerk[$labelMerk]['stok'] = ($ringkasMerk[$labelMerk]['stok'] ?? 0) + (int) $row->stok;
+            $ringkasVarian[$labelMerk . "\0" . $labelVarian] = (int) $row->stok;
+        }
+
+        $totalSku = array_sum(array_column($ringkasMerk, 'sku'));
+        $totalStok = array_sum(array_column($ringkasMerk, 'stok'));
+        $merks = Barang::where('tipe_item', 'barang')
+            ->whereNotNull('merk')->where('merk', '<>', '')
+            ->distinct()->orderBy('merk')->pluck('merk');
+
+        return [$groups, $totalSku, $totalStok, $merks, $paginator, $entries, $ringkasMerk, $ringkasVarian];
+    }
+
+    /** Jumlah baris terfilter (COUNT murah) utk pre-flight export. */
+    public static function hitungBaris(Request $request): int
+    {
+        return (int) self::queryDasar($request)->count();
+    }
+
+    /**
+     * Query + grouping bersama utk admin & publik (lihat Publik\RekapStokController):
+     * Merk → Varian → baris SKU (kode, nama, ukuran, harga, stok).
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: int, 2: int, 3: \Illuminate\Support\Collection}
+     */
+    public static function rekap(Request $request): array
+    {
+        $barangs = self::queryDasar($request)->get();
+        $groups = self::kelompokkan($barangs);
+
+        $merks = Barang::where('tipe_item', 'barang')
+            ->whereNotNull('merk')->where('merk', '<>', '')
+            ->distinct()->orderBy('merk')->pluck('merk');
+
+        return [$groups, $barangs->count(), (int) $barangs->sum('stock'), $merks];
+    }
+
+    /**
+     * Grouping Merk → Varian bersama (slice halaman maupun full export).
+     * 'Tanpa Merk' selalu paling bawah.
+     */
+    private static function kelompokkan($barangs)
+    {
+        return $barangs->groupBy(fn ($b) => $b->labelMerk())
             ->map(fn ($items, $namaMerk) => [
                 'merk' => $namaMerk,
                 'total_sku' => $items->count(),
@@ -74,15 +152,19 @@ class RekapStokController extends Controller
                         'items' => $vs->values(),
                     ])->values(),
             ])
-            // 'Tanpa Merk' selalu paling bawah
             ->sortBy(fn ($g) => $g['merk'] === 'Tanpa Merk' ? '~~~' : $g['merk'])
             ->values();
+    }
 
-        $merks = Barang::where('tipe_item', 'barang')
-            ->whereNotNull('merk')->where('merk', '<>', '')
-            ->distinct()->orderBy('merk')->pluck('merk');
+    /** Tolak export raksasa sebelum kerja berat (fail-fast). */
+    private static function jagaAmbang(Request $request, int $ambang, string $format): ?\Illuminate\Http\RedirectResponse
+    {
+        $jumlah = self::hitungBaris($request);
+        if ($jumlah > $ambang) {
+            return back()->with('error', "Export {$format} dibatalkan: ±{$jumlah} SKU melebihi batas aman {$ambang} baris (risiko timeout). Persempit via filter merk/pencarian.");
+        }
 
-        return [$groups, $barangs->count(), (int) $barangs->sum('stock'), $merks];
+        return null;
     }
 
     /**
@@ -92,6 +174,9 @@ class RekapStokController extends Controller
     public function exportXlsx(Request $request)
     {
         $this->validasiFilter($request);
+        if ($tolak = self::jagaAmbang($request, self::AMBANG_XLSX, 'Excel')) {
+            return $tolak;
+        }
         [$groups, $totalSku, $totalStok] = self::rekap($request);
 
         $spreadsheet = new Spreadsheet();
@@ -109,6 +194,9 @@ class RekapStokController extends Controller
     public function exportPdf(Request $request)
     {
         $this->validasiFilter($request);
+        if ($tolak = self::jagaAmbang($request, self::AMBANG_PDF, 'PDF')) {
+            return $tolak;
+        }
         [$groups, $totalSku, $totalStok] = self::rekap($request);
 
         $pdf = Pdf::loadView('rekap-stok.export-pdf', [
@@ -131,6 +219,9 @@ class RekapStokController extends Controller
     public function exportDocx(Request $request)
     {
         $this->validasiFilter($request);
+        if ($tolak = self::jagaAmbang($request, self::AMBANG_DOCX, 'Word')) {
+            return $tolak;
+        }
         [$groups, $totalSku, $totalStok] = self::rekap($request);
         $toko = TokoSetting::utama();
 

@@ -47,22 +47,29 @@
             <span class="material-symbols-outlined text-[16px]" aria-hidden="true">filter_alt</span> Terapkan
         </button>
         <a href="{{ $r('rekap-stok.index') }}" class="btn btn-secondary btn-sm">Reset</a>
+        <select name="entries" aria-label="Jumlah SKU per halaman" class="input w-auto py-1.5 text-[13px] shadow-sm" onchange="this.form.submit()">
+            @foreach ([10, 25, 50, 100] as $n)
+                <option value="{{ $n }}" @selected((int) request('entries', 10) === $n)>{{ $n }} SKU</option>
+            @endforeach
+        </select>
     </form>
 
     @forelse ($groups as $g)
+        @php($rm = ($ringkasMerk[$g['merk']] ?? null))
         <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.06s">
             <div class="flex flex-wrap items-center gap-2 border-b border-outline-variant bg-slate-50 px-4 py-3">
                 <span class="material-symbols-outlined text-[20px] text-secondary" aria-hidden="true">factory</span>
                 <h3 class="text-headline-sm text-on-surface">{{ $g['merk'] }}</h3>
-                <span class="badge badge-slate">{{ $g['total_sku'] }} SKU</span>
-                <span class="badge {{ $g['total_stok'] <= 0 ? 'badge-red' : 'badge-green' }}">Stok {{ $g['total_stok'] }}</span>
+                <span class="badge badge-slate">{{ $rm['sku'] ?? $g['total_sku'] }} SKU</span>
+                <span class="badge {{ ($rm['stok'] ?? $g['total_stok']) <= 0 ? 'badge-red' : 'badge-green' }}">Stok {{ $rm['stok'] ?? $g['total_stok'] }}</span>
             </div>
             <div class="flex flex-col gap-4 p-3 md:p-4">
                 @foreach ($g['varians'] as $v)
+                    @php($stokVarian = $ringkasVarian[$g['merk'] . "\0" . $v['varian']] ?? $v['total_stok'])
                     <div class="min-w-0">
                         <div class="mb-1 flex flex-wrap items-center gap-2">
                             <h4 class="text-body-md font-semibold text-on-surface">{{ $v['varian'] }}</h4>
-                            <span class="text-body-sm text-secondary">Stok {{ $v['total_stok'] }}</span>
+                            <span class="text-body-sm text-secondary">Stok {{ $stokVarian }}</span>
                         </div>
                         <div class="overflow-x-auto min-w-0 max-w-full rounded-lg border border-outline-variant">
                             <table class="tbl tbl-cards tbl-rekap-kompak">
@@ -116,4 +123,13 @@
             </div>
         </div>
     @endforelse
+
+    @if (isset($paginator) && $paginator->hasPages())
+        <div class="card p-3">
+            <p class="mb-2 text-center text-body-sm text-secondary">
+                Menampilkan {{ $paginator->firstItem() }}–{{ $paginator->lastItem() }} dari {{ $paginator->total() }} SKU
+            </p>
+            {{ $paginator->withQueryString()->links() }}
+        </div>
+    @endif
 @endsection

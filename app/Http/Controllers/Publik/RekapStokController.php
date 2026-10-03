@@ -13,8 +13,8 @@ class RekapStokController extends Controller
 {
     public function index(Request $request)
     {
-        [$groups, $totalSku, $totalStok, $merks] = AdminRekapStokController::rekap($request);
+        [$groups, $totalSku, $totalStok, $merks, $paginator, $entries, $ringkasMerk, $ringkasVarian] = AdminRekapStokController::rekapHalaman($request);
 
-        return view('rekap-stok.index', compact('groups', 'totalSku', 'totalStok', 'merks') + ['publik' => true]);
+        return view('rekap-stok.index', compact('groups', 'totalSku', 'totalStok', 'merks', 'paginator', 'entries', 'ringkasMerk', 'ringkasVarian') + ['publik' => true]);
     }
 }

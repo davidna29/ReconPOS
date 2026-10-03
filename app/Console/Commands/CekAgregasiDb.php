@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Http\Controllers\BebanHutangController;
+use App\Http\Controllers\RekapStokController;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,7 @@ class CekAgregasiDb extends Command
     {
         try {
             [$cards, $grand] = BebanHutangController::rekap(new Request);
+            [$groups, $totalSku, $totalStok] = RekapStokController::rekapHalaman(new Request);
         } catch (\Throwable $e) {
             $this->error('GAGAL: ' . $e->getMessage());
 
@@ -23,10 +25,12 @@ class CekAgregasiDb extends Command
         }
 
         $this->info(sprintf(
-            'OK: %d kartu cabang, %d faktur, hutang Rp%s',
+            'OK: %d kartu cabang, %d faktur, hutang Rp%s; rekap %d SKU (%d grup)',
             count($cards),
             $grand['lembar'],
-            number_format($grand['hutang'], 0, ',', '.')
+            number_format($grand['hutang'], 0, ',', '.'),
+            $totalSku,
+            count($groups)
         ));
 
         return 0;

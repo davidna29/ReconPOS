@@ -270,4 +270,67 @@ class RekapStokTest extends TestCase
             @unlink($path);
         }
     }
+
+    private function seedBanyak(int $n, string $merk = 'MASSAL'): void
+    {
+        for ($i = 1; $i <= $n; $i++) {
+            Barang::create([
+                'tipe_item' => 'barang',
+                'kode_barang' => sprintf('BK-%04d', $i),
+                'nama' => 'Barang Massal ' . $i,
+                'sn_atau_non_sn' => 'NON_SN',
+                'merk' => $merk,
+                'stock' => 2,
+            ]);
+        }
+    }
+
+    public function test_paginasi_memotong_baris_header_tetap_penuh(): void
+    {
+        $this->authUser();
+        $this->seedBanyak(12);
+
+        $html = $this->get(route('rekap-stok.index', ['entries' => 10]))->assertOk()->getContent();
+        // info potongan + header merk = angka scope-penuh (12, bukan 10)
+        $this->assertStringContainsString('dari 12 SKU', $html);
+        $this->assertStringContainsString('12 SKU', $html);
+
+        $hal2 = $this->get(route('rekap-stok.index', ['entries' => 10, 'page' => 2]))
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('11–12 dari 12 SKU', $hal2);
+    }
+
+    public function test_export_menolak_di_atas_ambang(): void
+    {
+        $this->authUser();
+        $this->seedBanyak(3);
+
+        // Ambang direndahkan via refleksi: logika guard tanpa seed ribuan baris.
+        $ctrl = new \App\Http\Controllers\RekapStokController();
+        $ref = new \ReflectionMethod($ctrl, 'jagaAmbang');
+        $req = \Illuminate\Http\Request::create(route('rekap-stok.export.xlsx'), 'GET');
+        $this->app->instance('request', $req);
+
+        $tolak = $ref->invoke(null, $req, 2, 'Excel');
+        $this->assertNotNull($tolak);
+        $this->assertStringContainsString('melebihi batas aman 2 baris', $tolak->getSession()->get('error'));
+
+        $lolos = $ref->invoke(null, $req, 5000, 'Excel');
+        $this->assertNull($lolos);
+    }
+
+    public function test_index_barang_punya_index_tipe_merk(): void
+    {
+        $nama = collect(\Illuminate\Support\Facades\Schema::getIndexes('barang'))
+            ->pluck('name')->all();
+        $this->assertContains('barang_tipe_merk_idx', $nama);
+    }
+
+    public function test_probe_agregasi_mencakup_rekap(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+
+        $this->artisan('db:cek-agregasi')->assertExitCode(0);
+    }
 }
