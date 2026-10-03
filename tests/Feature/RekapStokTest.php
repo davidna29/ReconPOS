@@ -189,5 +189,82 @@ class RekapStokTest extends TestCase
     {
         $this->get(route('rekap-stok.export.xlsx'))->assertRedirect(route('login'));
         $this->get(route('rekap-stok.export.pdf'))->assertRedirect(route('login'));
+        $this->get(route('rekap-stok.export.docx'))->assertRedirect(route('login'));
+    }
+
+    public function test_index_mobile_kompak_kolom_harga_dan_tombol_word(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+
+        $html = $this->get(route('rekap-stok.index'))->assertOk()->getContent();
+        // kartu kompak 2 baris pola laman barang (tanpa titik-3: read-only)
+        $this->assertStringContainsString('tbl-rekap-kompak', $html);
+        $this->assertStringContainsString('Harga Jual', $html);
+        $this->assertStringContainsString(route('rekap-stok.export.docx'), $html);
+        $this->assertStringContainsString('Export Word', $html);
+    }
+
+    public function test_export_xlsx_cantik_dan_ada_harga(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+        $b = Barang::where('kode_barang', 'BL-26570R17-SAV-MTP')->first();
+        $b->update(['harga_jual' => 1250000]);
+
+        $this->get(route('rekap-stok.export.xlsx'))->assertOk();
+
+        $files = glob(storage_path('app/private/export/rekap-stok-*.xlsx')) ?: [];
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $rinci = $book->getSheetByName('Rincian');
+            // header ungu + kolom Harga Jual + judul ter-merge
+            $this->assertSame('6D28D9', $rinci->getStyle('A1')->getFill()->getStartColor()->getRGB());
+            $this->assertArrayHasKey('A1:C1', $book->getSheetByName('Ringkasan')->getMergeCells());
+            $kepala = $rinci->toArray(null, true, false)[0];
+            $this->assertContains('Harga Jual', $kepala);
+
+            $harga = null;
+            foreach ($rinci->toArray(null, true, false) as $row) {
+                if (($row[2] ?? '') === 'BL-26570R17-SAV-MTP') {
+                    $harga = (int) $row[5];
+                }
+            }
+            $this->assertSame(1250000, $harga);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_export_docx_isi_ringkasan_rincian_dan_harga(): void
+    {
+        $this->authUser();
+        $this->setupBan();
+        Barang::where('kode_barang', 'BL-26570R17-SAV-MTP')->first()->update(['harga_jual' => 1250000]);
+
+        $res = $this->get(route('rekap-stok.export.docx'));
+        $res->assertOk();
+        $this->assertStringStartsWith(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            $res->headers->get('content-type')
+        );
+        $this->assertStringContainsString('rekap-stok-' . now()->format('Ymd') . '.docx', $res->headers->get('content-disposition'));
+
+        $files = glob(storage_path('app/private/export/rekap-stok-*.docx')) ?: [];
+        $this->assertNotEmpty($files);
+        $path = collect($files)->sortByDesc(fn ($f) => filemtime($f))->first();
+        try {
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($path));
+            $xml = (string) $zip->getFromName('word/document.xml');
+            $zip->close();
+            $this->assertStringContainsString('BL-26570R17-SAV-MTP', $xml);
+            $this->assertStringContainsString('1.250.000', $xml);
+            $this->assertStringContainsString('GRAND TOTAL', $xml);
+            $this->assertStringContainsString('Ringkasan per Merk', $xml);
+        } finally {
+            @unlink($path);
+        }
     }
 }

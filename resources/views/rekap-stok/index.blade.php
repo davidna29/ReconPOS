@@ -18,6 +18,9 @@
             <a href="{{ route('rekap-stok.export.pdf', request()->only(['merk', 'q', 'sembunyikan_kosong'])) }}" class="btn btn-secondary btn-sm" title="Unduh PDF rekap + rincian sesuai filter">
                 <span class="material-symbols-outlined text-[16px]" aria-hidden="true">picture_as_pdf</span> Export PDF
             </a>
+            <a href="{{ route('rekap-stok.export.docx', request()->only(['merk', 'q', 'sembunyikan_kosong'])) }}" class="btn btn-secondary btn-sm" title="Unduh Word rekap + rincian sesuai filter">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">description</span> Export Word
+            </a>
         </div>
         @endif
     </div>
@@ -62,12 +65,13 @@
                             <span class="text-body-sm text-secondary">Stok {{ $v['total_stok'] }}</span>
                         </div>
                         <div class="overflow-x-auto min-w-0 max-w-full rounded-lg border border-outline-variant">
-                            <table class="tbl tbl-cards">
+                            <table class="tbl tbl-cards tbl-rekap-kompak">
                                 <thead>
                                     <tr>
                                         <th>Ukuran</th>
                                         <th>Kode Barang</th>
                                         <th>Nama</th>
+                                        <th class="text-right">Harga Jual</th>
                                         <th class="text-center">Stok</th>
                                     </tr>
                                 </thead>
@@ -76,7 +80,21 @@
                                         <tr @class(['row-overdue' => $b->stock <= 0])>
                                             <td data-label="Ukuran" class="mono font-semibold">{{ $b->ukuran_ban ?? '-' }}</td>
                                             <td data-label="Kode Barang" class="mono text-secondary">{{ $b->kode_barang }}</td>
-                                            <td data-label="Nama" class="font-medium">{{ $b->nama }}</td>
+                                            <td data-label="Nama" class="font-medium min-w-0">
+                                                <span class="hidden md:inline">{{ $b->nama }}</span>
+                                                {{-- Ringkas mobile: maks 2 baris (nama 1 baris + meta 1 baris, font kecil) --}}
+                                                <span class="md:hidden block min-w-0">
+                                                    <span class="block truncate text-[12.5px] font-semibold leading-tight text-on-surface">{{ $b->nama }}</span>
+                                                    <span class="mt-0.5 flex items-center gap-1.5 text-[11px] leading-tight text-secondary">
+                                                        <span class="mono truncate">{{ $b->ukuran_ban ?? '-' }} · {{ $b->kode_barang }}</span>
+                                                        <span aria-hidden="true">·</span>
+                                                        <span class="mono whitespace-nowrap">{{ rupiah($b->harga_jual) }}</span>
+                                                        <span aria-hidden="true">·</span>
+                                                        <span class="badge text-[10px] {{ $b->stock <= 0 ? 'badge-red' : 'badge-green' }}">Stok {{ $b->stock }}</span>
+                                                    </span>
+                                                </span>
+                                            </td>
+                                            <td data-label="Harga Jual" class="mono text-right">{{ rupiah($b->harga_jual) }}</td>
                                             <td data-label="Stok" class="text-center">
                                                 <span class="mono {{ $b->stock <= 0 ? 'font-bold text-danger-red' : '' }}">{{ $b->stock }}</span>
                                             </td>

@@ -710,6 +710,29 @@ main {
     table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Nama Barang']::before {
         display: none;
     }
+    /* Rekap-stok kompak (mobile): perlakuan persis kartu barang —
+       1 kartu = ±2 baris (nama 1 baris + meta ukuran·kode·harga·stok 1 baris).
+       Read-only (tanpa aksi) sehingga tanpa menu titik-3. */
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr {
+        display: block;
+        padding: 6px 10px;
+        margin-bottom: 8px;
+    }
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Ukuran'],
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Kode Barang'],
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Harga Jual'],
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Stok'] {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Nama'] {
+        display: block;
+        border-bottom: 0;
+        padding: 2px 0;
+        text-align: left;
+    }
+    table.tbl.tbl-cards.tbl-rekap-kompak > tbody > tr > td[data-label='Nama']::before {
+        display: none;
+    }
     /* Sel berisi input form: label di atas, input full-width */
     table.tbl.tbl-cards > tbody > tr > td[data-stack='1'] {
         flex-direction: column;
