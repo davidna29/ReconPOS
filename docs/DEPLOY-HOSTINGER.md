@@ -276,6 +276,13 @@ Update berikutnya cukup dari terminal laptop:
    cache → `db:cek-agregasi` (guard ONLY_FULL_GROUP_BY, SEBELUM up) →
    verifikasi HTTP → up.
 
+> **JANGAN sinkron kode manual** (FTP/hPanel/Git-pull di server) melewati skrip ini.
+> Insiden 2026-10-03: file `bootstrap/cache/*.php` lokal (dibangun DENGAN dev-deps,
+> mereferensi `PailServiceProvider`) tersalin ke server (vendor `--no-dev` tak punya
+> kelasnya) → SEMUA perintah artisan fatal termasuk `up` → situs down. Pelajaran
+> diabadikan: `deploy.sh` mengecualikan `bootstrap/cache/*.php` dari rsync +
+> membuang sisanya pasca-rsync + trap berteriak DARURAT bila `up` gagal.
+
 ## 11. SSL & HTTPS (wajib kalau pakai https)
 
 1. hPanel -> **Security** -> **SSL** -> aktifkan sertifikat gratis Hostinger (Let's Encrypt) untuk domain Anda, tunggu sampai Status = aktif.

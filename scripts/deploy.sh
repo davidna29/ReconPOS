@@ -90,7 +90,11 @@ log "Project : $PROJECT"
 log "Docroot : $DOCROOT"
 
 # Exclude rsync — SAMA PERSIS daftar lama (plus tests/, backups-db/, debugbar, public/hot, .DS_Store).
-EXCLUDES=(.env* node_modules/ vendor/ .git/ tests/ database/*.sqlite* storage/logs/* storage/framework/cache/* storage/framework/sessions/* storage/framework/views/* storage/app/private/backups/* storage/app/private/backups-db/* storage/app/private/export/* storage/debugbar/ public/hot .DS_Store .phpunit.result.cache)
+# bootstrap/cache/*.php WAJIB dikecualikan: file cache lokal dibangun DENGAN
+# dev-deps (mis. PailServiceProvider) → bila tersalin, SEMUA artisan di server
+# fatal (vendor --no-dev tak punya kelasnya) termasuk `up` (insiden down 2026-10-03).
+# .gitignore di dir itu tetap ikut (pola hanya *.php).
+EXCLUDES=(.env* node_modules/ vendor/ .git/ tests/ database/*.sqlite* bootstrap/cache/*.php storage/logs/* storage/framework/cache/* storage/framework/sessions/* storage/framework/views/* storage/app/private/backups/* storage/app/private/backups-db/* storage/app/private/export/* storage/debugbar/ public/hot .DS_Store .phpunit.result.cache)
 RSYNC_ARGS=(-az --delete)
 for e in "${EXCLUDES[@]}"; do RSYNC_ARGS+=(--exclude="$e"); done
 
@@ -100,6 +104,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   rsync -azn --itemize-changes "${RSYNC_ARGS[@]:1}" -e "$RSYNC_SSH" ./ "$SSH_USER@$SSH_HOST:$PROJECT/"
   log "[dry-run] Perintah remote yg AKAN dijalankan:"
   [ "$BACKUP" -eq 1 ] && log "  \$ $DEPLOY_PHP artisan app:cadangkan-db"
+  log "  \$ rm -f bootstrap/cache/*.php (basi)"
   log "  \$ $DEPLOY_PHP artisan app:sambung-public --docroot='$DOCROOT'"
   log "  \$ composer install --no-dev --optimize-autoloader"
   log "  \$ $DEPLOY_PHP artisan migrate --force"
@@ -122,7 +127,7 @@ fi
 DID_DOWN=0
 # Guard BASH_SUBSHELL: subshell $(...) mewarisi trap EXIT — tanpa guard ini
 # `up` bisa jalan DINI di tengah deploy (insiden: up ganda 2026-10-01).
-naikkan_up() { if [ "${BASH_SUBSHELL:-0}" -ne 0 ]; then return 0; fi; if [ "$DID_DOWN" -eq 1 ]; then log "--- artisan up ---"; run_remote "$DEPLOY_PHP artisan up" || true; fi; }
+naikkan_up() { if [ "${BASH_SUBSHELL:-0}" -ne 0 ]; then return 0; fi; if [ "$DID_DOWN" -eq 1 ]; then log "--- artisan up ---"; run_remote "$DEPLOY_PHP artisan up" || log "DARURAT: artisan up GAGAL — situs mungkin masih down, intervensi manual!"; fi; }
 trap naikkan_up EXIT
 run_remote() { remote "cd '$PROJECT' && $1"; }
 if [ "$MAINTENANCE" -eq 1 ]; then
@@ -140,6 +145,12 @@ fi
 # 7. rsync sungguhan.
 log "--- rsync kode ---"
 rsync "${RSYNC_ARGS[@]}" -e "$RSYNC_SSH" ./ "$SSH_USER@$SSH_HOST:$PROJECT/"
+
+# 7b. Buang sisa cache bootstrap di server (regenerable; PackageManifest
+# membangun ulang dari vendor --no-dev saat dibutuhkan). Sabuk + suspender
+# bersama EXCLUDES di atas (insiden Pail 2026-10-03).
+log "--- buang bootstrap/cache basi ---"
+run_remote "rm -f bootstrap/cache/packages.php bootstrap/cache/services.php bootstrap/cache/config.php bootstrap/cache/routes-*.php bootstrap/cache/events.php"
 
 # 8. Sambung public -> docroot.
 log "--- sambung public ---"
