@@ -14,6 +14,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 use PhpOffice\PhpWord\IOFactory as WordFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\SimpleType\Jc;
+use PhpOffice\PhpWord\SimpleType\JcTable;
 
 class RekapStokController extends Controller
 {
@@ -133,58 +135,62 @@ class RekapStokController extends Controller
         $toko = TokoSetting::utama();
 
         $phpWord = new PhpWord();
-        $phpWord->addTitleStyle(1, ['name' => 'Calibri', 'size' => 18, 'bold' => true, 'color' => self::UNGU]);
-        $phpWord->addTitleStyle(2, ['name' => 'Calibri', 'size' => 13, 'bold' => true, 'color' => self::UNGU]);
+        $phpWord->addTitleStyle(1, ['name' => 'Calibri', 'size' => 18, 'bold' => true, 'color' => self::UNGU], ['alignment' => Jc::CENTER]);
+        $phpWord->addTitleStyle(2, ['name' => 'Calibri', 'size' => 13, 'bold' => true, 'color' => self::UNGU], ['alignment' => Jc::CENTER]);
 
         $section = $phpWord->addSection([
             'orientation' => 'landscape',
             'marginLeft' => 720, 'marginRight' => 720,
             'marginTop' => 720, 'marginBottom' => 720,
         ]);
+        $tengah = ['alignment' => Jc::CENTER];
+        $kiri = ['alignment' => Jc::START];
         $section->addTitle($toko->nama_toko ?: 'ReconPOS', 1);
         if ($toko->alamat) {
-            $section->addText($toko->alamat, ['size' => 9, 'color' => '3F4756']);
+            $section->addText($toko->alamat, ['size' => 9, 'color' => '3F4756'], $tengah);
         }
         $section->addTitle('REKAP STOK PER MERK', 2);
         $section->addText(
             'Snapshot ' . now()->format('d M Y H:i') . ' · ' . $this->labelFilter($request) . " · {$totalSku} SKU · total " . number_format($totalStok, 0, ',', '.') . ' pcs',
-            ['size' => 9, 'color' => '3F4756']
+            ['size' => 9, 'color' => '3F4756'],
+            $tengah
         );
 
-        $gayaTabel = ['borderColor' => self::GARIS, 'borderSize' => 6, 'cellMargin' => 80];
+        $gayaTabel = ['borderColor' => self::GARIS, 'borderSize' => 6, 'cellMargin' => 80, 'alignment' => JcTable::CENTER];
         $phpWord->addTableStyle('Ringkasan', $gayaTabel, ['bgColor' => self::UNGU]);
         $phpWord->addTableStyle('Rincian', $gayaTabel, ['bgColor' => self::UNGU]);
         $fontHead = ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => 'FFFFFF'];
         $fontIsi = ['name' => 'Calibri', 'size' => 9];
         $fontTotal = ['name' => 'Calibri', 'size' => 9, 'bold' => true];
 
-        $section->addText('Ringkasan per Merk', ['size' => 11, 'bold' => true]);
+        $section->addText('Ringkasan per Merk', ['size' => 11, 'bold' => true], $tengah);
         $ringkas = $section->addTable('Ringkasan');
         $ringkas->addRow();
         foreach (['Merk', 'SKU', 'Total Stok'] as $h) {
-            $ringkas->addCell(3000)->addText($h, $fontHead);
+            $ringkas->addCell(3000)->addText($h, $fontHead, $tengah);
         }
         foreach ($groups as $i => $g) {
             $ringkas->addRow();
             $sel = $i % 2 === 1 ? ['bgColor' => self::ZEBRA] : [];
-            $ringkas->addCell(3000, $sel)->addText($g['merk'], $fontIsi);
-            $ringkas->addCell(3000, $sel)->addText((string) $g['total_sku'], $fontIsi);
-            $ringkas->addCell(3000, $sel)->addText(number_format($g['total_stok'], 0, ',', '.'), $fontIsi);
+            $ringkas->addCell(3000, $sel)->addText($g['merk'], $fontIsi, $kiri);
+            $ringkas->addCell(3000, $sel)->addText((string) $g['total_sku'], $fontIsi, $tengah);
+            $ringkas->addCell(3000, $sel)->addText(number_format($g['total_stok'], 0, ',', '.'), $fontIsi, $tengah);
         }
         $ringkas->addRow();
         $selTotal = ['bgColor' => self::HIJAU_TOTAL];
-        $ringkas->addCell(3000, $selTotal)->addText('GRAND TOTAL', $fontTotal);
-        $ringkas->addCell(3000, $selTotal)->addText((string) $totalSku, $fontTotal);
-        $ringkas->addCell(3000, $selTotal)->addText(number_format($totalStok, 0, ',', '.'), $fontTotal);
+        $ringkas->addCell(3000, $selTotal)->addText('GRAND TOTAL', $fontTotal, $kiri);
+        $ringkas->addCell(3000, $selTotal)->addText((string) $totalSku, $fontTotal, $tengah);
+        $ringkas->addCell(3000, $selTotal)->addText(number_format($totalStok, 0, ',', '.'), $fontTotal, $tengah);
 
         $section->addTextBreak();
-        $section->addText('Rincian SKU', ['size' => 11, 'bold' => true]);
+        $section->addText('Rincian SKU', ['size' => 11, 'bold' => true], $tengah);
         $rinci = $section->addTable('Rincian');
         $kepala = ['Merk', 'Varian', 'Kode', 'Nama', 'Ukuran', 'Harga Jual', 'Stok'];
         $lebar = [1800, 1800, 1600, 2800, 1300, 1500, 1000];
+        $tengahIndeks = [5, 6]; // kolom angka (Harga Jual, Stok) = center
         $rinci->addRow();
         foreach ($kepala as $i => $h) {
-            $rinci->addCell($lebar[$i])->addText($h, $fontHead);
+            $rinci->addCell($lebar[$i])->addText($h, $fontHead, $tengah);
         }
         $no = 0;
         foreach ($groups as $g) {
@@ -197,7 +203,7 @@ class RekapStokController extends Controller
                         $b->ukuran_ban ?? '-', number_format((int) $b->harga_jual, 0, ',', '.'), (string) (int) $b->stock,
                     ];
                     foreach ($nilai as $i => $teks) {
-                        $rinci->addCell($lebar[$i], $sel)->addText($teks, $fontIsi);
+                        $rinci->addCell($lebar[$i], $sel)->addText($teks, $fontIsi, in_array($i, $tengahIndeks, true) ? $tengah : $kiri);
                     }
                     $no++;
                 }

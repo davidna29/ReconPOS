@@ -263,6 +263,9 @@ class RekapStokTest extends TestCase
             $this->assertStringContainsString('1.250.000', $xml);
             $this->assertStringContainsString('GRAND TOTAL', $xml);
             $this->assertStringContainsString('Ringkasan per Merk', $xml);
+            // kop + kedua tabel rata tengah; isi teks left, angka center
+            $this->assertGreaterThanOrEqual(3, substr_count($xml, 'w:val="center"'));
+            $this->assertStringContainsString('w:val="start"', $xml);
         } finally {
             @unlink($path);
         }
