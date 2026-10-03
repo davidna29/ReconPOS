@@ -685,6 +685,31 @@ main {
         color: var(--color-danger-red);
         border-color: var(--color-danger-red);
     }
+    /* Stok-tracking kompak (mobile): perlakuan persis kartu barang —
+       1 kartu = ±2 baris (nama 1 baris + meta kode·sisa·umur 1 baris).
+       Tabel read-only (tanpa aksi) sehingga tanpa menu titik-3. */
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr {
+        display: block;
+        padding: 6px 10px;
+        margin-bottom: 8px;
+    }
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Kode'],
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Sumber'],
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Tanggal Masuk'],
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Qty Awal'],
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Sisa'],
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Umur'] {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Nama Barang'] {
+        display: block;
+        border-bottom: 0;
+        padding: 2px 0;
+        text-align: left;
+    }
+    table.tbl.tbl-cards.tbl-stok-kompak > tbody > tr > td[data-label='Nama Barang']::before {
+        display: none;
+    }
     /* Sel berisi input form: label di atas, input full-width */
     table.tbl.tbl-cards > tbody > tr > td[data-stack='1'] {
         flex-direction: column;

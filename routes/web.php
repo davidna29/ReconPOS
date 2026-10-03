@@ -60,6 +60,8 @@ Route::middleware('auth')->group(function () {
 
     // ---- Tracking Stok ----
     Route::get('/stok-tracking', [StokTrackingController::class, 'index'])->name('stok-tracking.index');
+    Route::get('/stok-tracking/export/xlsx', [StokTrackingController::class, 'exportXlsx'])->name('stok-tracking.export.xlsx');
+    Route::get('/stok-tracking/export/pdf', [StokTrackingController::class, 'exportPdf'])->name('stok-tracking.export.pdf');
 
     // ---- Rekap Stok per Merk (Merk → Varian → Ukuran) ----
     Route::get('/rekap-stok', [RekapStokController::class, 'index'])->name('rekap-stok.index');
