@@ -33,7 +33,7 @@
     @endif
 
     @if (! $publik)
-    @include('partials.table-toolbar', ['actions' => '
+    @include('partials.table-toolbar', ['actionsId' => 'toolbar-barang-aksi', 'actionsLabel' => 'Tambah / Template / Harga', 'actionsIcon' => 'add', 'actions' => '
         <a href="' . route('barang.create') . '" class="btn btn-primary btn-sm text-[12px] md:text-body-sm">
             <span class="material-symbols-outlined text-[16px] md:text-[18px]" aria-hidden="true">add</span> Tambah Data
         </a>
@@ -112,7 +112,7 @@
 
     <div class="card animate-rise overflow-hidden min-w-0" style="--rise-delay:.12s">
         <div class="overflow-x-auto min-w-0 max-w-full">
-            <table class="tbl tbl-cards">
+            <table class="tbl tbl-cards tbl-barang-kompak">
                 <thead>
                     <tr>
                         <th>No</th>
@@ -133,11 +133,24 @@
                         <tr @class(['row-overdue' => $b->stock <= 0])>
                             <td data-label="No" class="text-secondary">{{ $barangs->firstItem() + $i }}</td>
                             <td data-label="Kode Barang" class="mono text-secondary">{{ $b->kode_barang }}</td>
-                            <td data-label="Nama" class="font-medium">
-                                {{ $b->nama }}
-                                @if ($b->isSn())
-                                    <x-badge color="teal" class="ml-1">SN</x-badge>
-                                @endif
+                            <td data-label="Nama" class="font-medium min-w-0">
+                                <span class="hidden md:inline">
+                                    {{ $b->nama }}
+                                    @if ($b->isSn())
+                                        <x-badge color="teal" class="ml-1">SN</x-badge>
+                                    @endif
+                                </span>
+                                {{-- Ringkas mobile: maks 2 baris (nama 1 baris + meta 1 baris, font kecil) --}}
+                                <span class="md:hidden block min-w-0">
+                                    <span class="block truncate text-[12.5px] font-semibold leading-tight text-on-surface">{{ $b->nama }}</span>
+                                    <span class="mt-0.5 flex items-center gap-1.5 text-[11px] leading-tight text-secondary">
+                                        <span class="mono truncate">{{ $b->kode_barang }}</span>
+                                        <span aria-hidden="true">·</span>
+                                        <span class="mono whitespace-nowrap">{{ rupiah($b->harga_jual) }}</span>
+                                        <span aria-hidden="true">·</span>
+                                        <span class="badge text-[10px] {{ $b->stock <= 0 ? 'badge-red' : 'badge-green' }}">Stok {{ $b->stock }}</span>
+                                    </span>
+                                </span>
                             </td>
                             <td data-label="Merk">{{ $b->merk ?? '-' }}</td>
                             <td data-label="Varian">{{ $b->varian ?? '-' }}</td>
@@ -151,7 +164,8 @@
                             </td>
                             <td data-label="Status"><span class="badge badge-slate">{{ $b->status }}</span></td>
                             <td data-label="Aksi" class="text-right">
-                                <div class="flex justify-end gap-1">
+                                {{-- Desktop: 5 ikon sebaris (tak berubah) --}}
+                                <div class="hidden md:flex justify-end gap-1">
                                     <a href="{{ $r('barang.show', $b) }}" class="btn-icon text-lunas-green hover:bg-green-50" title="Lihat Detail">
                                         <span class="material-symbols-outlined text-[18px]" aria-hidden="true">visibility</span>
                                     </a>
@@ -176,6 +190,37 @@
                                     </form>
                                     @endif
                                 </div>
+                                {{-- Mobile: menu titik-3 tanpa JS & tanpa id (satu <details> per baris, tak pakai getElementById) --}}
+                                <details class="md:hidden barang-menu">
+                                    <summary class="btn-icon text-secondary" title="Aksi" aria-label="Aksi barang {{ $b->kode_barang }}">
+                                        <span class="material-symbols-outlined text-[20px]" aria-hidden="true">more_vert</span>
+                                    </summary>
+                                    <div class="barang-menu-list">
+                                        <a href="{{ $r('barang.show', $b) }}" class="barang-menu-item">
+                                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">visibility</span> Lihat
+                                        </a>
+                                        @if (! $publik)
+                                        <a href="{{ route('barang.edit', $b) }}" class="barang-menu-item">
+                                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">edit</span> Edit
+                                        </a>
+                                        @endif
+                                        <a href="{{ $r('barang.kartuStok', $b) }}" class="barang-menu-item">
+                                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">history</span> Riwayat
+                                        </a>
+                                        <a href="{{ $r('barang.barcode', $b) }}" class="barang-menu-item">
+                                            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">qr_code_2</span> Barcode
+                                        </a>
+                                        @if (! $publik)
+                                        <form method="POST" action="{{ route('barang.destroy', $b) }}" data-confirm="Hapus barang {{ $b->kode_barang }}? (hanya jika belum dipakai transaksi)">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="barang-menu-item barang-menu-danger">
+                                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span> Hapus
+                                            </button>
+                                        </form>
+                                        @endif
+                                    </div>
+                                </details>
                             </td>
                         </tr>
                     @empty

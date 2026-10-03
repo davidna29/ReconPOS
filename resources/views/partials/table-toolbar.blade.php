@@ -1,7 +1,20 @@
 <div class="flex flex-col gap-2 min-w-0 max-w-full md:gap-3 md:flex-row md:items-center md:justify-between">
+    @if (! empty($actionsId))
+        <div class="md:hidden w-full min-w-0">
+            <x-collapse id="{{ $actionsId }}" label="{{ $actionsLabel ?? 'Aksi' }}" icon="{{ $actionsIcon ?? 'add' }}">
+                <div class="flex flex-col items-stretch gap-2">
+                    {!! $actions ?? '' !!}
+                </div>
+            </x-collapse>
+        </div>
+        <div class="hidden md:flex flex-wrap items-center gap-2">
+            {!! $actions ?? '' !!}
+        </div>
+    @else
     <div class="flex flex-wrap items-center gap-1.5 md:gap-2">
         {!! $actions ?? '' !!}
     </div>
+    @endif
     <form method="GET" class="flex flex-wrap items-center gap-1.5 md:gap-2">
         @if ($filters ?? null)
             {!! $filters !!}

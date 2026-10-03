@@ -151,4 +151,21 @@ class BarangTest extends TestCase
         $this->assertStringContainsString('Upload Template Excel', $html);
         $this->assertStringContainsString('Update Harga Excel', $html);
     }
+
+    public function test_index_mobile_kompak_menu_titik_tiga_dan_toolbar_lipat(): void
+    {
+        $this->authUser();
+        Barang::create(['tipe_item' => 'barang', 'kode_barang' => 'B-KOMPAK', 'nama' => 'Ban Kompak Uji', 'sn_atau_non_sn' => 'NON_SN', 'harga_jual' => 75000, 'stock' => 4]);
+
+        $html = $this->get(route('barang.index'))->assertOk()->getContent();
+        // tabel mode kompak + meta ringkas mobile (kode+rupiah) + menu titik-3 per baris
+        $this->assertStringContainsString('tbl-barang-kompak', $html);
+        $this->assertStringContainsString('more_vert', $html);
+        $this->assertStringContainsString('barang-menu-list', $html);
+        // toolbar 3 tombol dilipat via x-collapse (id unik) — desktop tetap render tombol
+        $this->assertStringContainsString('toolbar-barang-aksi', $html);
+        $this->assertStringContainsString('Tambah Data', $html);
+        // data verbose tetap di HTML (disembunyikan via CSS mobile saja)
+        $this->assertStringContainsString('B-KOMPAK', $html);
+    }
 }

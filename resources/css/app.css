@@ -610,6 +610,81 @@ main {
     table.tbl.tbl-cards > tbody > tr > td[data-label='Aksi']::before {
         display: none;
     }
+    /* Barang kompak (mobile): 1 kartu = ±2 baris (nama 1 baris + meta 1 baris,
+       font kecil). Sel verbose disembunyikan; detail penuh tetap di halaman Detail.
+       Tombol ⋮ absolute agar kartu tertutup hanya setinggi info. */
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr {
+        position: relative;
+        display: block;
+        padding: 6px 40px 6px 10px;
+        margin-bottom: 8px;
+    }
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='No'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Kode Barang'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Merk'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Varian'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Ukuran'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Kategori'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Harga Jual'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Stok'],
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Status'] {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Nama'] {
+        display: block;
+        border-bottom: 0;
+        padding: 2px 0;
+        text-align: left;
+    }
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Nama']::before {
+        display: none;
+    }
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Aksi'] {
+        display: block;
+        border-bottom: 0;
+        padding: 0;
+    }
+    table.tbl.tbl-cards.tbl-barang-kompak > tbody > tr > td[data-label='Aksi']::before {
+        display: none;
+    }
+    .barang-menu > summary {
+        position: absolute;
+        top: 2px;
+        right: 4px;
+        list-style: none;
+        cursor: pointer;
+        border-radius: 8px;
+        padding: 6px;
+        color: var(--color-secondary);
+    }
+    .barang-menu > summary::-webkit-details-marker {
+        display: none;
+    }
+    .barang-menu > summary:hover {
+        background-color: var(--color-surface-muted);
+    }
+    .barang-menu-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+    .barang-menu-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 10px;
+        border: 1px solid var(--color-outline-variant);
+        border-radius: 8px;
+        background-color: #ffffff;
+        color: var(--color-on-surface);
+    }
+    .barang-menu-danger {
+        color: var(--color-danger-red);
+        border-color: var(--color-danger-red);
+    }
     /* Sel berisi input form: label di atas, input full-width */
     table.tbl.tbl-cards > tbody > tr > td[data-stack='1'] {
         flex-direction: column;
