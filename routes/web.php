@@ -7,21 +7,23 @@ use App\Http\Controllers\BebanHutangController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\GenerateController;
+use App\Http\Controllers\KaryawanController;
 use App\Http\Controllers\PembelianController;
 use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\PenjualanController;
-use App\Http\Controllers\RekapStokController;
-use App\Http\Controllers\StokTrackingController;
-use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\Pph21Controller;
 use App\Http\Controllers\Publik\BarangController as PublikBarangController;
+use App\Http\Controllers\Publik\BebanHutangController as PublikBebanHutangController;
 use App\Http\Controllers\Publik\DashboardController as PublikDashboardController;
 use App\Http\Controllers\Publik\LandingController as PublikLandingController;
 use App\Http\Controllers\Publik\PembelianController as PublikPembelianController;
 use App\Http\Controllers\Publik\PenjualanController as PublikPenjualanController;
 use App\Http\Controllers\Publik\PinController as PublikPinController;
-use App\Http\Controllers\Publik\BebanHutangController as PublikBebanHutangController;
 use App\Http\Controllers\Publik\RekapStokController as PublikRekapStokController;
 use App\Http\Controllers\Publik\StokTrackingController as PublikStokTrackingController;
+use App\Http\Controllers\RekapStokController;
+use App\Http\Controllers\StokTrackingController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Middleware\PublikPinMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -144,6 +146,27 @@ Route::middleware('auth')->group(function () {
     Route::delete('/export/{exportBatch}', [ExportController::class, 'destroy'])->name('export.destroy');
     Route::get('/export/{exportBatch}/unduh/{index}', [ExportController::class, 'unduh'])->name('export.unduh');
 
+    // ---- Data Karyawan (master PPh 21) ----
+    Route::get('/karyawan', [KaryawanController::class, 'index'])->name('karyawan.index');
+    Route::get('/karyawan/tambah', [KaryawanController::class, 'create'])->name('karyawan.create');
+    Route::get('/karyawan/template/download', [KaryawanController::class, 'downloadTemplate'])->name('karyawan.template.download');
+    Route::post('/karyawan/template/import', [KaryawanController::class, 'importTemplate'])->name('karyawan.template.import');
+    Route::post('/karyawan', [KaryawanController::class, 'store'])->name('karyawan.store');
+    Route::get('/karyawan/{karyawan}/edit', [KaryawanController::class, 'edit'])->name('karyawan.edit');
+    Route::put('/karyawan/{karyawan}', [KaryawanController::class, 'update'])->name('karyawan.update');
+    Route::delete('/karyawan/{karyawan}', [KaryawanController::class, 'destroy'])->name('karyawan.destroy');
+
+    // ---- PPh 21 Bulanan (BPMP Coretax) ----
+    Route::get('/pph21', [Pph21Controller::class, 'index'])->name('pph21.index');
+    Route::post('/pph21/periode', [Pph21Controller::class, 'storePeriode'])->name('pph21.periode.store');
+    Route::get('/pph21/{periode}', [Pph21Controller::class, 'show'])->name('pph21.show');
+    Route::delete('/pph21/{periode}', [Pph21Controller::class, 'destroyPeriode'])->name('pph21.periode.destroy');
+    Route::get('/pph21/{periode}/template-gaji/download', [Pph21Controller::class, 'downloadTemplateGaji'])->name('pph21.gaji.download');
+    Route::post('/pph21/{periode}/template-gaji/import', [Pph21Controller::class, 'importGaji'])->name('pph21.gaji.import');
+    Route::post('/pph21/{periode}/export', [Pph21Controller::class, 'export'])->name('pph21.export');
+    Route::patch('/pph21/item/{item}', [Pph21Controller::class, 'updateItem'])->name('pph21.item.update');
+    Route::delete('/pph21/item/{item}', [Pph21Controller::class, 'destroyItem'])->name('pph21.item.destroy');
+
     // ---- Backup & Restore (database) ----
     Route::get('/backup', [BackupController::class, 'index'])->name('backup.index');
     Route::post('/backup/buat', [BackupController::class, 'store'])->name('backup.store');
@@ -182,21 +205,21 @@ Route::prefix('publik')->name('publik.')->group(function () {
         Route::get('/landing', [PublikLandingController::class, 'index'])->name('landing');
         Route::get('/', [PublikDashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/barang', [PublikBarangController::class, 'index'])->name('barang.index');
-    Route::get('/barang/{barang}', [PublikBarangController::class, 'show'])->name('barang.show');
-    Route::get('/barang/{barang}/kartu-stok', [PublikBarangController::class, 'kartuStok'])->name('barang.kartuStok');
-    Route::get('/barang/{barang}/barcode', [PublikBarangController::class, 'cetakBarcode'])->name('barang.barcode');
+        Route::get('/barang', [PublikBarangController::class, 'index'])->name('barang.index');
+        Route::get('/barang/{barang}', [PublikBarangController::class, 'show'])->name('barang.show');
+        Route::get('/barang/{barang}/kartu-stok', [PublikBarangController::class, 'kartuStok'])->name('barang.kartuStok');
+        Route::get('/barang/{barang}/barcode', [PublikBarangController::class, 'cetakBarcode'])->name('barang.barcode');
 
-    Route::get('/stok-tracking', [PublikStokTrackingController::class, 'index'])->name('stok-tracking.index');
+        Route::get('/stok-tracking', [PublikStokTrackingController::class, 'index'])->name('stok-tracking.index');
 
-    Route::get('/rekap-stok', [PublikRekapStokController::class, 'index'])->name('rekap-stok.index');
+        Route::get('/rekap-stok', [PublikRekapStokController::class, 'index'])->name('rekap-stok.index');
 
-    Route::get('/beban-hutang', [PublikBebanHutangController::class, 'index'])->name('beban-hutang.index');
+        Route::get('/beban-hutang', [PublikBebanHutangController::class, 'index'])->name('beban-hutang.index');
 
-    Route::get('/pembelian/hutang', [PublikPembelianController::class, 'hutang'])->name('pembelian.invoice-hutang');
-    Route::get('/pembelian/lunas', [PublikPembelianController::class, 'lunas'])->name('pembelian.invoice-lunas');
-    Route::get('/pembelian/{invoice}', [PublikPembelianController::class, 'show'])->name('pembelian.show');
-    Route::get('/pembelian/{invoice}/print', [PublikPembelianController::class, 'print'])->name('pembelian.print');
+        Route::get('/pembelian/hutang', [PublikPembelianController::class, 'hutang'])->name('pembelian.invoice-hutang');
+        Route::get('/pembelian/lunas', [PublikPembelianController::class, 'lunas'])->name('pembelian.invoice-lunas');
+        Route::get('/pembelian/{invoice}', [PublikPembelianController::class, 'show'])->name('pembelian.show');
+        Route::get('/pembelian/{invoice}/print', [PublikPembelianController::class, 'print'])->name('pembelian.print');
 
         Route::get('/penjualan', [PublikPenjualanController::class, 'index'])->name('penjualan.index');
         Route::get('/penjualan/{transaksiPenjualan}/print', [PublikPenjualanController::class, 'print'])->name('penjualan.print');

@@ -114,6 +114,22 @@
             @endif
             @if (! $publik)
             <li>
+                <a class="nav-link {{ request()->routeIs('karyawan.*') ? 'nav-link-active' : '' }}" href="{{ route('karyawan.index') }}" title="Data Karyawan" @if (request()->routeIs('karyawan.*')) aria-current="page" @endif>
+                    <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+                    <span class="nav-label">Data Karyawan</span>
+                </a>
+            </li>
+            @endif
+            @if (! $publik)
+            <li>
+                <a class="nav-link {{ request()->routeIs('pph21.*') ? 'nav-link-active' : '' }}" href="{{ route('pph21.index') }}" title="PPh 21 Bulanan" @if (request()->routeIs('pph21.*')) aria-current="page" @endif>
+                    <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+                    <span class="nav-label">PPh 21</span>
+                </a>
+            </li>
+            @endif
+            @if (! $publik)
+            <li>
                 <a class="nav-link {{ request()->routeIs('pengaturan.*') ? 'nav-link-active' : '' }}" href="{{ route('pengaturan.index') }}" title="Pengaturan" @if (request()->routeIs('pengaturan.*')) aria-current="page" @endif>
                     <span class="material-symbols-outlined" aria-hidden="true">settings</span>
                     <span class="nav-label">Pengaturan</span>
