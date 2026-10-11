@@ -208,6 +208,82 @@ class BackupTest extends TestCase
         $this->assertSame(1, InvoicePembelian::count()); // utuh
     }
 
+    private function seedPph21(): \App\Models\Pph21Periode
+    {
+        $k = \App\Models\Karyawan::create([
+            'nama' => 'Budi', 'nik' => '3275010905770021', 'status_pegawai' => 'Resident',
+            'ptkp' => 'TK/0', 'posisi' => 'Sifu', 'sertifikat' => 'N/A',
+            'kode_objek' => '21-100-01', 'id_tku' => '0029482015507000000000',
+            'cabang' => 'TERMINAL BAN 1', 'is_aktif' => true,
+        ]);
+        $p = \App\Models\Pph21Periode::create([
+            'masa' => 10, 'tahun' => 2024, 'tgl_pemotongan' => '2024-10-31',
+            'npwp_pemotong' => '0029482015507000',
+        ]);
+        \App\Models\Pph21Item::create([
+            'periode_id' => $p->id, 'karyawan_id' => $k->id, 'status_pegawai' => 'Resident',
+            'nik' => $k->nik, 'ptkp' => 'TK/0', 'posisi' => 'Sifu', 'sertifikat' => 'N/A',
+            'kode_objek' => '21-100-01', 'id_tku' => $k->id_tku,
+            'gross' => 40000000, 'rate' => 16, 'is_rate_manual' => true,
+        ]);
+
+        return $p;
+    }
+
+    public function test_backup_memuat_tabel_pph21(): void
+    {
+        $this->authUser();
+        $this->seedPph21();
+
+        $hasil = app(BackupService::class)->buat();
+
+        $this->assertSame(1, $hasil['tabel']['karyawans']);
+        $this->assertSame(1, $hasil['tabel']['pph21_periodes']);
+        $this->assertSame(1, $hasil['tabel']['pph21_items']);
+    }
+
+    public function test_round_trip_restore_pph21(): void
+    {
+        $this->authUser();
+        $this->seedPph21();
+        $hasil = app(BackupService::class)->buat();
+        $path = BackupService::direktori() . '/' . $hasil['nama'];
+
+        \App\Models\Pph21Item::query()->delete();
+        \App\Models\Pph21Periode::query()->delete();
+        \App\Models\Karyawan::query()->delete();
+        $this->assertSame(0, \App\Models\Karyawan::count());
+
+        app(BackupService::class)->restore($path);
+
+        $this->assertSame(1, \App\Models\Karyawan::count());
+        $this->assertSame('TERMINAL BAN 1', \App\Models\Karyawan::first()->cabang);
+        $this->assertSame(1, \App\Models\Pph21Periode::count());
+        $this->assertSame(1, \App\Models\Pph21Item::count());
+        $this->assertSame(40000000, (int) \App\Models\Pph21Item::first()->gross);
+    }
+
+    public function test_restore_file_lama_tanpa_pph21_ditolak(): void
+    {
+        $this->authUser();
+        $this->seedPph21();
+        $hasil = app(BackupService::class)->buat();
+        $path = BackupService::direktori() . '/' . $hasil['nama'];
+
+        // Simulasi file backup sebelum fix: tanpa 3 tabel PPh 21
+        $data = json_decode(gzdecode(file_get_contents($path)), true);
+        unset($data['tables']['karyawans'], $data['tables']['pph21_periodes'], $data['tables']['pph21_items']);
+        file_put_contents($path, gzencode(json_encode($data)));
+
+        try {
+            app(BackupService::class)->restore($path);
+            $this->fail('File lama tanpa tabel PPh 21 harus ditolak.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('karyawans', $e->getMessage());
+        }
+        $this->assertSame(1, \App\Models\Karyawan::count()); // utuh
+    }
+
     public function test_restore_gagal_di_tengah_rollback_total(): void
     {
         $this->authUser();

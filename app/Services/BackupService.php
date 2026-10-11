@@ -42,6 +42,9 @@ class BackupService
         'transaksi_penjualan',
         'transaksi_penjualan_item',
         'export_batch',
+        'karyawans',
+        'pph21_periodes',
+        'pph21_items',
     ];
 
     /** Tabel transient yang dibersihkan pasca-restore (bukan bagian backup). */
