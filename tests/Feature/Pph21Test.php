@@ -365,4 +365,22 @@ class Pph21Test extends TestCase
         $this->assertFileExists(storage_path('app/private/export/pph21-2024-10.xlsx'));
         $this->assertFileExists(storage_path('app/private/export/pph21-2024-10.xml'));
     }
+
+    public function test_hapus_riwayat_export_coratx(): void
+    {
+        $this->authUser();
+        $periode = $this->siapkanPeriodeDenganGaji();
+        $hasil = app(Pph21ExportService::class)->export($periode);
+        $this->assertTrue($hasil['ok']);
+        $batch = $hasil['export_batch'];
+
+        $this->get(route('pph21.index'))->assertOk()->assertSee('pph21-2024-10.xml');
+
+        $this->delete(route('export.destroy', $batch))->assertRedirect();
+        $this->assertDatabaseMissing('export_batch', ['id' => $batch->id]);
+        $this->assertFileDoesNotExist(storage_path('app/private/export/pph21-2024-10.xlsx'));
+        $this->assertFileDoesNotExist(storage_path('app/private/export/pph21-2024-10.xml'));
+        // Data gaji periode tetap utuh — bisa tarik ulang.
+        $this->assertSame(2, $periode->items()->count());
+    }
 }

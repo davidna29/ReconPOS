@@ -23,7 +23,7 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
   php artisan serve               # http://127.0.0.1:8000 (+ vite HMR :5173)
   ```
 - Akun admin demo: `admin@reconpos.local` / `reconpos2026` (1 akun, tanpa registrasi publik).
-- Test: `php artisan test` (**327 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian (+ export xlsx/pdf Hutang/Lunas), Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking** (cap 2 bulan + pagination + export + popup guard), **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok** (kartu kompak + export xlsx/pdf/docx cantik + pagination + preflight), **BebanHutang** (default bulan berjalan + rinci cap 100 + kartu kompak + export cantik + preflight), **Pph21** (TER 6/6 cocok Excel + rumus byte-identik + XML identik contoh + CRUD/import/export HTTP).
+- Test: `php artisan test` (**328 test**, SQLite :memory:) — file di tests/Feature/: Auth, Dashboard, Barang, Supplier, Pembelian (+ export xlsx/pdf Hutang/Lunas), Penjualan, Generate, Export, Harga, Pengaturan, ExcelTemplate, **StokTracking** (cap 2 bulan + pagination + export + popup guard), **Publik**, **Backup**, **BayarBulk**, **KartuPembelian**, **RekapStok** (kartu kompak + export xlsx/pdf/docx cantik + pagination + preflight), **BebanHutang** (default bulan berjalan + rinci cap 100 + kartu kompak + export cantik + preflight), **Pph21** (TER 6/6 cocok Excel + rumus byte-identik + XML identik contoh + CRUD/import/export HTTP + filter/steril cabang + hapus riwayat).
 - **Edit invoice boleh koreksi `no_invoice` (2026-10-02):** `PembelianService::edit()` dulu mengabaikannya diam-diam ("tanpa mengubah no_invoice") — kini divalidasi (isi, ≤40 char, unik kecuali diri sendiri) lalu disimpan; relasi aman karena semua memakai `invoice_id`. Guard lain (histori bayar, qty terjual) tetap berlaku.
 - Produksi: MySQL via `.env` (lihat README untuk langkah Hostinger).
 - Repo GitHub: `davidna29/ReconPOS` (dulu `Aplikasi-GenTOt`); rilis terakhir **v2.0.0**.
@@ -144,7 +144,8 @@ Webapp **Laravel (PHP + MySQL-ready)** untuk toko/bengkel: mencatat pembelian (s
 ## 7. Checklist Menambah Fitur
 
 1. Ikuti pola: Services (logika + transaksi) → Controller (validasi + flash) → route bernama → Blade (komponen/partial) → test `tests/Feature`.
-2. Jaga aturan "all-or-nothing" & status filter; uji alur ganda (Cash/Hutang, draft/tersimpan/batal).
+2. **Aturan tetap (2026-10-11, atas permintaan pemilik): setiap perubahan besar ATAU kecil WAJIB commit → push `origin main` → catat dokumen ini** (test count, file kunci, aturan baru). Deploy hosting tetap konfirmasi dulu tiap kali (produksi).
+3. Jaga aturan "all-or-nothing" & status filter; uji alur ganda (Cash/Hutang, draft/tersimpan/batal).
 3. `php artisan test` hijau; smoke via curl/browser; update README & dokumen ini bila aturan bisnis berubah.
 
 ## 8. Status Fitur (per Agustus–Sept 2026)
@@ -207,6 +208,7 @@ Sumber token tunggal: `docs/desain/DESIGN.md` (v3) — diimplementasikan di `res
 - **Alur:** Data Karyawan (CRUD/manual atau template `template-karyawan.xlsx` upsert by NIK) → PPh 21 → Buat Periode (tgl potong default akhir bulan) → Template Gaji → isi GROSS → Upload → Tarik Excel + XML (pre-validasi gagal = file tidak dibuat) → unduh ulang via Riwayat (`ExportBatch` format `PPh21`).
 - **Aturan keras:** file export **byte-identik contoh Coretax** (Excel DATA/BPMP/REF + XML `MmPayrollBulk` CRLF; bukti: `diff` kosong, test `Pph21Test`). Kolom tambahan aplikasi (`nama`, 5 link URL, `is_aktif`) & **`cabang`** TIDAK BOLEH bocor ke export — `Pph21ExportService` menulis field eksplisit + ada test steril.
 - **`cabang` (kategori internal):** teks bebas max 50 nullable (saran TERMINAL BAN 1/2/3, `Karyawan::CABANG_SARAN`), filter di index, kolom info di template gaji (diabaikan saat import), tampil di halaman gaji. Migration `2026_10_14_000001`.
+- **Hapus riwayat Coretax:** tombol delete per baris riwayat (`export.destroy` reuse — hapus record + 2 file, data gaji tetap, bisa tarik ulang).
 - **Tarif:** auto TER dari PTKP+gross (tabel disalin dari template BPMP user, tervalidasi 6/6 vs cache Excel); override manual per baris utk fasilitas (DTP/ETC) via kolom RATE_MANUAL / form inline (badge TER/Manual).
 - **File kunci:** migration `2026_10_13_000001..000003` + `2026_10_14_000001`; `app/{Models/Karyawan,Pph21Periode,Pph21Item}.php`; `app/Services/{Pph21TerService,Pph21ImportService,Pph21ExportService}.php`; `app/Http/Controllers/{KaryawanController,Pph21Controller}.php`; `resources/views/{karyawan,pph21}/`; `tests/Feature/Pph21Test.php`; menu sidebar Admin (badge/receipt_long, non-publik).
 

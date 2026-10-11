@@ -62,6 +62,14 @@
                             <span class="material-symbols-outlined text-[16px]" aria-hidden="true">download</span> {{ $f }}
                         </a>
                     @endforeach
+                    <form method="POST" action="{{ route('export.destroy', $b) }}" class="ml-auto"
+                        data-confirm="Hapus riwayat export {{ $b->filter_bulan }}? Kedua file dihapus permanen (data gaji tetap, bisa tarik ulang).">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn-icon text-danger-red hover:bg-red-50" title="Hapus riwayat">
+                            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+                        </button>
+                    </form>
                 </div>
             @empty
                 <p class="text-body-sm text-secondary">Belum ada file Coretax yang dihasilkan.</p>
