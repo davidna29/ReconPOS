@@ -4,6 +4,7 @@ Dokumen konteks untuk AI / kontributor di sesi lain. Baca ini dulu, lalu gunakan
 - PRD fitur: `docs/PRD-Generate-Transaksi-Otomatis.md`
 - Desain visual: `docs/desain/DESIGN.md` + `docs/desain/code.html`
 - Setup & deploy: `README.md`
+- **Kesiapan pajak/akuntansi (audit + MVP): `docs/TEMUAN-MINIMAL-APP-PAJAK.md`**
 
 ## 1. Ringkasan Proyek
 
@@ -213,4 +214,14 @@ Sumber token tunggal: `docs/desain/DESIGN.md` (v3) — diimplementasikan di `res
 - **Backup mencakup PPh 21:** `BackupService::TABEL` hardcode → `karyawans`/`pph21_periodes`/`pph21_items` TADINYA HILANG (ketahuan saat restore lokal→hosting). Aturan: tiap migration create-table WAJIB daftarkan di `TABEL` (induk-dulu). File backup lama tanpa 3 tabel ditolak restore dgn pesan jelas → wajib backup baru pasca-update. File export fisik & `.env` memang tidak ikut backup (by design).
 - **Tarif:** auto TER dari PTKP+gross (tabel disalin dari template BPMP user, tervalidasi 6/6 vs cache Excel); override manual per baris utk fasilitas (DTP/ETC) via kolom RATE_MANUAL / form inline (badge TER/Manual).
 - **File kunci:** migration `2026_10_13_000001..000003` + `2026_10_14_000001`; `app/{Models/Karyawan,Pph21Periode,Pph21Item}.php`; `app/Services/{Pph21TerService,Pph21ImportService,Pph21ExportService}.php`; `app/Http/Controllers/{KaryawanController,Pph21Controller}.php`; `resources/views/{karyawan,pph21}/`; `tests/Feature/Pph21Test.php`; menu sidebar Admin (badge/receipt_long, non-publik).
+
+## 12. Kesiapan Pajak & Akuntansi (audit 2026-10-11)
+
+Ringkas: **ReconPOS bukan aplikasi akuntansi** — POS/stok + helper PPh 21. Fondasi
+(COA/jurnal/ledger/laba-rugi/neraca) belum ada (grep `jurnal|neraca|coa|faktur_pajak|bukti_potong|spt_` = 0 hasil).
+Celah utama: PPN keluaran & e-Faktur, PPh 23/4(2), PPh Badan/PPh 25, aset tetap, kas/bank,
+piutang, beban operasional, HPP akurat (kartu_stok tanpa biaya), kalender/arsip lapor, audit trail.
+Temuan teknis: `ExportPosService:343` akses `$trx->jatuh_tempo` yang tidak ada kolomnya (dead code);
+`ppn_persen` tidak dipakai jalur penjualan; activitylog terpasang tapi tak aktif.
+Detail lengkap + Tier 1/2/3 MVP + acceptance criteria: **`docs/TEMUAN-MINIMAL-APP-PAJAK.md`**.
 
